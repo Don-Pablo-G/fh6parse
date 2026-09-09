@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fh6parse"
+version = "1.1.0"
+description = "CNC tool list and lowest work-Z report parser, split by header operations"
+requires-python = ">=3.10"
+
+[project.scripts]
+fh6parse = "fh6parse.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["fh6parse*"]

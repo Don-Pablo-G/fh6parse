@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+# Native Linux one-file binary. PyInstaller cannot cross-compile from Windows.
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_BREAK_SYSTEM_PACKAGES=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-tk \
+        python3-dev \
+        binutils \
+        && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m pip install --no-cache-dir pyinstaller
+
+WORKDIR /src
+COPY pyproject.toml /src/pyproject.toml
+COPY fh6parse /src/fh6parse
+COPY packaging /src/packaging
+
+RUN python3 -m PyInstaller --noconfirm --clean \
+        --distpath /out \
+        --workpath /tmp/pyi-work \
+        /src/packaging/fh6parse.spec \
+        && chmod +x /out/fh6parse
+
+CMD ["cp", "-a", "/out/fh6parse", "/dist/fh6parse"]

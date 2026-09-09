@@ -1,0 +1,22 @@
+fh6parse — CNC tool list / min-Z report
+
+Windows:  double-click fh6parse.exe  (or run from Command Prompt)
+Linux:    ./fh6parse                 (or fh6parse --gui)
+
+GUI
+  fh6parse.exe
+  fh6parse.exe --gui
+
+Reports next to the NC file (A4 + 80 mm text and HTML)
+  fh6parse.exe C:\path\program.nc
+  ./fh6parse /path/program.nc
+
+Output folder
+  fh6parse.exe program.nc -o D:\reports
+
+Header comments like (N10 - OP1) / (N20 - OP2) get a separate tool list each,
+as if you changed M97 P# in main. Each list follows M97/M99 until M30.
+
+Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
+  A4:     A4 paper, 100%, headers/footers off
+  80 mm:  thermal printer, 80 mm paper, 100%, do not fit to A4
