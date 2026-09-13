@@ -1,0 +1,23 @@
+# Raspberry Pi 3 kiosk — copy to /etc/fh6parse-kiosk.ini or next to the app.
+# GPIO numbers are BCM. Buttons: momentary to GND (internal pull-up).
+# KY-040 encoder: CLK / DT; shaft switch unused.
+
+[kiosk]
+width = 600
+height = 800
+fullscreen = true
+idle_seconds = 60
+
+encoder_clk = 17
+encoder_dt = 27
+encoder_swap = false
+button_full = 22
+button_min = 23
+
+printer_queue = munbyn
+printer_device = /dev/usb/lp0
+
+usb_poll_ms = 500
+scan_depth = 4
+extensions = .nc,.tap
+# extra_roots = /home/pi/nc-samples

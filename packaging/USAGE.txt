@@ -20,3 +20,16 @@ as if you changed M97 P# in main. Each list follows M97/M99 until M30.
 Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   A4:     A4 paper, 100%, headers/footers off
   80 mm:  thermal printer, 80 mm paper, 100%, do not fit to A4
+
+Raspberry Pi kiosk (portrait 600x800)
+  sudo apt install python3-gpiozero python3-tk
+  python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
+  Copy packaging/fh6parse-kiosk.ini.example to /etc/fh6parse-kiosk.ini
+  Optional autostart: packaging/fh6parse-kiosk.service
+
+  Encoder highlights a file. FULL prints the current 80 mm ticket; MIN prints
+  the short ticket (T, description, min Z, warnings per operation).
+  After 60 seconds idle the screen goes black. Rotary encoder or inserting a
+  USB stick wakes it. Print buttons while asleep are ignored.
+
+  PC check without GPIO: Up/Down move the highlight, F = full, M = min.

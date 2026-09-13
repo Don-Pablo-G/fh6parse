@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ._version import __version__
 from .parser import parse_nc_file
-from .report import PAPER_80MM, PAPER_A4, format_report, write_report
+from .report import PAPER_80MM, PAPER_80MM_MIN, PAPER_A4, format_report, write_report
 
 
 def _frozen() -> bool:
@@ -48,16 +48,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Open the graphical operator tool",
     )
     p.add_argument(
+        "--kiosk",
+        action="store_true",
+        help="Raspberry Pi kiosk: USB list, encoder, auto-print, screensaver",
+    )
+    p.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="Kiosk ini file (default: fh6parse-kiosk.ini or /etc/fh6parse-kiosk.ini)",
+    )
+    p.add_argument(
         "--stdout",
         action="store_true",
         help="Print a text report to stdout instead of writing files",
     )
     p.add_argument(
         "--format",
-        choices=(PAPER_A4, PAPER_80MM, "both"),
+        choices=(PAPER_A4, PAPER_80MM, PAPER_80MM_MIN, "both"),
         default="both",
         dest="paper_format",
-        help="A4, 80mm thermal, or both (default both when writing files)",
+        help="A4, 80mm thermal, 80mm-min, or both (default both when writing files)",
     )
     p.add_argument(
         "--version",
@@ -77,6 +88,11 @@ def run_cli(argv: list[str] | None = None) -> int:
         return 0
 
     args = build_parser().parse_args(argv)
+    if args.kiosk:
+        from .kiosk import run_kiosk
+
+        run_kiosk(args.config)
+        return 0
     if args.gui:
         from .gui import run_gui
 

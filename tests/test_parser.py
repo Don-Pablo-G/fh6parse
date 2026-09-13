@@ -6,7 +6,14 @@ import unittest
 from pathlib import Path
 
 from fh6parse.parser import parse_nc_file, parse_nc_text
-from fh6parse.report import PAPER_80MM, PAPER_A4, THERMAL_WIDTH, format_print_html, format_report
+from fh6parse.report import (
+    PAPER_80MM,
+    PAPER_80MM_MIN,
+    PAPER_A4,
+    THERMAL_WIDTH,
+    format_print_html,
+    format_report,
+)
 
 
 SAMPLES = Path(__file__).resolve().parent / "samples"
@@ -299,6 +306,23 @@ class TestReport(unittest.TestCase):
         self.assertIn("T26", mm)
         self.assertIn("ZDERZAK FI10", a4)
         self.assertIn("window.print", a4 + mm)
+
+    def test_80mm_min_is_short_and_fits_width(self) -> None:
+        r = parse_nc_file(SAMPLES / "000814086.nc")
+        text = format_report(r, paper=PAPER_80MM_MIN)
+        self.assertIn("CNC TOOLS MIN", text)
+        self.assertIn("OP1  (N10)", text)
+        self.assertIn("OP2  (N20)", text)
+        self.assertIn("MinZ", text)
+        self.assertIn("T10", text)
+        self.assertNotIn("EACH CHANGE", text)
+        self.assertNotIn("EACH TOOL CHANGE", text)
+        for line in text.splitlines():
+            self.assertLessEqual(
+                len(line),
+                THERMAL_WIDTH,
+                msg=f"line too wide for 80mm-min ({len(line)}): {line!r}",
+            )
 
 
 if __name__ == "__main__":

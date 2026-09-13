@@ -17,6 +17,7 @@ THERMAL_WIDTH = 48
 
 PAPER_A4 = "a4"
 PAPER_80MM = "80mm"
+PAPER_80MM_MIN = "80mm-min"
 
 
 def _fmt_z(z: float | None) -> str:
@@ -107,6 +108,8 @@ def format_report(
     generated: datetime | None = None,
 ) -> str:
     paper = paper.lower()
+    if paper == PAPER_80MM_MIN:
+        return _format_text_80mm_min(result, generated=generated)
     if paper == PAPER_80MM:
         return _format_text_80mm(result, generated=generated)
     return _format_text_a4(result, generated=generated)
@@ -241,6 +244,53 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
             w(f"MinZ {_fmt_z(u.min_z)}" + (f" L{u.min_z_line}" if u.min_z_line else ""))
             for warn in u.warnings:
                 block(f"! {warn}")
+            w(dash)
+
+    w("Op: ________")
+    w("Date: ______")
+    w("Loaded: [ ]")
+    w(bar)
+    w("")
+    return "\n".join(lines)
+
+
+def _format_text_80mm_min(result: ParseResult, *, generated: datetime | None) -> str:
+    """48-column ticket: per operation T, description, min Z, warnings."""
+    now = generated or datetime.now()
+    n = THERMAL_WIDTH
+    bar = "=" * n
+    dash = "-" * n
+    lines: list[str] = []
+    w = lines.append
+
+    def block(text: str, width: int = n) -> None:
+        for part in _wrap(text, width):
+            w(part)
+
+    w(bar)
+    w("CNC TOOLS MIN")
+    w("80 mm")
+    w(bar)
+    block(result.filename or Path(result.path).name or "file")
+    block(_program_line(result))
+    w(_units_label(result.units))
+    w(now.strftime("%Y-%m-%d %H:%M"))
+    w(dash)
+    for op in result.operations or []:
+        w(dash)
+        block(_op_heading(op))
+        w(dash)
+        if not op.summaries:
+            w("(no tools)")
+            continue
+        for s in op.summaries:
+            desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
+            w(f"T{s.tool}")
+            block(desc)
+            w(f"MinZ {_fmt_z(s.min_z)}")
+            for u in s.usages:
+                for warn in u.warnings:
+                    block(f"! {warn}")
             w(dash)
 
     w("Op: ________")
@@ -532,6 +582,8 @@ def report_path_for(
     if kind == "html":
         suffix = "A4.html" if paper == PAPER_A4 else "80mm.html"
         return directory / f"{src.stem}_tool_report_{suffix}"
+    if paper == PAPER_80MM_MIN:
+        return directory / f"{src.stem}_tool_report_80mm_min.txt"
     if paper == PAPER_80MM:
         return directory / f"{src.stem}_tool_report_80mm.txt"
     return directory / f"{src.stem}_tool_report.txt"
@@ -548,7 +600,11 @@ def write_report(
     if dest:
         base = Path(dest)
         directory = base.parent
-        stem = base.stem.replace("_tool_report_80mm", "").replace("_tool_report", "")
+        stem = (
+            base.stem.replace("_tool_report_80mm_min", "")
+            .replace("_tool_report_80mm", "")
+            .replace("_tool_report", "")
+        )
     else:
         directory = Path(out_dir) if out_dir else Path(result.path).parent
         stem = Path(result.path).stem
@@ -568,6 +624,10 @@ def write_report(
         mm_html = directory / f"{stem}_tool_report_80mm.html"
         mm_html.write_text(format_print_html(result, paper=PAPER_80MM), encoding="utf-8")
         written.extend([mm_txt, mm_html])
+    if PAPER_80MM_MIN in want:
+        min_txt = directory / f"{stem}_tool_report_80mm_min.txt"
+        min_txt.write_text(format_report(result, paper=PAPER_80MM_MIN), encoding="utf-8")
+        written.append(min_txt)
     return written
 
 
