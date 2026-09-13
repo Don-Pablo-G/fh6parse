@@ -14,7 +14,7 @@ Python **3.10+** is required. Use **Raspberry Pi OS Bookworm** (32-bit Desktop i
 | 800×600 LCD, mounted vertically | After rotation the framebuffer is **600×800**. That is what the app uses. |
 | KY-040 rotary encoder | CLK and DT only. The shaft push-switch is unused. |
 | Two momentary buttons | Normally-open, wired to GPIO and GND. |
-| USB stick | FAT/exFAT/NTFS. Programs as `.nc` / `.NC` / `.tap`, up to 4 folders deep. |
+| USB stick | FAT/exFAT/NTFS. Programs as `.nc` / `.NC` / `.tap` in the **stick root** only (not subfolders). |
 | MUNBYN P047 (ITPP047) | USB, 80 mm ESC/POS, auto-cutter. Own mains PSU. |
 | Keyboard | Only for first-time setup. Not needed on the shop floor. |
 
@@ -156,6 +156,28 @@ python3 --version
 
 ### 3.2 Install fh6parse
 
+**Option A — prebuilt one-file (this repo’s `dist/packages`)**
+
+On a **32-bit** Raspberry Pi OS image use the `armv7` tarball. On **64-bit** Bookworm use `aarch64`.
+
+```
+cd /home/pi
+tar -xzf fh6parse-*-raspberrypi-armv7.tar.gz
+# or: tar -xzf fh6parse-*-raspberrypi-aarch64.tar.gz
+chmod +x fh6parse
+sudo cp fh6parse-kiosk.ini.example /etc/fh6parse-kiosk.ini
+```
+
+Run:
+
+```
+./fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
+```
+
+For systemd, set `ExecStart=/home/pi/fh6parse --kiosk --config /etc/fh6parse-kiosk.ini` (path to the unpacked binary).
+
+**Option B — from source**
+
 ```
 cd /home/pi
 git clone https://github.com/Don-Pablo-G/fh6parse.git
@@ -190,7 +212,7 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | `encoder_swap` | false | Reverse knob direction |
 | `printer_queue` | munbyn | CUPS queue name |
 | `printer_device` | /dev/usb/lp0 | Fallback character device |
-| `scan_depth` | 4 | USB subfolders |
+| `scan_depth` | 1 | USB root only. Raise to search subfolders. |
 | `extensions` | `.nc,.tap` | File types (case-insensitive) |
 | `extra_roots` | (empty) | Extra folders to list, comma-separated (for testing) |
 | `fullscreen` | true | Shop display. Escape once exits fullscreen. |
@@ -287,7 +309,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 ## 5. Daily use
 
 1. Power on. Screen shows **Insert USB** (or the last stick if it was already plugged in).
-2. Insert the USB stick. `.nc` / `.tap` files appear. Duplicate names show as `folder/file.nc`.
+2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear.
 3. Turn the encoder to highlight a file.
 4. **FULL** — 80 mm ticket: operations, tool list, each tool change, warnings, min Z.
 5. **MIN** — short ticket: per operation, only T, description, min Z, warnings.

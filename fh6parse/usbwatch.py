@@ -130,10 +130,10 @@ def removable_mounts() -> list[Path]:
 def list_nc_files(
     roots: list[Path],
     *,
-    max_depth: int = 4,
+    max_depth: int = 1,
     extensions: tuple[str, ...] = DEFAULT_EXTENSIONS,
 ) -> list[Path]:
-    """NC files under each root, shallow recursive. Sorted by name then path."""
+    """NC files in each root. max_depth=1 is the folder itself (no subfolders)."""
     exts = {e.lower() if e.startswith(".") else f".{e.lower()}" for e in extensions}
     found: list[Path] = []
     seen: set[Path] = set()

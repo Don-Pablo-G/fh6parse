@@ -2,28 +2,52 @@
 """One-file PyInstaller spec. Build natively on Windows and on Linux (Docker)."""
 
 from pathlib import Path
+import importlib.util
+
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 ROOT = Path(SPECPATH).resolve().parent
 LAUNCHER = str(ROOT / "packaging" / "launcher.py")
 
+hiddenimports = [
+    "tkinter",
+    "tkinter.ttk",
+    "tkinter.filedialog",
+    "tkinter.messagebox",
+    "tkinter.font",
+    "tkinter.constants",
+    "webbrowser",
+    "fh6parse.kiosk",
+    "fh6parse.printer",
+    "fh6parse.usbwatch",
+    "fh6parse.idle",
+]
+extra_datas = []
+extra_binaries = []
+
+# gpiozero / RPi.GPIO / lgpio exist on the Raspberry image; skip on Windows.
+for pkg, spec_name in (
+    ("gpiozero", "gpiozero"),
+    ("RPi.GPIO", "RPi.GPIO"),
+    ("lgpio", "lgpio"),
+):
+    if importlib.util.find_spec(spec_name) is None:
+        continue
+    try:
+        ds, bins, hid = collect_all(pkg)
+        extra_datas += ds
+        extra_binaries += bins
+        hiddenimports += hid
+        hiddenimports += collect_submodules(pkg)
+    except Exception:
+        pass
+
 a = Analysis(
     [LAUNCHER],
     pathex=[str(ROOT)],
-    binaries=[],
-    datas=[],
-    hiddenimports=[
-        "tkinter",
-        "tkinter.ttk",
-        "tkinter.filedialog",
-        "tkinter.messagebox",
-        "tkinter.font",
-        "tkinter.constants",
-        "webbrowser",
-        "fh6parse.kiosk",
-        "fh6parse.printer",
-        "fh6parse.usbwatch",
-        "fh6parse.idle",
-    ],
+    binaries=extra_binaries,
+    datas=extra_datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

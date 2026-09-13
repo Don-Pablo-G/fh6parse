@@ -40,7 +40,7 @@ class KioskConfig:
     printer_queue: str = "munbyn"
     printer_device: str = "/dev/usb/lp0"
     usb_poll_ms: int = 500
-    scan_depth: int = 4
+    scan_depth: int = 1
     extensions: tuple[str, ...] = (".nc", ".tap")
     extra_roots: list[Path] = field(default_factory=list)
 

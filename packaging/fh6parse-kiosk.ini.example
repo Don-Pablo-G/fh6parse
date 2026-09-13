@@ -18,6 +18,6 @@ printer_queue = munbyn
 printer_device = /dev/usb/lp0
 
 usb_poll_ms = 500
-scan_depth = 4
+scan_depth = 1
 extensions = .nc,.tap
 # extra_roots = /home/pi/nc-samples

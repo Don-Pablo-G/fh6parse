@@ -42,7 +42,7 @@ class TestScreensaverGate(unittest.TestCase):
 
 
 class TestUsbWatch(unittest.TestCase):
-    def test_lists_nc_and_tap_skips_deep_and_hidden(self) -> None:
+    def test_lists_nc_in_root_only_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             (root / "a.nc").write_text("O1\nM30\n", encoding="utf-8")
@@ -53,16 +53,20 @@ class TestUsbWatch(unittest.TestCase):
             hidden = root / ".hidden"
             hidden.mkdir()
             (hidden / "secret.nc").write_text("O3\nM30\n", encoding="utf-8")
-            deep = root / "one" / "two" / "three" / "four"
-            deep.mkdir(parents=True)
-            (deep / "too_deep.nc").write_text("O4\nM30\n", encoding="utf-8")
-            files = list_nc_files([root], max_depth=4)
+            files = list_nc_files([root])
             names = {p.name.lower() for p in files}
-            self.assertIn("a.nc", names)
-            self.assertIn("b.tap", names)
-            self.assertNotIn("notes.txt", names)
-            self.assertNotIn("secret.nc", names)
-            self.assertNotIn("too_deep.nc", names)
+            self.assertEqual(names, {"a.nc"})
+
+    def test_scan_depth_can_include_subfolders(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / "a.nc").write_text("O1\nM30\n", encoding="utf-8")
+            sub = root / "op1"
+            sub.mkdir()
+            (sub / "b.TAP").write_text("O2\nM30\n", encoding="utf-8")
+            files = list_nc_files([root], max_depth=2)
+            names = {p.name.lower() for p in files}
+            self.assertEqual(names, {"a.nc", "b.tap"})
 
 
 class TestPrinter(unittest.TestCase):
