@@ -1,3 +1,6 @@
+# Shop update (git checkout): python3 -m fh6parse --update
+# then, if the unit did not restart: sudo systemctl restart fh6parse-kiosk
+
 [Unit]
 Description=fh6parse CNC USB kiosk
 After=graphical.target cups.service

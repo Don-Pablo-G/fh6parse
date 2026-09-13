@@ -21,6 +21,7 @@ hiddenimports = [
     "fh6parse.printer",
     "fh6parse.usbwatch",
     "fh6parse.idle",
+    "fh6parse.update",
 ]
 extra_datas = []
 extra_binaries = []

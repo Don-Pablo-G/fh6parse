@@ -22,11 +22,20 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   80 mm:  thermal printer, 80 mm paper, 100%, do not fit to A4
 
 Raspberry Pi kiosk (portrait 600x800)
-  Full wiring + OS + printer steps: packaging/LINUX-KIOSK.md
+  Full wiring + OS + printer + update: packaging/LINUX-KIOSK.md
   sudo apt install python3-gpiozero python3-tk
+  git clone, then:  sudo pip3 install -e . --break-system-packages
   python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
   Copy packaging/fh6parse-kiosk.ini.example to /etc/fh6parse-kiosk.ini
   Optional autostart: packaging/fh6parse-kiosk.service
+
+  Update (git checkout only; plug in a keyboard)
+    python3 -m fh6parse --version
+    python3 -m fh6parse --update
+    python3 -m fh6parse --version
+  Pulls with --ff-only, skips pip unless pyproject.toml changed, restarts
+  fh6parse-kiosk. Does not change /etc/fh6parse-kiosk.ini.
+  One-file ARM tarball cannot --update; copy a new tarball or use git.
 
   Encoder highlights a file. FULL prints the current 80 mm ticket; MIN prints
   the short ticket (T, description, min Z, warnings per operation).

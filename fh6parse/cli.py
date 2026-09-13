@@ -53,6 +53,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Raspberry Pi kiosk: USB list, encoder, auto-print, screensaver",
     )
     p.add_argument(
+        "--update",
+        action="store_true",
+        help="Git-pull this checkout, skip pip unless deps changed, restart kiosk",
+    )
+    p.add_argument(
         "--config",
         type=Path,
         default=None,
@@ -88,6 +93,10 @@ def run_cli(argv: list[str] | None = None) -> int:
         return 0
 
     args = build_parser().parse_args(argv)
+    if args.update:
+        from .update import perform_update
+
+        return perform_update()
     if args.kiosk:
         from .kiosk import run_kiosk
 

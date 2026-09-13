@@ -156,27 +156,7 @@ python3 --version
 
 ### 3.2 Install fh6parse
 
-**Option A — prebuilt one-file (this repo’s `dist/packages`)**
-
-On a **32-bit** Raspberry Pi OS image use the `armv7` tarball. On **64-bit** Bookworm use `aarch64`.
-
-```
-cd /home/pi
-tar -xzf fh6parse-*-raspberrypi-armv7.tar.gz
-# or: tar -xzf fh6parse-*-raspberrypi-aarch64.tar.gz
-chmod +x fh6parse
-sudo cp fh6parse-kiosk.ini.example /etc/fh6parse-kiosk.ini
-```
-
-Run:
-
-```
-./fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
-```
-
-For systemd, set `ExecStart=/home/pi/fh6parse --kiosk --config /etc/fh6parse-kiosk.ini` (path to the unpacked binary).
-
-**Option B — from source**
+**Recommended — from source (git).** This is the shop update path.
 
 ```
 cd /home/pi
@@ -194,6 +174,28 @@ python3 -m fh6parse --version
 ```
 
 Expect `fh6parse 1.2.0` or newer.
+
+Later upgrades: see **§8 Updating the kiosk**. Do not run `pip install` on every pull.
+
+**Air-gap first copy — prebuilt one-file** (this repo’s `dist/packages`). Not the upgrade path; use git for later updates.
+
+On a **32-bit** Raspberry Pi OS image use the `armv7` tarball. On **64-bit** Bookworm use `aarch64`.
+
+```
+cd /home/pi
+tar -xzf fh6parse-*-raspberrypi-armv7.tar.gz
+# or: tar -xzf fh6parse-*-raspberrypi-aarch64.tar.gz
+chmod +x fh6parse
+sudo cp fh6parse-kiosk.ini.example /etc/fh6parse-kiosk.ini
+```
+
+Run:
+
+```
+./fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
+```
+
+For systemd, set `ExecStart=/home/pi/fh6parse --kiosk --config /etc/fh6parse-kiosk.ini` (path to the unpacked binary). `python3 -m fh6parse --update` will refuse a one-file install.
 
 ### 3.3 Kiosk config
 
@@ -348,6 +350,9 @@ Parse happens at print time, not when the list is shown.
 | Wrong aspect / sideways UI | Rotate until `xdpyinfo` (or Screen Configuration) shows 600×800. App geometry is 600×800 fullscreen. |
 | Service dead, UI never starts | `echo $DISPLAY` in a desktop terminal should be `:0`. `raspi-config` → X11, desktop autologin. `journalctl -u fh6parse-kiosk`. |
 | Python 3.9 | Bullseye image. Install Bookworm, or build 3.10+. |
+| `--update` says one-file package | This Pi is running the ARM tarball. Copy a new tarball or reinstall from git (§3.2). |
+| `--update` / fast-forward failed | Uncommitted edits or a diverged branch. `cd /home/pi/fh6parse && git status`. Do not merge on the shop floor; reset to `origin/master` only if you mean to discard local changes. |
+| `--update` pulled but UI unchanged | `systemctl restart fh6parse-kiosk` (the command prints this if the unit is missing). Check `python3 -m fh6parse --version`. |
 
 CLI without the kiosk (reports next to the NC file):
 
@@ -368,11 +373,34 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 | `packaging/fh6parse-kiosk.ini.example` | Template |
 | `packaging/fh6parse-kiosk.service` | Template |
 
-Update:
+---
+
+## 8. Updating the kiosk
+
+Shop installs are a **git checkout**. Plug in a USB keyboard (hot-plug is fine). There is no update button on the kiosk and nothing runs on boot.
+
+1. Wake the screen if it is black (any key or click).
+2. **Esc** once to leave fullscreen, **Esc** again to close the kiosk if you need a desktop terminal. If the systemd unit owns the display, open a terminal on `:0` or SSH in as `pi`.
+3. Confirm the version, pull, restart, confirm again:
 
 ```
-cd /home/pi/fh6parse
-git pull
-sudo pip3 install -e . --break-system-packages
+python3 -m fh6parse --version
+python3 -m fh6parse --update
+python3 -m fh6parse --version
+```
+
+`--update` does this, in order:
+
+- `git pull --ff-only` in the clone (refuses messy merges)
+- `pip3 install -e .` **only if** `pyproject.toml` changed; otherwise skips pip
+- `systemctl restart fh6parse-kiosk` if that unit exists; otherwise it prints “restart the kiosk yourself”
+
+It never writes `/etc/fh6parse-kiosk.ini`. Pins, printer, and idle stay as you set them.
+
+If the unit did not restart, run:
+
+```
 sudo systemctl restart fh6parse-kiosk
 ```
+
+**One-file ARM tarball:** `python3 -m fh6parse --update` (or `./fh6parse --update`) exits with a message to copy a new tarball or switch to a git clone. That package is a first copy, not the upgrade path.
