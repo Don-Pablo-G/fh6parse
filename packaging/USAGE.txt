@@ -22,6 +22,7 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   80 mm:  thermal printer, 80 mm paper, 100%, do not fit to A4
 
 Raspberry Pi kiosk (portrait 600x800)
+  Full wiring + OS + printer steps: packaging/LINUX-KIOSK.md
   sudo apt install python3-gpiozero python3-tk
   python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
   Copy packaging/fh6parse-kiosk.ini.example to /etc/fh6parse-kiosk.ini
