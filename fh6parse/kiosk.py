@@ -130,6 +130,7 @@ class KioskApp(tk.Tk):
         self._poll_job: str | None = None
         self._gpio: list[object] = []
         self._status_job: str | None = None
+        self._bound_all: list[str] = []
 
         self.title(f"CNC kiosk {__version__}")
         self.configure(bg=BG)
@@ -138,12 +139,14 @@ class KioskApp(tk.Tk):
         if cfg.fullscreen:
             self.attributes("-fullscreen", True)
         self.bind("<Escape>", self._on_escape)
+        self.bind("<Map>", lambda _e: self._claim_input())
 
         self._build()
         self._bind_keys()
         self._setup_gpio()
         self._poll_usb()
         self._arm_idle()
+        self.after(200, self._claim_input)
 
     def _build(self) -> None:
         family = "DejaVu Sans" if sys.platform.startswith("linux") else "Segoe UI"
@@ -181,15 +184,20 @@ class KioskApp(tk.Tk):
             borderwidth=0,
             relief="flat",
             selectmode=tk.SINGLE,
+            exportselection=False,
+            takefocus=True,
         )
         self.listbox.pack(fill=tk.BOTH, expand=True)
         self.listbox.bind("<Button-1>", self._on_list_click)
+        self.listbox.bind("<MouseWheel>", self._on_wheel)
+        self.listbox.bind("<Button-4>", lambda e: self._on_wheel_button(-1))
+        self.listbox.bind("<Button-5>", lambda e: self._on_wheel_button(1))
 
         foot = tk.Frame(self, bg=BG)
         foot.pack(fill=tk.X, padx=16, pady=(4, 16))
         tk.Label(
             foot,
-            text="FULL  full ticket     MIN  short ticket",
+            text="FULL / F  full ticket     MIN / M  short ticket     Esc  window",
             font=small,
             bg=BG,
             fg=MUTED,
@@ -205,24 +213,89 @@ class KioskApp(tk.Tk):
         )
         self.status.pack(anchor="w", pady=(6, 0))
 
-        self.saver = tk.Frame(self, bg="#000000")
-        self.saver.bind("<Button-1>", lambda _e: "break")
-        self.saver.bind("<MouseWheel>", lambda _e: "break")
+        self.saver = tk.Frame(self, bg="#000000", takefocus=True, cursor="arrow")
+        self.saver.bind("<Button-1>", self._on_saver_pointer)
+        self.saver.bind("<Button-2>", self._on_saver_pointer)
+        self.saver.bind("<Button-3>", self._on_saver_pointer)
+        self.saver.bind("<MouseWheel>", self._on_wheel)
+        self.saver.bind("<Button-4>", lambda e: self._on_wheel_button(-1))
+        self.saver.bind("<Button-5>", lambda e: self._on_wheel_button(1))
 
     def _bind_keys(self) -> None:
-        self.bind("<Up>", lambda _e: self._on_encoder(-1))
-        self.bind("<Down>", lambda _e: self._on_encoder(1))
-        self.bind("<Key-f>", lambda _e: self._on_print(PAPER_80MM))
-        self.bind("<Key-F>", lambda _e: self._on_print(PAPER_80MM))
-        self.bind("<Key-m>", lambda _e: self._on_print(PAPER_80MM_MIN))
-        self.bind("<Key-M>", lambda _e: self._on_print(PAPER_80MM_MIN))
+        # bind_all: a plugged-in keyboard works even if the listbox has focus.
+        handlers = (
+            ("<Up>", lambda e: self._on_nav(-1)),
+            ("<Down>", lambda e: self._on_nav(1)),
+            ("<Left>", lambda e: self._on_nav(-1)),
+            ("<Right>", lambda e: self._on_nav(1)),
+            ("<Prior>", lambda e: self._on_nav(-1)),
+            ("<Next>", lambda e: self._on_nav(1)),
+            ("<Key-f>", lambda e: self._on_print(PAPER_80MM)),
+            ("<Key-F>", lambda e: self._on_print(PAPER_80MM)),
+            ("<Key-m>", lambda e: self._on_print(PAPER_80MM_MIN)),
+            ("<Key-M>", lambda e: self._on_print(PAPER_80MM_MIN)),
+            ("<Escape>", self._on_escape),
+            ("<KeyPress>", self._on_keypress),
+        )
+        self._bound_all = [seq for seq, _ in handlers]
+        for seq, fn in handlers:
+            self.bind_all(seq, fn)
+            for widget in (self, self.listbox, self.saver):
+                widget.bind(seq, fn)
 
-    def _on_escape(self, _event: tk.Event | None = None) -> None:
+    def _claim_input(self) -> None:
+        try:
+            self.lift()
+            self.focus_force()
+        except tk.TclError:
+            pass
+
+    def _wake_hid(self) -> bool:
+        """True if a keyboard/mouse event was used only to turn the screen on."""
+        if self.gate.hid() != "wake":
+            return False
+        self._hide_saver()
+        self._arm_idle()
+        self._claim_input()
+        return True
+
+    def _on_keypress(self, event: tk.Event) -> str | None:
+        if self._wake_hid():
+            return "break"
+        if event.keysym not in {"Shift_L", "Shift_R", "Control_L", "Control_R", "Alt_L", "Alt_R"}:
+            self._arm_idle()
+        return None
+
+    def _on_nav(self, delta: int) -> str:
+        self._on_encoder(delta)
+        return "break"
+
+    def _on_saver_pointer(self, _event: tk.Event) -> str:
+        self._wake_hid()
+        return "break"
+
+    def _on_wheel(self, event: tk.Event) -> str:
+        if event.delta:
+            delta = -1 if event.delta > 0 else 1
+        else:
+            delta = 1
+        self._on_encoder(delta)
+        return "break"
+
+    def _on_wheel_button(self, delta: int) -> str:
+        self._on_encoder(delta)
+        return "break"
+
+    def _on_escape(self, _event: tk.Event | None = None) -> str:
+        if self._wake_hid():
+            return "break"
         if self.cfg.fullscreen:
             self.attributes("-fullscreen", False)
             self.cfg.fullscreen = False
+            self._claim_input()
         else:
             self.destroy()
+        return "break"
 
     def _queue(self, fn) -> None:
         try:
@@ -274,6 +347,7 @@ class KioskApp(tk.Tk):
                 self._hide_saver()
             self._set_files(files, keep_highlight=True)
             self._arm_idle()
+            self._claim_input()
         elif files != self._files:
             self._set_files(files, keep_highlight=True)
         self._poll_job = self.after(max(200, self.cfg.usb_poll_ms), self._poll_usb)
@@ -325,6 +399,7 @@ class KioskApp(tk.Tk):
         if action == "wake":
             self._hide_saver()
             self._arm_idle()
+            self._claim_input()
             return
         if not self._files:
             self._arm_idle()
@@ -334,23 +409,24 @@ class KioskApp(tk.Tk):
         self._arm_idle()
 
     def _on_list_click(self, event: tk.Event) -> str | None:
-        if self.gate.asleep:
+        if self._wake_hid() or self.gate.asleep:
             return "break"
         idx = self.listbox.nearest(event.y)
         if 0 <= idx < len(self._files):
             self._index = idx
             self._paint_highlight()
             self._arm_idle()
-        return None
+        self.listbox.focus_set()
+        return "break"
 
-    def _on_print(self, paper: str) -> None:
+    def _on_print(self, paper: str) -> str | None:
         if not self.gate.allow_print():
-            return
+            return None
         self._arm_idle()
         path = self._selected()
         if path is None:
             self._set_status("No file", error=True)
-            return
+            return "break"
         kind = "full" if paper == PAPER_80MM else "min"
         self._set_status(f"Printing {kind}: {path.name}…")
         self.update_idletasks()
@@ -365,6 +441,7 @@ class KioskApp(tk.Tk):
             self._set_status(f"Printed {path.name}  ({route})")
         except Exception as exc:  # shop-floor: stay up
             self._set_status(str(exc), error=True)
+        return "break"
 
     def _set_status(self, text: str, *, error: bool = False) -> None:
         self.status.config(text=text, fg=ERR if error else OK)
@@ -389,13 +466,24 @@ class KioskApp(tk.Tk):
     def _show_saver(self) -> None:
         self.saver.place(relx=0, rely=0, relwidth=1, relheight=1)
         self.saver.lift()
+        try:
+            self.saver.focus_set()
+            self.saver.focus_force()
+        except tk.TclError:
+            pass
         _dpms("off")
 
     def _hide_saver(self) -> None:
         _dpms("on")
         self.saver.place_forget()
+        self._claim_input()
 
     def destroy(self) -> None:
+        for seq in self._bound_all:
+            try:
+                self.unbind_all(seq)
+            except tk.TclError:
+                pass
         if self._idle_job:
             try:
                 self.after_cancel(self._idle_job)

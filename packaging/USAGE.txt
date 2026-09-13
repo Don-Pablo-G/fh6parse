@@ -30,7 +30,8 @@ Raspberry Pi kiosk (portrait 600x800)
 
   Encoder highlights a file. FULL prints the current 80 mm ticket; MIN prints
   the short ticket (T, description, min Z, warnings per operation).
-  After 60 seconds idle the screen goes black. Rotary encoder or inserting a
-  USB stick wakes it. Print buttons while asleep are ignored.
+  After 60 seconds idle the screen goes black. Rotary encoder, USB insert,
+  keyboard, or mouse wakes it. GPIO print buttons while asleep are ignored.
 
-  PC check without GPIO: Up/Down move the highlight, F = full, M = min.
+  Keyboard/mouse (troubleshooting, hot-plug OK): arrows, click, wheel, F, M.
+  Escape leaves fullscreen, Escape again closes.

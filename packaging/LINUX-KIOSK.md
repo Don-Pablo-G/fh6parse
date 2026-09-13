@@ -269,7 +269,16 @@ On the graphical desktop:
 python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 ```
 
-Without GPIO you can still move with **Up/Down**, print **F** (full) / **M** (min). Plug in a USB stick with `.nc` files; the list should fill by itself.
+Without GPIO you can still use a **USB keyboard and mouse** at any time (hot-plug is fine). The kiosk keeps keyboard focus and the black screensaver wakes on a key, click, or mouse wheel.
+
+| Input | While awake | While screensaver |
+| --- | --- | --- |
+| Arrows, mouse wheel, click a file | Move highlight | First event only wakes |
+| **F** / **M** | Print full / min | Ignored (no ticket); another key or click wakes |
+| GPIO FULL / MIN | Print | Ignored (no ticket, stays black) |
+| **Esc** | Leave fullscreen, then close | Wake, then Esc again leaves fullscreen |
+
+Plug in a USB stick with `.nc` files; the list should fill by itself.
 
 Desktop autostart of the kiosk is in the next section. Until then, Escape leaves fullscreen, Escape again closes the window.
 
@@ -314,7 +323,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 4. **FULL** — 80 mm ticket: operations, tool list, each tool change, warnings, min Z.
 5. **MIN** — short ticket: per operation, only T, description, min Z, warnings.
 6. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
-7. Wake: turn the encoder, or plug in a USB stick. The first encoder step only wakes; it does not skip a file.
+7. Wake: encoder, inserting a USB stick, or a **keyboard / mouse**. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored.
 8. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
 
 Parse happens at print time, not when the list is shown.
@@ -334,7 +343,7 @@ Parse happens at print time, not when the list is shown.
 | Garbage on the slip | CUPS is not raw, or a desktop “print HTML” path was used. The kiosk never sends HTML. |
 | Ticket does not cut | Cutter empty/jammed. App already sends ESC/POS cut (`GS V`). |
 | Screen never sleeps | `idle_seconds = 0`, or encoder bouncing. |
-| Sleeps but never wakes on USB | Automount must create a **new** mount under `/media`, `/run/media`, or `/mnt`. Copying files onto an already-mounted stick does not wake (encoder does). |
+| Keyboard/mouse do nothing | Plug into the Pi USB; X11 picks them up. Click or press a key — the kiosk claims focus. **Esc** leaves fullscreen. GPIO print buttons still do not wake the screensaver. |
 | Black screen immediately | Desktop blanking plus app DPMS. Disable LXDE/Wayfire idle blank; keep kiosk `idle_seconds = 60`. |
 | Wrong aspect / sideways UI | Rotate until `xdpyinfo` (or Screen Configuration) shows 600×800. App geometry is 600×800 fullscreen. |
 | Service dead, UI never starts | `echo $DISPLAY` in a desktop terminal should be `:0`. `raspi-config` → X11, desktop autologin. `journalctl -u fh6parse-kiosk`. |

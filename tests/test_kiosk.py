@@ -27,6 +27,15 @@ class TestScreensaverGate(unittest.TestCase):
         self.assertFalse(gate.asleep)
         self.assertEqual(gate.usb_insert(), "ok")
 
+    def test_hid_wakes_without_print(self) -> None:
+        gate = ScreensaverGate(60)
+        gate.sleep()
+        self.assertFalse(gate.allow_print())
+        self.assertEqual(gate.hid(), "wake")
+        self.assertFalse(gate.asleep)
+        self.assertTrue(gate.allow_print())
+        self.assertEqual(gate.hid(), "ok")
+
     def test_print_ignored_while_asleep(self) -> None:
         gate = ScreensaverGate(60)
         self.assertTrue(gate.allow_print())
