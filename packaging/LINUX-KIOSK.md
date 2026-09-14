@@ -16,6 +16,7 @@ Python **3.10+** is required. Use **Raspberry Pi OS Bookworm** (32-bit Desktop i
 | Two momentary buttons | Normally-open, wired to GPIO and GND. |
 | USB stick | FAT/exFAT/NTFS. Programs as `.nc` / `.NC` / `.tap` in the **stick root** only (not subfolders). |
 | MUNBYN P047 (ITPP047) | USB, 80 mm ESC/POS, auto-cutter. Own mains PSU. |
+| Company STEP folder (optional) | Network share of `.stp` / `.step` files. See **§3.7**. |
 | Keyboard | Only for first-time setup. Not needed on the shop floor. |
 
 Default GPIO (**BCM** numbers, not header pin numbers):
@@ -122,7 +123,7 @@ display_rotate=1
 
 ### 2.5 Printer (MUNBYN P047)
 
-USB to the Pi. The kiosk sends **raw ESC/POS** (48-column Font A, then cut). Do **not** print HTML or use a Windows GDI/POS-80 raster driver.
+USB to the Pi. The kiosk sends **raw ESC/POS**: optional STEP bitmaps (`GS v 0`), then 48-column Font A, then cut. Do **not** print HTML or use a Windows GDI/POS-80 raster driver.
 
 The app tries, in order:
 
@@ -163,8 +164,12 @@ cd /home/pi
 git clone https://github.com/Don-Pablo-G/fh6parse.git
 cd fh6parse
 sudo pip3 install -e . --break-system-packages
-# optional: STEP isometric views on the 80 mm ticket
-# sudo pip3 install -e '.[models]' --break-system-packages
+```
+
+For isometric views on the ticket, also install the CAD extra (**§3.7**). Skip it on a Pi 3 if `cascadio` has no wheel; tickets stay text-only.
+
+```
+sudo pip3 install -e '.[models]' --break-system-packages
 ```
 
 `--break-system-packages` is normal on Bookworm when you are not using a venv. gpiozero stays the **apt** copy so it can see the Pi GPIO.
@@ -197,6 +202,8 @@ Run:
 ./fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 ```
 
+The one-file ARM tarball does not bundle the CAD stack, so **§3.7** pictures are git-checkout only.
+
 For systemd, set `ExecStart=/home/pi/fh6parse --kiosk --config /etc/fh6parse-kiosk.ini` (path to the unpacked binary). `python3 -m fh6parse --update` will refuse a one-file install.
 
 ### 3.3 Kiosk config
@@ -219,18 +226,8 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | `scan_depth` | 1 | USB root only. Raise to search subfolders. |
 | `extensions` | `.nc,.tap` | File types (case-insensitive) |
 | `extra_roots` | (empty) | Extra folders to list, comma-separated (for testing) |
-| `model_roots` | (empty) | Company `.stp` / `.step` folders (subfolders included). Several paths allowed. |
+| `model_roots` | (empty) | Company `.stp` / `.step` folders. Several paths, subfolders included. See **§3.7**. |
 | `fullscreen` | true | Shop display. Escape once exits fullscreen. |
-
-STEP pictures on the 80 mm ticket are optional. The kiosk walks every `model_roots` path, matches the NC part id from the start of the file/program name, reads `REV` / `REWIZJA` from the G-code header (or a trailing `-0` / `_Rev03` on the name), and picks that revision of the closest `.stp`. If the program has no revision, it uses the latest matching model. Two opposite isometric views are stacked near the top of FULL and MIN tickets, scaled to the 80 mm raster width. A **■** appears next to the file when the bitmap is ready. Print never waits: if the model is missing or still rendering, the ticket is text only.
-
-On a git checkout, install the CAD extra once (heavy; skip on Pi 3 if `cascadio` has no wheel):
-
-```
-sudo pip3 install -e '.[models]' --break-system-packages
-```
-
-The one-file ARM tarball does not bundle the CAD stack. Without it, matching still runs but nothing is rendered and the list icon stays off.
 
 ### 3.4 Groups and devices
 
@@ -297,11 +294,62 @@ Plug in a USB stick with `.nc` files; the list should fill by itself.
 
 Desktop autostart of the kiosk is in the next section. Until then, Escape leaves fullscreen, Escape again closes the window.
 
+### 3.7 STEP models on the ticket
+
+Optional. FULL and MIN tickets can show two opposite isometric views, stacked, scaled to the 80 mm raster (~512 dots), at the top of the slip. Print never waits for a model.
+
+**1. Point the kiosk at the CAD folders** in `/etc/fh6parse-kiosk.ini`. Several roots are allowed (comma or `:` / `;`). Subfolders are searched.
+
+```
+model_roots = /mnt/cad/stp,/mnt/cad/archive
+```
+
+Mount the company share before the kiosk starts. Install `cifs-utils` if needed, then:
+
+```
+sudo apt install -y cifs-utils
+sudo mkdir -p /mnt/cad
+sudo mount -t cifs //server/cad /mnt/cad -o guest,uid=pi,gid=pi,iocharset=utf8
+```
+
+Put a matching line in `/etc/fstab` so it survives reboot. If the share is down, the ticket is still text only.
+
+**2. Install the CAD extra** (git checkout only; heavy: numpy, pillow, trimesh, cascadio):
+
+```
+sudo pip3 install -e '.[models]' --break-system-packages
+```
+
+If that install fails (no `cascadio` wheel on 32-bit Pi 3), leave it off. Matching still runs; nothing is rendered and the list icon stays off.
+
+**3. Matching** starts at the first characters of the NC file name (and the `O` program title). The end of the STEP name may differ (`_Rev03`, `_OP1`, extra words). Nearby part numbers do not match (`D0134078` will not pick `D0134079`).
+
+Revision is taken from the G-code header, then the title, then the file name:
+
+| In the NC | What is used |
+| --- | --- |
+| `(REV 3)`, `(REV.03)`, `(REVISION A)` | that revision |
+| `(Rewizja: 02)`, `(REW 2)`, `(WERSJA 1)` | that revision |
+| `O01282 (SE0241282-0 WIERCENIA …)` | part `SE0241282`, rev `0` |
+| `D0134078_Rev03.nc` / `D0134078-R2.nc` / `D0134078A.nc` | suffix on the name |
+| No rev in header or name | latest matching `.stp` / `.step` |
+
+If the program **has** a revision, only a STEP file with the **same** rev is used (not a newer one). If several files share that rev, the closest (shortest) name wins.
+
+| NC | Header | Picked model |
+| --- | --- | --- |
+| `D0134078.nc` | `O04078 (D0134078)` (no REV) | `D0134078_Rev03.stp` over `_Rev02` |
+| `D0134078.nc` | `(REV 2)` | `D0134078_Rev02.stp`, not Rev03 |
+| `SE0241282.nc` | `O01282 (SE0241282-0 …)` | `SE0241282-0.stp` (or `_Rev0`) |
+| `000814086.nc` | title `000814086 OP1/OP2` | `000814086_Rev02.stp` if that is latest |
+
+**4. On the screen**, a **■** appears next to the file when the bitmap is rendered and ready. The walk and render run in the background for every USB file in the list. Cache: `/tmp/fh6parse-models`.
+
 ---
 
 ## 4. Boot to kiosk
 
-Copy the unit and enable it. The service assumes user `pi`, display `:0`, and Desktop autologin.
+Copy the unit and enable it. The service assumes user `pi`, display `:0`, and Desktop autologin. If `model_roots` is on a NAS, mount that share in `fstab` so it is up before the kiosk starts.
 
 ```
 sudo cp /home/pi/fh6parse/packaging/fh6parse-kiosk.service /etc/systemd/system/
@@ -334,14 +382,15 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 
 1. Power on. Screen shows **Insert USB** (or the last stick if it was already plugged in).
 2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear.
-3. Turn the encoder to highlight a file.
-4. **FULL** — 80 mm ticket: operations, tool list, each tool change, warnings, min Z.
-5. **MIN** — short ticket: per operation, only T, description, min Z, warnings.
-6. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
-7. Wake: encoder, inserting a USB stick, or a **keyboard / mouse**. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored.
-8. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
+3. Turn the encoder to highlight a file. A **■** means the STEP views are ready for that program.
+4. **FULL** — 80 mm ticket: stacked isometrics when ready, then operations, tool list, each tool change, warnings, min Z.
+5. **MIN** — short ticket: stacked isometrics when ready, then per operation only T, description, min Z, warnings.
+6. If there is no **■**, print anyway. The slip is text only.
+7. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
+8. Wake: encoder, inserting a USB stick, or a **keyboard / mouse**. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored.
+9. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
 
-Parse happens at print time, not when the list is shown.
+Parse happens at print time, not when the list is shown. STEP matching and rendering run in the background and must not delay the ticket.
 
 ---
 
@@ -366,6 +415,10 @@ Parse happens at print time, not when the list is shown.
 | `--update` says one-file package | This Pi is running the ARM tarball. Copy a new tarball or reinstall from git (§3.2). |
 | `--update` / fast-forward failed | Uncommitted edits or a diverged branch. `cd /home/pi/fh6parse && git status`. Do not merge on the shop floor; reset to `origin/master` only if you mean to discard local changes. |
 | `--update` pulled but UI unchanged | `systemctl restart fh6parse-kiosk` (the command prints this if the unit is missing). Check `python3 -m fh6parse --version`. |
+| No **■** next to files | `model_roots` empty or the share is not mounted (`ls` the path). CAD extra missing (`pip3 install -e '.[models]'`). Still rendering (wait). Rev in the G-code does not match any `.stp`. |
+| **■** shows, ticket has no picture | CUPS queue is not **raw**. Printer rejected `GS v 0`. Test text-only first (`printf` in §3.5). |
+| Pictures vanished after `--update` | `--update` runs `pip install -e .` **without** `[models]` when `pyproject.toml` changes. Re-run `sudo pip3 install -e '.[models]' --break-system-packages`. |
+| Kiosk sluggish after USB insert | Huge CAD tree on a slow NAS. Narrow `model_roots` to the live folder, not the whole archive. Render is background and must not block print. |
 
 CLI without the kiosk (reports next to the NC file):
 
@@ -381,10 +434,11 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 | Path | Role |
 | --- | --- |
 | `/home/pi/fh6parse` | Source checkout |
-| `/etc/fh6parse-kiosk.ini` | Pins, printer, idle, model_roots |
+| `/etc/fh6parse-kiosk.ini` | Pins, printer, idle, `model_roots` |
 | `/etc/systemd/system/fh6parse-kiosk.service` | Autostart |
 | `packaging/fh6parse-kiosk.ini.example` | Template |
 | `packaging/fh6parse-kiosk.service` | Template |
+| `/tmp/fh6parse-models` | Cached STEP bitmaps (safe to delete) |
 
 ---
 
@@ -405,10 +459,10 @@ python3 -m fh6parse --version
 `--update` does this, in order:
 
 - `git pull --ff-only` in the clone (refuses messy merges)
-- `pip3 install -e .` **only if** `pyproject.toml` changed; otherwise skips pip
+- `pip3 install -e .` **only if** `pyproject.toml` changed; otherwise skips pip. That command does **not** reinstall the `[models]` extra; see **§3.7** if pictures disappear.
 - `systemctl restart fh6parse-kiosk` if that unit exists; otherwise it prints “restart the kiosk yourself”
 
-It never writes `/etc/fh6parse-kiosk.ini`. Pins, printer, and idle stay as you set them.
+It never writes `/etc/fh6parse-kiosk.ini`. Pins, printer, idle, and `model_roots` stay as you set them.
 
 If the unit did not restart, run:
 

@@ -24,6 +24,9 @@ extensions = .nc,.tap
 
 # Company STEP folders (searched with subfolders). Comma or path-separator.
 # Matching starts at the shared prefix of the NC name / program title.
-# G-code REV/REWIZJA must match the model revision; if the NC has no rev,
-# the latest matching .stp / .step is used. Missing models never block print.
+# G-code (REV 3) / (Rewizja: 02) / trailing -0 or _Rev03 must match the
+# model revision. If the NC has no rev, the latest matching .stp is used.
+# D0134078.nc  ->  D0134078_Rev03.stp  (not D0134079_…)
+# SE0241282.nc with O-title SE0241282-0  ->  SE0241282-0.stp
+# Missing models never block print. CAD extra: pip install -e '.[models]'
 # model_roots = /mnt/cad/stp,/mnt/cad/archive

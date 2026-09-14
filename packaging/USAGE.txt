@@ -35,17 +35,24 @@ Raspberry Pi kiosk (portrait 600x800)
     python3 -m fh6parse --version
   Pulls with --ff-only, skips pip unless pyproject.toml changed, restarts
   fh6parse-kiosk. Does not change /etc/fh6parse-kiosk.ini.
+  After a pyproject change, re-run pip install -e '.[models]' if you use STEP
+  views (--update installs the package without that extra).
   One-file ARM tarball cannot --update; copy a new tarball or use git.
 
   Encoder highlights a file. FULL prints the current 80 mm ticket; MIN prints
   the short ticket (T, description, min Z, warnings per operation).
-  Optional STEP views: set model_roots in the ini (several folders allowed).
-  Matching starts at the NC name prefix; G-code rev must match the .stp rev
-  (latest .stp if the NC has no rev). A square mark appears when the stacked
-  isometrics are ready. Missing models never block print. CAD extra:
-  pip install -e '.[models]'
   After 60 seconds idle the screen goes black. Rotary encoder, USB insert,
   keyboard, or mouse wakes it. GPIO print buttons while asleep are ignored.
 
   Keyboard/mouse (troubleshooting, hot-plug OK): arrows, click, wheel, F, M.
   Escape leaves fullscreen, Escape again closes.
+
+STEP models on the 80 mm ticket (kiosk, optional)
+  Set model_roots in /etc/fh6parse-kiosk.ini (several folders, subfolders ok).
+  pip install -e '.[models]'   (git checkout; not in the one-file Pi tarball)
+  Matching starts at the NC name prefix. G-code rev must match the .stp rev.
+  If the NC has no rev, the latest matching .stp is used.
+  Two opposite isometrics are stacked at the top of FULL and MIN tickets.
+  A square mark (■) appears next to the file when the bitmap is ready.
+  Missing or still-rendering models never block print.
+  Full matching table and NAS mount: packaging/LINUX-KIOSK.md §3.7

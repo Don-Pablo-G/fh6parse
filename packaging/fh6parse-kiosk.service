@@ -1,5 +1,7 @@
 # Shop update (git checkout): python3 -m fh6parse --update
 # then, if the unit did not restart: sudo systemctl restart fh6parse-kiosk
+# STEP folders: set model_roots in /etc/fh6parse-kiosk.ini; mount the share
+# before this unit starts (fstab). CAD extra is pip install -e '.[models]'.
 
 [Unit]
 Description=fh6parse CNC USB kiosk

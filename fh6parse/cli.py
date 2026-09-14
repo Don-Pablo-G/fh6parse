@@ -50,7 +50,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--kiosk",
         action="store_true",
-        help="Raspberry Pi kiosk: USB list, encoder, auto-print, screensaver",
+        help="Raspberry Pi kiosk: USB list, encoder, 80 mm print, screensaver",
     )
     p.add_argument(
         "--update",
