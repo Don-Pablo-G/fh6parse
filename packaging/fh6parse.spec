@@ -30,7 +30,8 @@ hiddenimports = [
 extra_datas = []
 extra_binaries = []
 
-# gpiozero / RPi.GPIO / lgpio exist on the Raspberry image; skip on Windows.
+# gpiozero / lgpio (Pi 5) / RPi.GPIO (Pi 3/4) exist on the Raspberry image;
+# skip on Windows.
 for pkg, spec_name in (
     ("gpiozero", "gpiozero"),
     ("RPi.GPIO", "RPi.GPIO"),

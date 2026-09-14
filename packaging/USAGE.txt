@@ -1,4 +1,4 @@
-fh6parse 1.3.2 — CNC tool list / min-Z report
+fh6parse 1.3.3 — CNC tool list / min-Z report
 
 Windows:  double-click fh6parse.exe  (or run from Command Prompt)
 Linux:    ./fh6parse                 (or fh6parse --gui)
@@ -27,12 +27,15 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   Views are solid (not wireframe). The longest axis is across the 80 mm
   width; height is cropped to the part (a long shaft is a thin strip).
 
-Raspberry Pi kiosk (portrait 600x800) — version 1.3.2
+Raspberry Pi 5 kiosk (portrait 600x800) — version 1.3.3
   Full wiring + OS + printer + update: packaging/LINUX-KIOSK.md
-  sudo apt install python3-gpiozero python3-tk git
+  64-bit Raspberry Pi OS Desktop. raspi-config: X11 + desktop autologin.
+  Official 27 W USB-C PSU. micro-HDMI on HDMI0. Same BCM pins as Pi 3/4.
+  sudo apt install python3-gpiozero python3-lgpio python3-rpi-lgpio python3-tk git
+  Do not install python3-rpi.gpio (Pi 5 RP1 GPIO needs lgpio).
   git clone https://github.com/Don-Pablo-G/fh6parse.git
   cd fh6parse && sudo pip3 install -e . --break-system-packages
-  python3 -m fh6parse --version          (expect fh6parse 1.3.2)
+  python3 -m fh6parse --version          (expect fh6parse 1.3.3)
   python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
   Copy packaging/fh6parse-kiosk.ini.example to /etc/fh6parse-kiosk.ini
   Autostart: packaging/fh6parse-kiosk.service
@@ -41,7 +44,7 @@ Raspberry Pi kiosk (portrait 600x800) — version 1.3.2
     sudo chmod 440 /etc/sudoers.d/fh6parse-kiosk
 
   Update (git checkout only; never automatic)
-    Need 1.3.2 first. If --version is older, SSH:
+    Need 1.3.3 first. If --version is older, SSH:
       cd /home/pi/fh6parse && git pull --ff-only && sudo systemctl restart fh6parse-kiosk
     From 1.3.2: on start the kiosk fetches origin in the background.
     If a newer commit exists, a yellow UPDATE button appears (touch or U).

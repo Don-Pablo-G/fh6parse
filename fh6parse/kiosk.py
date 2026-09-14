@@ -1,4 +1,4 @@
-"""Portrait USB kiosk for Raspberry Pi: encoder, two print buttons, screensaver."""
+"""Portrait USB kiosk for Raspberry Pi 5: encoder, two print buttons, screensaver."""
 
 from __future__ import annotations
 
@@ -131,6 +131,40 @@ def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
     models = src.get("model_roots", fallback="")
     cfg.model_roots = _ini_paths(models)
     return cfg
+
+
+def prefer_lgpio_factory() -> str:
+    """Use lgpio when present (Pi 5 RP1). RPi.GPIO does not work on Pi 5.
+
+    Honours GPIOZERO_PIN_FACTORY if already set. Returns the factory name, or
+    an empty string when gpiozero should keep its default (Pi 3/4, or PC).
+    """
+    existing = os.environ.get("GPIOZERO_PIN_FACTORY", "").strip()
+    if existing:
+        return existing
+    try:
+        from gpiozero import Device
+        from gpiozero.pins.lgpio import LGPIOFactory
+    except ImportError:
+        return ""
+    try:
+        Device.pin_factory = LGPIOFactory()
+    except Exception:
+        return ""
+    return "lgpio"
+
+
+def _gpio_fail_hint(exc: BaseException) -> str:
+    text = str(exc)
+    lowered = text.lower()
+    if (
+        "rpigpio" in lowered
+        or "rpi.gpio" in lowered
+        or "pin factory" in lowered
+        or "lgpio" in lowered
+    ):
+        return f"{text}  (Pi 5 needs python3-lgpio; RPi.GPIO is not supported)"
+    return text
 
 
 def _dpms(force: str) -> None:
@@ -366,8 +400,16 @@ class KioskApp(tk.Tk):
             from gpiozero import Button, RotaryEncoder
         except ImportError:
             return
+        prefer_lgpio_factory()
         try:
-            enc = RotaryEncoder(self.cfg.encoder_clk, self.cfg.encoder_dt)
+            try:
+                enc = RotaryEncoder(
+                    self.cfg.encoder_clk,
+                    self.cfg.encoder_dt,
+                    bounce_time=0.005,
+                )
+            except TypeError:
+                enc = RotaryEncoder(self.cfg.encoder_clk, self.cfg.encoder_dt)
             step = -1 if self.cfg.encoder_swap else 1
             enc.when_rotated_clockwise = lambda: self._queue(
                 lambda: self._on_encoder(step)
@@ -385,7 +427,7 @@ class KioskApp(tk.Tk):
             )
             self._gpio.extend([enc, full, mini])
         except Exception as exc:  # GPIO missing or pin busy
-            self._set_status(f"GPIO off: {exc}", error=True)
+            self._set_status(f"GPIO off: {_gpio_fail_hint(exc)}", error=True)
 
     def _roots(self) -> list[Path]:
         return list(self._mounts) + list(self.cfg.extra_roots)

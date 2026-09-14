@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from fh6parse.idle import ScreensaverGate
-from fh6parse.kiosk import load_kiosk_config
+from fh6parse.kiosk import _gpio_fail_hint, load_kiosk_config, prefer_lgpio_factory
 from fh6parse.printer import CUT, INIT, encode_ticket
 from fh6parse.usbwatch import list_nc_files
 
@@ -99,6 +99,37 @@ class TestKioskConfig(unittest.TestCase):
             self.assertEqual(cfg.idle_seconds, 60.0)
             self.assertEqual(cfg.encoder_clk, 5)
             self.assertEqual(cfg.button_full, 6)
+
+
+class TestPi5GpioFactory(unittest.TestCase):
+    def test_env_factory_is_left_alone(self) -> None:
+        import os
+
+        previous = os.environ.get("GPIOZERO_PIN_FACTORY")
+        os.environ["GPIOZERO_PIN_FACTORY"] = "mock"
+        try:
+            self.assertEqual(prefer_lgpio_factory(), "mock")
+        finally:
+            if previous is None:
+                os.environ.pop("GPIOZERO_PIN_FACTORY", None)
+            else:
+                os.environ["GPIOZERO_PIN_FACTORY"] = previous
+
+    def test_missing_gpiozero_is_empty(self) -> None:
+        import os
+
+        previous = os.environ.pop("GPIOZERO_PIN_FACTORY", None)
+        try:
+            name = prefer_lgpio_factory()
+        finally:
+            if previous is not None:
+                os.environ["GPIOZERO_PIN_FACTORY"] = previous
+        self.assertIn(name, {"", "lgpio"})
+
+    def test_rpi_gpio_error_mentions_pi5(self) -> None:
+        hint = _gpio_fail_hint(RuntimeError("Unable to load RPi.GPIO pin factory"))
+        self.assertIn("python3-lgpio", hint)
+        self.assertIn("Pi 5", hint)
 
 
 if __name__ == "__main__":

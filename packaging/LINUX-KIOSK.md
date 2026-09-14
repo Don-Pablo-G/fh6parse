@@ -1,8 +1,10 @@
 # fh6parse Linux kiosk manual
 
-**Version 1.3.2.** Shop-floor install for **Raspberry Pi 3** with a **portrait 800×600** screen: boot, wait for a USB stick, pick an NC file with a rotary encoder, print an 80 mm ticket on a **MUNBYN P047**. Optional STEP isometrics on the slip. If the Pi is on the network, the kiosk can offer an on-screen **UPDATE**.
+**Version 1.3.3.** Shop-floor install for **Raspberry Pi 5** with a **portrait 800×600** screen: boot, wait for a USB stick, pick an NC file with a rotary encoder, print an 80 mm ticket on a **MUNBYN P047**. Optional STEP isometrics on the slip. If the Pi is on the network, the kiosk can offer an on-screen **UPDATE**.
 
-Python **3.10+** is required. Use **Raspberry Pi OS Bookworm** (32-bit Desktop is the practical image on a Pi 3).
+Python **3.10+** is required (Bookworm ships 3.11). Use **Raspberry Pi OS 64-bit Desktop** (Bookworm or later). Pi 5 has no 32-bit OS.
+
+The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes through the **RP1** chip: `RPi.GPIO` does **not** work. The kiosk uses gpiozero with **lgpio**. Still switch the desktop to **X11** (tkinter + `xset` blanking).
 
 1. [What you need](#1-what-you-need)
 2. [Hardware](#2-hardware)
@@ -11,7 +13,7 @@ Python **3.10+** is required. Use **Raspberry Pi OS Bookworm** (32-bit Desktop i
 5. [Daily use](#5-daily-use)
 6. [Troubleshooting](#6-troubleshooting)
 7. [Files on disk](#7-files-on-disk)
-8. [Updating (1.3.2)](#8-updating-the-kiosk)
+8. [Updating (1.3.3)](#8-updating-the-kiosk)
 
 ---
 
@@ -19,7 +21,8 @@ Python **3.10+** is required. Use **Raspberry Pi OS Bookworm** (32-bit Desktop i
 
 | Item | Notes |
 | --- | --- |
-| Raspberry Pi 3 (B / B+) | 2.5 A PSU for the Pi. Do not power the printer from the Pi USB. |
+| Raspberry Pi 5 | Official **27 W USB-C** PSU (5 V / 5 A). Do not use a Pi 3 2.5 A supply. Do not power the printer from the Pi USB. Active cooler recommended in a closed enclosure. |
+| micro-HDMI cable | Pi 5 has two **micro-HDMI** ports. Use **HDMI0** (the port next to USB-C power) for the kiosk panel. |
 | 800×600 LCD, mounted vertically | After rotation the framebuffer is **600×800**. That is what the app uses. |
 | KY-040 rotary encoder | CLK and DT only. The shaft push-switch is unused. |
 | Two momentary buttons | Normally-open, wired to GPIO and GND. |
@@ -48,13 +51,13 @@ Change pins in `/etc/fh6parse-kiosk.ini` if you wire them differently.
 
 ### 2.1 Power and USB
 
-- Pi on its own 5 V supply.
-- P047 on its own supply; USB cable to the Pi is **data only** if the printer has a separate PSU.
-- USB stick in any Pi USB port. Automount under `/media/pi/…` or `/run/media/…` is enough; the kiosk polls those paths.
+- Pi 5 on the official USB-C 5 V / 5 A supply. USB-C on the Pi is **power only**.
+- P047 on its own supply; USB cable to a Pi **USB-A** port is **data only** if the printer has a separate PSU.
+- USB stick in any USB-A port (USB 2 or USB 3). Automount under `/media/<user>/…` or `/run/media/…` is enough; the kiosk polls those paths.
 
 ### 2.2 GPIO rules
 
-Pi GPIO is **3.3 V**. Do not feed 5 V into CLK, DT, or the button pins.
+Pi GPIO is **3.3 V** (unchanged on Pi 5). Do not feed 5 V into CLK, DT, or the button pins.
 
 KY-040 **VCC → 3.3 V** (header pin 1), **GND → GND**. Many modules work at 3.3 V. If the module insists on 5 V, you still must not put 5 V on the Pi inputs (use a level shifter).
 
@@ -64,7 +67,7 @@ Encoder **SW** (shaft click): leave unconnected.
 
 ### 2.3 Wiring diagram (defaults)
 
-Pi 3 40-pin header, looking at the board with the USB ports down:
+Pi 5 40-pin header (same BCM layout as Pi 3/4), looking at the board with the USB-A / Ethernet ports down:
 
 ```
  3.3V  (1)  (2)  5V          ← encoder VCC to pin 1 only
@@ -99,7 +102,7 @@ If turning the knob moves the highlight the wrong way, set `encoder_swap = true`
 
 The panel is 800×600 landscape electronics, mounted as portrait. The OS must present **600×800**.
 
-On Raspberry Pi OS, switch to **X11** first (tkinter + screensaver `xset` are unreliable on Wayland):
+On Raspberry Pi OS the default is **Wayland**. Switch to **X11** (tkinter + screensaver `xset` are unreliable on Wayland/labwc):
 
 ```
 sudo raspi-config
@@ -116,20 +119,14 @@ Then rotate. Either:
 Or in a terminal after login:
 
 ```
-xrandr --output HDMI-1 --rotate right
+xrandr --output HDMI-A-1 --rotate right
 ```
 
-(Use `xrandr` with no arguments to see the output name: `HDMI-1`, `HDMI-A-1`, ….)
+(Use `xrandr` with no arguments to see the output name: `HDMI-A-1`, `HDMI-1`, … . Pi 5 KMS is usually `HDMI-A-1` for HDMI0.)
 
 To make rotation survive reboot, add the same `xrandr` line to `~/.config/autostart/` or `/etc/xdg/lxsession/LXDE-pi/autostart`.
 
-Older firmware-only rotation (if you are still on `/boot/config.txt` and not KMS):
-
-```
-display_rotate=1
-```
-
-`1` and `3` are 90° / 270°. Pick the one that matches the mount.
+Do not use legacy `display_rotate=` in `/boot/firmware/config.txt`. Pi 5 is KMS-only.
 
 ### 2.5 Printer (MUNBYN P047)
 
@@ -145,19 +142,21 @@ The app tries, in order:
 
 ## 3. Software
 
-Do this on the Pi, as user `pi`, with network.
+Do this on the Pi, as user `pi` (or the user you created in Raspberry Pi Imager — then change `User=` and paths in the systemd unit and sudoers), with network.
 
 ### 3.1 Packages
 
 ```
 sudo apt update
 sudo apt install -y git python3 python3-pip python3-tk \
-    python3-gpiozero python3-rpi.gpio \
+    python3-gpiozero python3-lgpio python3-rpi-lgpio \
     cups cups-client cups-bsd \
     x11-xserver-utils
 ```
 
-`python3-tk` is the kiosk UI. `python3-gpiozero` + `python3-rpi.gpio` read the encoder and buttons. `cups` is optional if you only write to `/dev/usb/lp0`. `x11-xserver-utils` provides `xset` so the panel can blank.
+Do **not** install `python3-rpi.gpio` on a Pi 5. That library talks to the old SoC GPIO; Pi 5 GPIO is on RP1. `python3-lgpio` is the driver; `python3-rpi-lgpio` is only a compatibility shim. The kiosk prefers lgpio automatically.
+
+`python3-tk` is the kiosk UI. `cups` is optional if you only write to `/dev/usb/lp0`. `x11-xserver-utils` provides `xset` so the panel can blank.
 
 Confirm Python is 3.10 or newer:
 
@@ -176,7 +175,7 @@ cd fh6parse
 sudo pip3 install -e . --break-system-packages
 ```
 
-For isometric views on the ticket, also install the CAD extra (**§3.7**). Skip it on a Pi 3 if `cascadio` has no wheel; tickets stay text-only.
+For isometric views on the ticket, also install the CAD extra (**§3.7**). On 64-bit Pi 5 this usually has wheels. If `cascadio` fails, skip it; tickets stay text-only.
 
 ```
 sudo pip3 install -e '.[models]' --break-system-packages
@@ -197,18 +196,17 @@ Check:
 python3 -m fh6parse --version
 ```
 
-Expect `fh6parse 1.3.2`. If the number is older, this clone is behind — `git fetch && git pull --ff-only` then check again (**§8**).
+Expect `fh6parse 1.3.3`. If the number is older, this clone is behind — `git fetch && git pull --ff-only` then check again (**§8**).
 
 Later upgrades are **§8**. Do not run `pip install` on every pull. The kiosk does not update by itself.
 
 **Air-gap first copy — prebuilt one-file** (this repo’s `dist/packages`). Not the upgrade path; use git for later updates.
 
-On a **32-bit** Raspberry Pi OS image use the `armv7` tarball. On **64-bit** Bookworm use `aarch64`.
+On a Pi 5 use the **aarch64** tarball only (there is no 32-bit Raspberry Pi OS for Pi 5).
 
 ```
 cd /home/pi
-tar -xzf fh6parse-*-raspberrypi-armv7.tar.gz
-# or: tar -xzf fh6parse-*-raspberrypi-aarch64.tar.gz
+tar -xzf fh6parse-*-raspberrypi-aarch64.tar.gz
 chmod +x fh6parse
 sudo cp fh6parse-kiosk.ini.example /etc/fh6parse-kiosk.ini
 ```
@@ -219,7 +217,7 @@ Run:
 ./fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 ```
 
-The one-file ARM tarball does not bundle the CAD stack, so **§3.7** pictures are git-checkout only. There is no **UPDATE** button and `--update` refuses this install. To get the 1.3.2 shop update path later, switch to the git checkout above.
+The one-file ARM tarball does not bundle the CAD stack, so **§3.7** pictures are git-checkout only. There is no **UPDATE** button and `--update` refuses this install. To get the 1.3.3 shop update path later, switch to the git checkout above.
 
 For systemd, set `ExecStart=/home/pi/fh6parse --kiosk --config /etc/fh6parse-kiosk.ini` (path to the unpacked binary).
 
@@ -250,6 +248,7 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 
 ```
 sudo usermod -aG gpio,lp,lpadmin pi
+# if Imager created a different user:  sudo usermod -aG gpio,lp,lpadmin "$USER"
 ```
 
 Log out and back in (or reboot) so the groups apply.
@@ -338,7 +337,7 @@ Put a matching line in `/etc/fstab` so it survives reboot. If the share is down,
 sudo pip3 install -e '.[models]' --break-system-packages
 ```
 
-If that install fails (no `cascadio` wheel on 32-bit Pi 3), leave it off. Matching still runs; nothing is rendered and the list icon stays off.
+If that install fails, leave it off. Matching still runs; nothing is rendered and the list icon stays off.
 
 **3. Matching** starts at the first characters of the NC file name (and the `O` program title). The end of the STEP name may differ (`_Rev03`, `_OP1`, extra words). Nearby part numbers do not match (`D0134078` will not pick `D0134079`).
 
@@ -419,24 +418,25 @@ Parse happens at print time, not when the list is shown. STEP matching and rende
 
 | Symptom | What to check |
 | --- | --- |
-| `GPIO off: …` on the status line | `python3-gpiozero` / `python3-rpi.gpio` installed; user in group `gpio`; pins not already claimed. |
+| `GPIO off: …` on the status line | `python3-gpiozero` and `python3-lgpio` installed (not `python3-rpi.gpio` on Pi 5); user in group `gpio`; pins not already claimed. |
 | Knob does nothing | CLK/DT on 17/27; common GND; 3.3 V VCC. Try `encoder_swap = true`. |
-| Knob skips or jitters | Shorter wires; module decoupling. gpiozero already debounces. |
+| Knob skips or jitters | Shorter wires; module decoupling. The kiosk sets a short encoder `bounce_time` for Pi 5. |
 | Buttons print on press and release | Use momentary NO to GND, not a latching switch. |
-| List stays on Insert USB | Stick mounted? `ls /media/pi` / `ls /run/media`. Format FAT32. Files ending `.nc` or `.tap`. |
+| List stays on Insert USB | Stick mounted? `ls /media` / `ls /run/media`. Format FAT32. Files ending `.nc` or `.tap`. |
 | `printer failed` | `ls -l /dev/usb/lp0`; user in `lp`; `lpstat -p munbyn`; test `lp -d munbyn -o raw`. Queue must be **raw**, not a raster POS-80 driver. |
 | Garbage on the slip | CUPS is not raw, or a desktop “print HTML” path was used. The kiosk never sends HTML. |
 | Ticket does not cut | Cutter empty/jammed. App already sends ESC/POS cut (`GS V`). |
-| Screen never sleeps | `idle_seconds = 0`, or encoder bouncing. |
-| Keyboard/mouse do nothing | Plug into the Pi USB; X11 picks them up. Click or press a key — the kiosk claims focus. **Esc** leaves fullscreen. GPIO print buttons still do not wake the screensaver. |
-| Black screen immediately | Desktop blanking plus app DPMS. Disable LXDE/Wayfire idle blank; keep kiosk `idle_seconds = 60`. |
-| Wrong aspect / sideways UI | Rotate until `xdpyinfo` (or Screen Configuration) shows 600×800. App geometry is 600×800 fullscreen. |
-| Service dead, UI never starts | `echo $DISPLAY` in a desktop terminal should be `:0`. `raspi-config` → X11, desktop autologin. `journalctl -u fh6parse-kiosk`. |
-| Python 3.9 | Bullseye image. Install Bookworm, or build 3.10+. |
+| Screen never sleeps | `idle_seconds = 0`, or encoder bouncing. Still on Wayland? Switch to X11 so `xset` works. |
+| Keyboard/mouse do nothing | Plug into the Pi USB-A; X11 picks them up. Click or press a key — the kiosk claims focus. **Esc** leaves fullscreen. GPIO print buttons still do not wake the screensaver. |
+| Black screen immediately | Desktop blanking plus app DPMS. Disable LXDE idle blank; keep kiosk `idle_seconds = 60`. |
+| Wrong aspect / sideways UI | Rotate until `xdpyinfo` (or Screen Configuration) shows 600×800. App geometry is 600×800 fullscreen. Pi 5 output is often `HDMI-A-1`. |
+| Service dead, UI never starts | `echo $DISPLAY` in a desktop terminal should be `:0`. `raspi-config` → X11, desktop autologin. `journalctl -u fh6parse-kiosk`. If Imager did not create user `pi`, edit `User=` in the unit. |
+| Undervoltage / random reboots | Official 27 W PSU. A phone charger or Pi 3 supply is not enough. |
+| Python 3.9 | Wrong image. Flash 64-bit Raspberry Pi OS Desktop for Pi 5. |
 | `--update` says one-file package | This Pi is running the ARM tarball. Copy a new tarball or reinstall from git (**§3.2**). |
 | `--update` / fast-forward failed | Uncommitted edits or a diverged branch. See **§8.1**. Do not merge on the shop floor. |
 | `--update` / **UPDATE** pulled but UI unchanged | `sudo systemctl restart fh6parse-kiosk`. Missing sudoers: **§3.2**. |
-| **UPDATE** button never appears | Offline, one-file tarball, already up to date, or version older than 1.3.2 (**§8.1**). Check is only at kiosk start. `python3 -m fh6parse --version`. |
+| **UPDATE** button never appears | Offline, one-file tarball, already up to date, or version older than 1.3.3 (**§8.1**). Check is only at kiosk start. `python3 -m fh6parse --version`. |
 | **UPDATE** says failed / kiosk did not restart | `sudo -n systemctl restart fh6parse-kiosk` from user `pi` should succeed after **§3.2**. Then `sudo systemctl restart fh6parse-kiosk`. |
 | No **■** next to files | `model_roots` empty or the share is not mounted (`ls` the path). CAD extra missing (`pip3 install -e '.[models]'`). Still rendering (wait). Rev in the G-code does not match any `.stp`. |
 | **■** shows, ticket has no picture | CUPS queue is not **raw**. Printer rejected `GS v 0`. Test text-only first (`printf` in §3.5). |
@@ -468,17 +468,17 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 
 ## 8. Updating the kiosk
 
-This section is for **fh6parse 1.3.2** on a **git checkout** (`/home/pi/fh6parse`). Confirm first:
+This section is for **fh6parse 1.3.3** on a **git checkout** (`/home/pi/fh6parse`). Confirm first:
 
 ```
 python3 -m fh6parse --version
 ```
 
-You want `fh6parse 1.3.2`. The kiosk **never updates by itself**. Print works with or without a network.
+You want `fh6parse 1.3.3`. The kiosk **never updates by itself**. Print works with or without a network.
 
-### 8.1 First pull to 1.3.2 (already installed, older number)
+### 8.1 First pull to 1.3.3 (already installed, older number)
 
-If `--version` is older than 1.3.2, there is no on-screen **UPDATE** yet. SSH or plug in a keyboard:
+If `--version` is older than 1.3.3, there is no Pi 5 GPIO path and (before 1.3.2) no on-screen **UPDATE**. SSH or plug in a keyboard:
 
 ```
 cd /home/pi/fh6parse
@@ -544,5 +544,5 @@ It never writes `/etc/fh6parse-kiosk.ini`. Pins, printer, idle, and `model_roots
 
 ### 8.4 One-file ARM tarball
 
-No **UPDATE** button. `python3 -m fh6parse --update` (or `./fh6parse --update`) exits with a message to copy a new tarball or switch to a git clone. That package is a first copy, not the 1.3.2 upgrade path. To convert: follow **§3.2** (git + pip), point systemd `ExecStart` back to `python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini`, then **§8.2**.
+No **UPDATE** button. `python3 -m fh6parse --update` (or `./fh6parse --update`) exits with a message to copy a new tarball or switch to a git clone. That package is a first copy, not the 1.3.3 upgrade path. To convert: follow **§3.2** (git + pip), point systemd `ExecStart` back to `python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini`, then **§8.2**.
 

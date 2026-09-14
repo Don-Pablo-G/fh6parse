@@ -26,6 +26,6 @@ function Invoke-PiBuild {
     Write-Host "Built $bin"
 }
 
-# Pi 3 32-bit OS (recommended) and 64-bit Bookworm.
+# Pi 5 kiosk is 64-bit (linux/arm64). armv7 is only for leftover 32-bit Pi 3 images.
 Invoke-PiBuild -Platform "linux/arm/v7" -OutDir "dist/raspberry-armv7"
 Invoke-PiBuild -Platform "linux/arm64" -OutDir "dist/raspberry-aarch64"
