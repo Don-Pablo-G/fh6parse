@@ -55,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--update",
         action="store_true",
-        help="Git-pull this checkout, skip pip unless deps changed, restart kiosk",
+        help="Git-pull this checkout (same as the kiosk UPDATE button), skip pip unless deps changed, restart kiosk",
     )
     p.add_argument(
         "--config",

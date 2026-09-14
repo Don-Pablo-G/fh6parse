@@ -8,12 +8,11 @@ import tempfile
 
 # Printable width on 80 mm ESC/POS at 203 dpi, multiple of 8.
 THERMAL_DOTS = 512
-VIEW_HEIGHT = 360
-STACK_GAP = 8
-
-# (1,1,1) and 180° around Z — both from above, opposite sides.
-_ISO_A = (1.0, 1.0, 1.0)
-_ISO_B = (-1.0, -1.0, 1.0)
+# Hard cap per view so a bulky part cannot run down the roll (~30 mm at 203 dpi).
+MAX_VIEW_HEIGHT = 240
+# A 2 m × 20 mm shaft becomes a few pixels; keep a sliver so it is not 1 px.
+MIN_VIEW_HEIGHT = 12
+STACK_GAP = 4
 
 
 def render_available() -> bool:
@@ -34,13 +33,25 @@ def cache_dir() -> Path:
 
 
 def cache_png_path(step_path: Path, mtime: float, size: int) -> Path:
-    key = f"{step_path.resolve()}|{mtime}|{size}|{THERMAL_DOTS}|{VIEW_HEIGHT}"
+    key = (
+        f"{step_path.resolve()}|{mtime}|{size}|ticket-v2|"
+        f"{THERMAL_DOTS}|{MAX_VIEW_HEIGHT}|{MIN_VIEW_HEIGHT}"
+    )
     digest = hashlib.sha1(key.encode("utf-8", "replace")).hexdigest()[:20]
     return cache_dir() / f"{digest}.png"
 
 
+def ticket_view_pixels(vertices) -> tuple[int, int]:
+    """Pixel size of one view: width is the 80 mm axis; height follows the part."""
+    import numpy as np
+
+    verts = np.asarray(vertices, dtype=np.float64)
+    basis = _ticket_basis(verts, opposite=False)
+    return _fit_pixels(verts, basis)
+
+
 def render_step_stack(step_path: Path, dest: Path) -> Path | None:
-    """Two opposite isometric views, stacked, white background. None on failure."""
+    """Two opposite views, stacked. Canvas is cropped to the part (no empty roll)."""
     try:
         from PIL import Image
         import numpy as np
@@ -60,12 +71,13 @@ def render_step_stack(step_path: Path, dest: Path) -> Path | None:
         faces = np.asarray(mesh.faces, dtype=np.int64)
         if len(faces) > 80000:
             faces = faces[:: max(1, len(faces) // 80000)]
-        view_a = _raster_view(vertices, faces, _ISO_A, THERMAL_DOTS, VIEW_HEIGHT)
-        view_b = _raster_view(vertices, faces, _ISO_B, THERMAL_DOTS, VIEW_HEIGHT)
+        view_a = _raster_view(vertices, faces, opposite=False)
+        view_b = _raster_view(vertices, faces, opposite=True)
         gap = STACK_GAP
-        stacked = Image.new("L", (THERMAL_DOTS, VIEW_HEIGHT * 2 + gap), 255)
+        height = view_a.shape[0] + gap + view_b.shape[0]
+        stacked = Image.new("L", (THERMAL_DOTS, height), 255)
         stacked.paste(Image.fromarray(view_a, mode="L"), (0, 0))
-        stacked.paste(Image.fromarray(view_b, mode="L"), (0, VIEW_HEIGHT + gap))
+        stacked.paste(Image.fromarray(view_b, mode="L"), (0, view_a.shape[0] + gap))
         dest.parent.mkdir(parents=True, exist_ok=True)
         stacked.save(dest, format="PNG")
         return dest
@@ -73,32 +85,67 @@ def render_step_stack(step_path: Path, dest: Path) -> Path | None:
         return None
 
 
-def _raster_view(vertices, faces, direction, width: int, height: int):
+def _ticket_basis(vertices, *, opposite: bool):
+    """Screen X = longest 3D axis (across 80 mm). Look from the two short axes."""
     import numpy as np
 
-    zaxis = np.asarray(direction, dtype=np.float64)
-    zaxis = zaxis / (np.linalg.norm(zaxis) or 1.0)
-    up = np.array([0.0, 0.0, 1.0])
-    if abs(float(np.dot(up, zaxis))) > 0.92:
-        up = np.array([0.0, 1.0, 0.0])
-    xaxis = np.cross(up, zaxis)
-    n = np.linalg.norm(xaxis)
-    if n < 1e-9:
-        xaxis = np.array([1.0, 0.0, 0.0])
-    else:
-        xaxis = xaxis / n
-    yaxis = np.cross(zaxis, xaxis)
-    basis = np.stack([xaxis, yaxis, zaxis], axis=1)
+    size = vertices.max(axis=0) - vertices.min(axis=0)
+    long_i = int(np.argmax(size))
+    axes = np.eye(3, dtype=np.float64)
+    xaxis = axes[long_i]
+    rest = [i for i in range(3) if i != long_i]
+    look = axes[rest[0]] + axes[rest[1]]
+    n = np.linalg.norm(look)
+    look = look / n if n > 1e-12 else axes[rest[0]]
+    if opposite:
+        look = -look
+    xaxis = xaxis - look * float(np.dot(xaxis, look))
+    xn = np.linalg.norm(xaxis)
+    xaxis = xaxis / xn if xn > 1e-12 else axes[(long_i + 1) % 3]
+    yaxis = np.cross(look, xaxis)
+    yn = np.linalg.norm(yaxis)
+    yaxis = yaxis / yn if yn > 1e-12 else axes[(long_i + 2) % 3]
+    return np.stack([xaxis, yaxis, look], axis=1)
+
+
+def _fit_pixels(vertices, basis) -> tuple[int, int]:
+    import numpy as np
+
+    center = vertices.mean(axis=0)
+    pts = (vertices - center) @ basis
+    span_x = float(max(pts[:, 0].max() - pts[:, 0].min(), 1e-9))
+    span_y = float(max(pts[:, 1].max() - pts[:, 1].min(), 1e-9))
+    pad = 0.04
+    scale = (THERMAL_DOTS - 8) / (span_x * (1.0 + 2 * pad))
+    height = int(round(span_y * scale * (1.0 + 2 * pad))) + 2
+    if height > MAX_VIEW_HEIGHT:
+        scale *= MAX_VIEW_HEIGHT / height
+        height = MAX_VIEW_HEIGHT
+    height = max(MIN_VIEW_HEIGHT, min(MAX_VIEW_HEIGHT, height))
+    if height % 2:
+        height += 1
+    return THERMAL_DOTS, height
+
+
+def _raster_view(vertices, faces, *, opposite: bool):
+    import numpy as np
+
+    basis = _ticket_basis(vertices, opposite=opposite)
+    width, height = _fit_pixels(vertices, basis)
+    zaxis = basis[:, 2]
     center = vertices.mean(axis=0)
     pts = (vertices - center) @ basis
     xy = pts[:, :2]
     depth = pts[:, 2]
     lo = xy.min(axis=0)
     hi = xy.max(axis=0)
-    span = float(max(hi[0] - lo[0], hi[1] - lo[1], 1e-9))
-    margin = 0.06 * span
-    scale = (min(width, height) - 2) / (span + 2 * margin)
+    span_x = float(max(hi[0] - lo[0], 1e-9))
+    span_y = float(max(hi[1] - lo[1], 1e-9))
     origin = (lo + hi) / 2.0
+    scale = (width - 8) / (span_x * 1.08)
+    used_h = span_y * scale * 1.08
+    if used_h > height - 2:
+        scale *= (height - 2) / used_h
     screen = np.empty_like(xy)
     screen[:, 0] = (xy[:, 0] - origin[0]) * scale + width / 2.0
     screen[:, 1] = height / 2.0 - (xy[:, 1] - origin[1]) * scale
@@ -108,7 +155,6 @@ def _raster_view(vertices, faces, direction, width: int, height: int):
 
     tri = screen[faces]
     ztri = depth[faces]
-    # Face lighting: view-facing faces are darker on the ticket.
     v0 = vertices[faces[:, 0]]
     v1 = vertices[faces[:, 1]]
     v2 = vertices[faces[:, 2]]

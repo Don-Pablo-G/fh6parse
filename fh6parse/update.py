@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +15,7 @@ FROZEN_MSG = (
 )
 KIOSK_UNIT = "fh6parse-kiosk"
 PYPROJECT = "pyproject.toml"
+FETCH_TIMEOUT = 20
 
 
 def find_git_root(start: Path) -> Path | None:
@@ -31,8 +33,24 @@ def _run(
     cmd: Sequence[str],
     *,
     runner: Run,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    return runner(list(cmd), capture_output=True, text=True, check=False)
+    kwargs: dict = {"capture_output": True, "text": True, "check": False}
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    try:
+        return runner(list(cmd), **kwargs)
+    except TypeError:
+        kwargs.pop("timeout", None)
+        return runner(list(cmd), **kwargs)
+    except subprocess.TimeoutExpired as exc:
+        out = getattr(exc, "stdout", None) or ""
+        err = getattr(exc, "stderr", None) or "timeout"
+        if isinstance(out, bytes):
+            out = out.decode("utf-8", "replace")
+        if isinstance(err, bytes):
+            err = err.decode("utf-8", "replace")
+        return subprocess.CompletedProcess(list(cmd), 1, out, err)
 
 
 def _pyproject_changed(
@@ -50,6 +68,62 @@ def _pyproject_changed(
     )
     names = {line.strip() for line in (proc.stdout or "").splitlines() if line.strip()}
     return PYPROJECT in names
+
+
+@dataclass(frozen=True)
+class UpdateCheck:
+    """Result of a non-blocking look at origin. Never raises."""
+
+    available: bool
+    detail: str = ""
+
+
+def check_for_update(
+    *,
+    frozen: bool | None = None,
+    start: Path | None = None,
+    runner: Run | None = None,
+    timeout: float = FETCH_TIMEOUT,
+) -> UpdateCheck:
+    """Fetch origin and compare HEAD to the tracked branch. Offline = no update."""
+    run: Run = runner if runner is not None else subprocess.run
+    if frozen is None:
+        frozen = bool(getattr(sys, "frozen", False))
+    if frozen:
+        return UpdateCheck(False, "frozen")
+    here = start if start is not None else Path(__file__).resolve()
+    root = find_git_root(here)
+    if root is None:
+        return UpdateCheck(False, "not git")
+    fetch = _run(
+        ["git", "-C", str(root), "fetch", "--quiet"],
+        runner=run,
+        timeout=timeout,
+    )
+    if fetch.returncode != 0:
+        return UpdateCheck(False, "offline")
+    local = _run(["git", "-C", str(root), "rev-parse", "HEAD"], runner=run)
+    if local.returncode != 0:
+        return UpdateCheck(False, "git error")
+    remote = _run(["git", "-C", str(root), "rev-parse", "@{upstream}"], runner=run)
+    if remote.returncode != 0:
+        remote = _run(["git", "-C", str(root), "rev-parse", "origin/HEAD"], runner=run)
+    if remote.returncode != 0:
+        remote = _run(["git", "-C", str(root), "rev-parse", "origin/master"], runner=run)
+    if remote.returncode != 0:
+        return UpdateCheck(False, "no remote")
+    local_sha = (local.stdout or "").strip()
+    remote_sha = (remote.stdout or "").strip()
+    if not local_sha or not remote_sha or local_sha == remote_sha:
+        return UpdateCheck(False, "up to date")
+    return UpdateCheck(True, "available")
+
+
+def _restart_kiosk(*, runner: Run) -> subprocess.CompletedProcess[str]:
+    restart = _run(["systemctl", "restart", KIOSK_UNIT], runner=runner)
+    if restart.returncode == 0:
+        return restart
+    return _run(["sudo", "-n", "systemctl", "restart", KIOSK_UNIT], runner=runner)
 
 
 def perform_update(
@@ -126,7 +200,7 @@ def perform_update(
     if loaded.returncode != 0:
         print("restart the kiosk yourself (systemctl restart fh6parse-kiosk)", file=err)
         return 0
-    restart = _run(["systemctl", "restart", KIOSK_UNIT], runner=run)
+    restart = _restart_kiosk(runner=run)
     if restart.returncode != 0:
         print(
             (restart.stderr or f"failed to restart {KIOSK_UNIT}").strip(),

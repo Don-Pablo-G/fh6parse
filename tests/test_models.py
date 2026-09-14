@@ -6,11 +6,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fh6parse.kiosk import load_kiosk_config
+from fh6parse.kiosk import load_kiosk_config, save_model_roots
 from fh6parse.modelmatch import ModelFile, index_models, pick_model
 from fh6parse.modelprep import ModelPrep
+from fh6parse.modelrender import MAX_VIEW_HEIGHT, MIN_VIEW_HEIGHT, THERMAL_DOTS, ticket_view_pixels
 from fh6parse.partid import identity_from_nc, identity_from_nc_path, parse_model_stem
+from fh6parse.parser import parse_nc_file
 from fh6parse.printer import CUT, INIT, bitmap_to_escpos, encode_ticket
+from fh6parse.report import PAPER_80MM, format_print_html
 
 SAMPLES = Path(__file__).resolve().parent / "samples"
 
@@ -158,6 +161,57 @@ class TestKioskModelRoots(unittest.TestCase):
             cfg = load_kiosk_config(path)
             self.assertEqual(cfg.model_roots, [a, b])
             self.assertEqual(cfg.extra_roots, [Path(raw) / "nc"])
+
+    def test_save_model_roots_roundtrip(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            dest = Path(raw) / "fh6parse-kiosk.ini"
+            cad = Path(raw) / "cad"
+            save_model_roots([cad], dest)
+            cfg = load_kiosk_config(dest)
+            self.assertEqual(cfg.model_roots, [cad])
+
+
+class TestHtmlStepViews(unittest.TestCase):
+    def test_print_html_embeds_png_near_top(self) -> None:
+        result = parse_nc_file(SAMPLES / "D0134078.nc")
+        with tempfile.TemporaryDirectory() as raw:
+            png = Path(raw) / "iso.png"
+            png.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 16)
+            html = format_print_html(
+                result, paper=PAPER_80MM, image_paths=[png]
+            )
+        self.assertIn("data:image/png;base64,", html)
+        self.assertIn('class="step-view"', html)
+        self.assertLess(html.find("step-views"), html.find("D0134078.nc"))
+
+
+class TestTicketViewLayout(unittest.TestCase):
+    def test_long_shaft_is_a_needle_across_80mm(self) -> None:
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy not installed")
+        # 2 m × 20 mm bar, modeled along X, Y, or Z.
+        for sizes in ((2000.0, 20.0, 20.0), (20.0, 2000.0, 20.0), (20.0, 20.0, 2000.0)):
+            xs = np.linspace(-sizes[0] / 2, sizes[0] / 2, 5)
+            ys = np.linspace(-sizes[1] / 2, sizes[1] / 2, 3)
+            zs = np.linspace(-sizes[2] / 2, sizes[2] / 2, 3)
+            grid = np.array([(x, y, z) for x in xs for y in ys for z in zs])
+            width, height = ticket_view_pixels(grid)
+            self.assertEqual(width, THERMAL_DOTS)
+            self.assertLessEqual(height, MIN_VIEW_HEIGHT + 8)
+            self.assertLess(height, width / 8)
+
+    def test_bulky_part_height_is_capped(self) -> None:
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy not installed")
+        xs = np.linspace(-50.0, 50.0, 4)
+        grid = np.array([(x, y, z) for x in xs for y in xs for z in xs])
+        width, height = ticket_view_pixels(grid)
+        self.assertEqual(width, THERMAL_DOTS)
+        self.assertLessEqual(height, MAX_VIEW_HEIGHT)
 
 
 class TestModelPrepDoesNotBlock(unittest.TestCase):

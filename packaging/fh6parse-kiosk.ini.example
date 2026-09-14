@@ -1,6 +1,8 @@
 # Raspberry Pi 3 kiosk — copy to /etc/fh6parse-kiosk.ini or next to the app.
 # GPIO numbers are BCM. Buttons: momentary to GND (internal pull-up).
 # KY-040 encoder: CLK / DT; shaft switch unused.
+# Updates are not configured here. Git checkout + on-screen UPDATE: see
+# packaging/LINUX-KIOSK.md §8 (fh6parse 1.3.2). This file is never overwritten.
 
 [kiosk]
 width = 600

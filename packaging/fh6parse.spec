@@ -36,7 +36,11 @@ for pkg, spec_name in (
     ("RPi.GPIO", "RPi.GPIO"),
     ("lgpio", "lgpio"),
 ):
-    if importlib.util.find_spec(spec_name) is None:
+    try:
+        found = importlib.util.find_spec(spec_name)
+    except ModuleNotFoundError:
+        continue
+    if found is None:
         continue
     try:
         ds, bins, hid = collect_all(pkg)
@@ -47,6 +51,25 @@ for pkg, spec_name in (
     except Exception:
         pass
 
+# STEP isometric views. Collect C-extension binaries only.
+# Do not collect_submodules("trimesh") — that pulls optional torch/pandas
+# from the build machine.
+for pkg in ("numpy", "PIL", "cascadio"):
+    try:
+        found = importlib.util.find_spec(pkg)
+    except ModuleNotFoundError:
+        continue
+    if found is None:
+        continue
+    try:
+        ds, bins, hid = collect_all(pkg)
+        extra_datas += ds
+        extra_binaries += bins
+        hiddenimports += hid
+    except Exception:
+        pass
+hiddenimports += ["numpy", "PIL", "PIL.Image", "trimesh", "cascadio"]
+
 a = Analysis(
     [LAUNCHER],
     pathex=[str(ROOT)],
@@ -56,7 +79,22 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        "torch",
+        "torchvision",
+        "torchaudio",
+        "tensorflow",
+        "pandas",
+        "matplotlib",
+        "scipy",
+        "pyarrow",
+        "botocore",
+        "boto3",
+        "IPython",
+        "notebook",
+        "sklearn",
+        "cv2",
+    ],
     noarchive=False,
 )
 

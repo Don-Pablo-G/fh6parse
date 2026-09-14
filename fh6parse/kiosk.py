@@ -6,6 +6,7 @@ import configparser
 import os
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 import tkinter as tk
@@ -18,6 +19,7 @@ from .modelprep import ModelPrep
 from .parser import parse_nc_file
 from .printer import print_ticket
 from .report import PAPER_80MM, PAPER_80MM_MIN, format_report
+from .update import UpdateCheck
 
 BG = "#111111"
 FG = "#eeeeee"
@@ -64,6 +66,30 @@ def default_config_paths() -> list[Path]:
         paths.append(Path(__file__).resolve().parent.parent / "fh6parse-kiosk.ini")
     paths.append(Path("/etc/fh6parse-kiosk.ini"))
     return paths
+
+
+def kiosk_config_write_path() -> Path:
+    """Ini the GUI writes when the operator picks STEP folders."""
+    env = os.environ.get("FH6PARSE_KIOSK_INI")
+    if env:
+        return Path(env)
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / "fh6parse-kiosk.ini"
+    return Path.cwd() / "fh6parse-kiosk.ini"
+
+
+def save_model_roots(roots: list[Path], dest: Path | None = None) -> Path:
+    path = dest or kiosk_config_write_path()
+    parser = configparser.ConfigParser()
+    if path.is_file():
+        parser.read(path, encoding="utf-8")
+    if not parser.has_section("kiosk"):
+        parser.add_section("kiosk")
+    parser.set("kiosk", "model_roots", ",".join(str(p) for p in roots))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fh:
+        parser.write(fh)
+    return path
 
 
 def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
@@ -140,6 +166,8 @@ class KioskApp(tk.Tk):
         self._status_job: str | None = None
         self._bound_all: list[str] = []
         self._models = ModelPrep(cfg.model_roots) if cfg.model_roots else None
+        self._update_available = False
+        self._updating = False
 
         self.title(f"CNC kiosk {__version__}")
         self.configure(bg=BG)
@@ -156,12 +184,14 @@ class KioskApp(tk.Tk):
         self._poll_usb()
         self._arm_idle()
         self.after(200, self._claim_input)
+        self.after(400, self._start_update_check)
 
     def _build(self) -> None:
         family = "DejaVu Sans" if sys.platform.startswith("linux") else "Segoe UI"
         title_font = tkfont.Font(family=family, size=22, weight="bold")
         list_font = tkfont.Font(family=family, size=20)
         small = tkfont.Font(family=family, size=13)
+        update_font = tkfont.Font(family=family, size=18, weight="bold")
 
         head = tk.Frame(self, bg=BG)
         head.pack(fill=tk.X, padx=16, pady=(18, 8))
@@ -204,13 +234,30 @@ class KioskApp(tk.Tk):
 
         foot = tk.Frame(self, bg=BG)
         foot.pack(fill=tk.X, padx=16, pady=(4, 16))
-        tk.Label(
+        self.update_btn = tk.Button(
+            foot,
+            text="UPDATE",
+            font=update_font,
+            bg=ACCENT,
+            fg="#111111",
+            activebackground="#ffd54a",
+            activeforeground="#111111",
+            disabledforeground="#555555",
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+            height=2,
+            cursor="hand2",
+            command=self._on_update,
+        )
+        self._keys_hint = tk.Label(
             foot,
             text="FULL / F  full ticket     MIN / M  short ticket     Esc  window",
             font=small,
             bg=BG,
             fg=MUTED,
-        ).pack(anchor="w")
+        )
+        self._keys_hint.pack(anchor="w")
         self.status = tk.Label(
             foot,
             text="",
@@ -243,6 +290,8 @@ class KioskApp(tk.Tk):
             ("<Key-F>", lambda e: self._on_print(PAPER_80MM)),
             ("<Key-m>", lambda e: self._on_print(PAPER_80MM_MIN)),
             ("<Key-M>", lambda e: self._on_print(PAPER_80MM_MIN)),
+            ("<Key-u>", lambda e: self._on_update()),
+            ("<Key-U>", lambda e: self._on_update()),
             ("<Escape>", self._on_escape),
             ("<KeyPress>", self._on_keypress),
         )
@@ -455,7 +504,69 @@ class KioskApp(tk.Tk):
         self.listbox.focus_set()
         return "break"
 
+    def _start_update_check(self) -> None:
+        threading.Thread(target=self._check_update_worker, daemon=True).start()
+
+    def _check_update_worker(self) -> None:
+        from .update import check_for_update
+
+        status = check_for_update()
+        self._queue(lambda: self._apply_update_status(status))
+
+    def _apply_update_status(self, status: UpdateCheck) -> None:
+        if not status.available or self._updating:
+            return
+        self._update_available = True
+        try:
+            mapped = self.update_btn.winfo_ismapped()
+        except tk.TclError:
+            return
+        if not mapped:
+            self.update_btn.pack(fill=tk.X, pady=(0, 10), before=self._keys_hint)
+        self._set_status("Update available")
+
+    def _on_update(self, _event: tk.Event | None = None) -> str | None:
+        if self._wake_hid():
+            return "break"
+        if not self._update_available or self._updating:
+            return "break"
+        self._arm_idle()
+        self._updating = True
+        self.update_btn.config(state=tk.DISABLED, text="UPDATING…")
+        self._set_status("Updating…")
+        threading.Thread(target=self._update_worker, daemon=True).start()
+        return "break"
+
+    def _update_worker(self) -> None:
+        from .update import perform_update
+
+        code = perform_update()
+        self._queue(lambda: self._update_done(code))
+
+    def _update_done(self, code: int) -> None:
+        try:
+            if code == 0:
+                self._update_available = False
+                self.update_btn.pack_forget()
+                self.update_btn.config(state=tk.NORMAL, text="UPDATE")
+                self._updating = False
+                self._set_status("Updated — restarting kiosk")
+                return
+            self._updating = False
+            self.update_btn.config(state=tk.NORMAL, text="UPDATE")
+            if code == 2:
+                self._update_available = False
+                self.update_btn.pack_forget()
+                self._set_status("This install cannot auto-update", error=True)
+                return
+            self._set_status("Update failed — try again or use --update", error=True)
+        except tk.TclError:
+            pass
+
     def _on_print(self, paper: str) -> str | None:
+        if self._updating:
+            self._set_status("Updating…", error=True)
+            return "break"
         if not self.gate.allow_print():
             return None
         self._arm_idle()
@@ -487,6 +598,9 @@ class KioskApp(tk.Tk):
         self.status.config(text=text, fg=ERR if error else OK)
         if self._status_job:
             self.after_cancel(self._status_job)
+            self._status_job = None
+        if self._updating:
+            return
         self._status_job = self.after(8000, lambda: self.status.config(text=""))
 
     def _arm_idle(self) -> None:

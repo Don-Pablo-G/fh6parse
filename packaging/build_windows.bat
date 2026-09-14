@@ -22,6 +22,7 @@ if "%APPVER%"=="" (
 mkdir dist\packages 2>nul
 copy /Y dist\windows\fh6parse.exe dist\packages\fh6parse-%APPVER%-windows-x64.exe >nul
 copy /Y packaging\USAGE.txt dist\packages\USAGE.txt >nul
+copy /Y packaging\fh6parse-kiosk.ini.example dist\packages\fh6parse-kiosk.ini.example >nul
 
 echo Built dist\windows\fh6parse.exe
 echo Packaged dist\packages\fh6parse-%APPVER%-windows-x64.exe

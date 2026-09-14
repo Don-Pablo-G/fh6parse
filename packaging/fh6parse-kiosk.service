@@ -1,5 +1,7 @@
-# Shop update (git checkout): python3 -m fh6parse --update
-# then, if the unit did not restart: sudo systemctl restart fh6parse-kiosk
+# fh6parse 1.3.2 shop update (git checkout): kiosk shows UPDATE if origin is
+# ahead, or: python3 -m fh6parse --update
+# pi needs NOPASSWD for: /usr/bin/systemctl restart fh6parse-kiosk
+# (see packaging/LINUX-KIOSK.md §3.2 and §8). Otherwise: sudo systemctl restart …
 # STEP folders: set model_roots in /etc/fh6parse-kiosk.ini; mount the share
 # before this unit starts (fstab). CAD extra is pip install -e '.[models]'.
 

@@ -1,8 +1,17 @@
 # fh6parse Linux kiosk manual
 
-Shop-floor install for **Raspberry Pi 3** with a **portrait 800×600** screen: boot, wait for a USB stick, pick an NC file with a rotary encoder, print an 80 mm ticket on a **MUNBYN P047**.
+**Version 1.3.2.** Shop-floor install for **Raspberry Pi 3** with a **portrait 800×600** screen: boot, wait for a USB stick, pick an NC file with a rotary encoder, print an 80 mm ticket on a **MUNBYN P047**. Optional STEP isometrics on the slip. If the Pi is on the network, the kiosk can offer an on-screen **UPDATE**.
 
 Python **3.10+** is required. Use **Raspberry Pi OS Bookworm** (32-bit Desktop is the practical image on a Pi 3).
+
+1. [What you need](#1-what-you-need)
+2. [Hardware](#2-hardware)
+3. [Software](#3-software)
+4. [Boot to kiosk](#4-boot-to-kiosk)
+5. [Daily use](#5-daily-use)
+6. [Troubleshooting](#6-troubleshooting)
+7. [Files on disk](#7-files-on-disk)
+8. [Updating (1.3.2)](#8-updating-the-kiosk)
 
 ---
 
@@ -17,7 +26,8 @@ Python **3.10+** is required. Use **Raspberry Pi OS Bookworm** (32-bit Desktop i
 | USB stick | FAT/exFAT/NTFS. Programs as `.nc` / `.NC` / `.tap` in the **stick root** only (not subfolders). |
 | MUNBYN P047 (ITPP047) | USB, 80 mm ESC/POS, auto-cutter. Own mains PSU. |
 | Company STEP folder (optional) | Network share of `.stp` / `.step` files. See **§3.7**. |
-| Keyboard | Only for first-time setup. Not needed on the shop floor. |
+| Network (optional) | Only for git install and later **UPDATE**. Printing works offline. |
+| Keyboard / mouse | First-time setup, SSH, or tap **UPDATE**. Not required for encoder + GPIO print. |
 
 Default GPIO (**BCM** numbers, not header pin numbers):
 
@@ -174,15 +184,22 @@ sudo pip3 install -e '.[models]' --break-system-packages
 
 `--break-system-packages` is normal on Bookworm when you are not using a venv. gpiozero stays the **apt** copy so it can see the Pi GPIO.
 
+Allow user `pi` to restart the kiosk after an on-screen **UPDATE** (once, as root):
+
+```
+echo 'pi ALL=(root) NOPASSWD: /usr/bin/systemctl restart fh6parse-kiosk' | sudo tee /etc/sudoers.d/fh6parse-kiosk
+sudo chmod 440 /etc/sudoers.d/fh6parse-kiosk
+```
+
 Check:
 
 ```
 python3 -m fh6parse --version
 ```
 
-Expect `fh6parse 1.3.0` or newer.
+Expect `fh6parse 1.3.2`. If the number is older, this clone is behind — `git fetch && git pull --ff-only` then check again (**§8**).
 
-Later upgrades: see **§8 Updating the kiosk**. Do not run `pip install` on every pull.
+Later upgrades are **§8**. Do not run `pip install` on every pull. The kiosk does not update by itself.
 
 **Air-gap first copy — prebuilt one-file** (this repo’s `dist/packages`). Not the upgrade path; use git for later updates.
 
@@ -202,9 +219,9 @@ Run:
 ./fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 ```
 
-The one-file ARM tarball does not bundle the CAD stack, so **§3.7** pictures are git-checkout only.
+The one-file ARM tarball does not bundle the CAD stack, so **§3.7** pictures are git-checkout only. There is no **UPDATE** button and `--update` refuses this install. To get the 1.3.2 shop update path later, switch to the git checkout above.
 
-For systemd, set `ExecStart=/home/pi/fh6parse --kiosk --config /etc/fh6parse-kiosk.ini` (path to the unpacked binary). `python3 -m fh6parse --update` will refuse a one-file install.
+For systemd, set `ExecStart=/home/pi/fh6parse --kiosk --config /etc/fh6parse-kiosk.ini` (path to the unpacked binary).
 
 ### 3.3 Kiosk config
 
@@ -288,6 +305,7 @@ Without GPIO you can still use a **USB keyboard and mouse** at any time (hot-plu
 | Arrows, mouse wheel, click a file | Move highlight | First event only wakes |
 | **F** / **M** | Print full / min | Ignored (no ticket); another key or click wakes |
 | GPIO FULL / MIN | Print | Ignored (no ticket, stays black) |
+| Yellow **UPDATE** / **U** | Apply pending git update (button only if origin is ahead) | Wake first, then tap |
 | **Esc** | Leave fullscreen, then close | Wake, then Esc again leaves fullscreen |
 
 Plug in a USB stick with `.nc` files; the list should fill by itself.
@@ -296,7 +314,7 @@ Desktop autostart of the kiosk is in the next section. Until then, Escape leaves
 
 ### 3.7 STEP models on the ticket
 
-Optional. FULL and MIN tickets can show two opposite isometric views, stacked, scaled to the 80 mm raster (~512 dots), at the top of the slip. Print never waits for a model.
+Optional. FULL and MIN tickets can show two opposite **solid** isometric views (visible surfaces, not wireframe), stacked at the top of the slip. The longest 3D axis is laid across the 80 mm width (~512 dots); height is cropped to the part, so a long thin shaft is a thin strip, not a metre of paper. A bulky part is capped (~30 mm of paper per view). Print never waits for a model.
 
 **1. Point the kiosk at the CAD folders** in `/etc/fh6parse-kiosk.ini`. Several roots are allowed (comma or `:` / `;`). Subfolders are searched.
 
@@ -345,11 +363,13 @@ If the program **has** a revision, only a STEP file with the **same** rev is use
 
 **4. On the screen**, a **■** appears next to the file when the bitmap is rendered and ready. The walk and render run in the background for every USB file in the list. Cache: `/tmp/fh6parse-models`.
 
+On **Windows**, the GUI has **STEP folders…**. Paths are saved as `model_roots` in `fh6parse-kiosk.ini` next to the exe. The Windows one-file build bundles the CAD stack; print still works if a model is missing.
+
 ---
 
 ## 4. Boot to kiosk
 
-Copy the unit and enable it. The service assumes user `pi`, display `:0`, and Desktop autologin. If `model_roots` is on a NAS, mount that share in `fstab` so it is up before the kiosk starts.
+Copy the unit and enable it. The service assumes user `pi`, display `:0`, and Desktop autologin. If `model_roots` is on a NAS, mount that share in `fstab` so it is up before the kiosk starts. The sudoers line from **§3.2** must exist if you want the **UPDATE** button to restart the unit.
 
 ```
 sudo cp /home/pi/fh6parse/packaging/fh6parse-kiosk.service /etc/systemd/system/
@@ -389,6 +409,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 7. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
 8. Wake: encoder, inserting a USB stick, or a **keyboard / mouse**. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored.
 9. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
+10. If the Pi is on the network and a newer git commit exists, a yellow **UPDATE** button appears **after this boot’s check**. Tap it (or **U**). Nothing is applied until then; print still works. After a successful update the kiosk restarts (needs the sudoers line in **§3.2** / **§8**).
 
 Parse happens at print time, not when the list is shown. STEP matching and rendering run in the background and must not delay the ticket.
 
@@ -412,9 +433,11 @@ Parse happens at print time, not when the list is shown. STEP matching and rende
 | Wrong aspect / sideways UI | Rotate until `xdpyinfo` (or Screen Configuration) shows 600×800. App geometry is 600×800 fullscreen. |
 | Service dead, UI never starts | `echo $DISPLAY` in a desktop terminal should be `:0`. `raspi-config` → X11, desktop autologin. `journalctl -u fh6parse-kiosk`. |
 | Python 3.9 | Bullseye image. Install Bookworm, or build 3.10+. |
-| `--update` says one-file package | This Pi is running the ARM tarball. Copy a new tarball or reinstall from git (§3.2). |
-| `--update` / fast-forward failed | Uncommitted edits or a diverged branch. `cd /home/pi/fh6parse && git status`. Do not merge on the shop floor; reset to `origin/master` only if you mean to discard local changes. |
-| `--update` pulled but UI unchanged | `systemctl restart fh6parse-kiosk` (the command prints this if the unit is missing). Check `python3 -m fh6parse --version`. |
+| `--update` says one-file package | This Pi is running the ARM tarball. Copy a new tarball or reinstall from git (**§3.2**). |
+| `--update` / fast-forward failed | Uncommitted edits or a diverged branch. See **§8.1**. Do not merge on the shop floor. |
+| `--update` / **UPDATE** pulled but UI unchanged | `sudo systemctl restart fh6parse-kiosk`. Missing sudoers: **§3.2**. |
+| **UPDATE** button never appears | Offline, one-file tarball, already up to date, or version older than 1.3.2 (**§8.1**). Check is only at kiosk start. `python3 -m fh6parse --version`. |
+| **UPDATE** says failed / kiosk did not restart | `sudo -n systemctl restart fh6parse-kiosk` from user `pi` should succeed after **§3.2**. Then `sudo systemctl restart fh6parse-kiosk`. |
 | No **■** next to files | `model_roots` empty or the share is not mounted (`ls` the path). CAD extra missing (`pip3 install -e '.[models]'`). Still rendering (wait). Rev in the G-code does not match any `.stp`. |
 | **■** shows, ticket has no picture | CUPS queue is not **raw**. Printer rejected `GS v 0`. Test text-only first (`printf` in §3.5). |
 | Pictures vanished after `--update` | `--update` runs `pip install -e .` **without** `[models]` when `pyproject.toml` changes. Re-run `sudo pip3 install -e '.[models]' --break-system-packages`. |
@@ -433,9 +456,10 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 
 | Path | Role |
 | --- | --- |
-| `/home/pi/fh6parse` | Source checkout |
-| `/etc/fh6parse-kiosk.ini` | Pins, printer, idle, `model_roots` |
+| `/home/pi/fh6parse` | Source checkout (shop update path) |
+| `/etc/fh6parse-kiosk.ini` | Pins, printer, idle, `model_roots` (never overwritten by **UPDATE**) |
 | `/etc/systemd/system/fh6parse-kiosk.service` | Autostart |
+| `/etc/sudoers.d/fh6parse-kiosk` | NOPASSWD restart for on-screen **UPDATE** |
 | `packaging/fh6parse-kiosk.ini.example` | Template |
 | `packaging/fh6parse-kiosk.service` | Template |
 | `/tmp/fh6parse-models` | Cached STEP bitmaps (safe to delete) |
@@ -444,11 +468,65 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 
 ## 8. Updating the kiosk
 
-Shop installs are a **git checkout**. Plug in a USB keyboard (hot-plug is fine). There is no update button on the kiosk and nothing runs on boot.
+This section is for **fh6parse 1.3.2** on a **git checkout** (`/home/pi/fh6parse`). Confirm first:
 
-1. Wake the screen if it is black (any key or click).
-2. **Esc** once to leave fullscreen, **Esc** again to close the kiosk if you need a desktop terminal. If the systemd unit owns the display, open a terminal on `:0` or SSH in as `pi`.
-3. Confirm the version, pull, restart, confirm again:
+```
+python3 -m fh6parse --version
+```
+
+You want `fh6parse 1.3.2`. The kiosk **never updates by itself**. Print works with or without a network.
+
+### 8.1 First pull to 1.3.2 (already installed, older number)
+
+If `--version` is older than 1.3.2, there is no on-screen **UPDATE** yet. SSH or plug in a keyboard:
+
+```
+cd /home/pi/fh6parse
+git fetch
+git pull --ff-only
+python3 -m fh6parse --version
+```
+
+Add the sudoers line from **§3.2** if it is missing, then:
+
+```
+sudo systemctl restart fh6parse-kiosk
+```
+
+From this restart onward, later upgrades use **§8.2**.
+
+If `git pull --ff-only` fails, the clone has local edits or a diverged branch. `git status`. Do not merge on the shop floor. Reset to `origin/master` only if you mean to discard local changes:
+
+```
+cd /home/pi/fh6parse
+git fetch
+git reset --hard origin/master
+python3 -m fh6parse --version
+sudo systemctl restart fh6parse-kiosk
+```
+
+### 8.2 On-screen UPDATE (1.3.2 and later)
+
+On each kiosk start, a background thread runs `git fetch` (~20 s timeout) and compares `HEAD` to the tracked branch (`@{upstream}`, else `origin/HEAD`, else `origin/master`).
+
+| After the check | What you see |
+| --- | --- |
+| Offline, timeout, one-file binary, or already current | No button. Print as usual. |
+| Origin has a newer commit | Large yellow **UPDATE** at the bottom. Status: “Update available”. |
+
+Tap **UPDATE** (touch or mouse) or press **U**. Print is paused only while that runs. Steps are the same as `--update` in **§8.3**. On success the unit restarts and the new version is live.
+
+`pi` cannot restart a system unit unless you installed the sudoers file in **§3.2**. Without it, the pull may still succeed; restart by hand:
+
+```
+sudo systemctl restart fh6parse-kiosk
+```
+
+The check runs **once per start**. After you put a new commit on GitHub, reboot or restart the kiosk (or wait until the next power-on) before the button can appear.
+
+### 8.3 Keyboard / SSH (`--update`)
+
+Wake the screen if it is black. **Esc** once leaves fullscreen, **Esc** again closes the window if you need a desktop terminal. If systemd owns the display, open a terminal on `:0` or SSH as `pi`.
 
 ```
 python3 -m fh6parse --version
@@ -456,18 +534,15 @@ python3 -m fh6parse --update
 python3 -m fh6parse --version
 ```
 
-`--update` does this, in order:
+`--update` and the on-screen button do this, in order:
 
-- `git pull --ff-only` in the clone (refuses messy merges)
-- `pip3 install -e .` **only if** `pyproject.toml` changed; otherwise skips pip. That command does **not** reinstall the `[models]` extra; see **§3.7** if pictures disappear.
-- `systemctl restart fh6parse-kiosk` if that unit exists; otherwise it prints “restart the kiosk yourself”
+1. `git pull --ff-only` in the clone (refuses messy merges)
+2. `pip3 install -e .` **only if** `pyproject.toml` changed; otherwise skips pip. That command does **not** reinstall the `[models]` extra; see **§3.7** if pictures disappear.
+3. `systemctl restart fh6parse-kiosk` if that unit exists; if that fails, `sudo -n systemctl restart fh6parse-kiosk`. Otherwise it prints “restart the kiosk yourself”
 
 It never writes `/etc/fh6parse-kiosk.ini`. Pins, printer, idle, and `model_roots` stay as you set them.
 
-If the unit did not restart, run:
+### 8.4 One-file ARM tarball
 
-```
-sudo systemctl restart fh6parse-kiosk
-```
+No **UPDATE** button. `python3 -m fh6parse --update` (or `./fh6parse --update`) exits with a message to copy a new tarball or switch to a git clone. That package is a first copy, not the 1.3.2 upgrade path. To convert: follow **§3.2** (git + pip), point systemd `ExecStart` back to `python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini`, then **§8.2**.
 
-**One-file ARM tarball:** `python3 -m fh6parse --update` (or `./fh6parse --update`) exits with a message to copy a new tarball or switch to a git clone. That package is a first copy, not the upgrade path.
