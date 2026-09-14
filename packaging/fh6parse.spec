@@ -22,6 +22,10 @@ hiddenimports = [
     "fh6parse.usbwatch",
     "fh6parse.idle",
     "fh6parse.update",
+    "fh6parse.partid",
+    "fh6parse.modelmatch",
+    "fh6parse.modelrender",
+    "fh6parse.modelprep",
 ]
 extra_datas = []
 extra_binaries = []

@@ -21,3 +21,9 @@ usb_poll_ms = 500
 scan_depth = 1
 extensions = .nc,.tap
 # extra_roots = /home/pi/nc-samples
+
+# Company STEP folders (searched with subfolders). Comma or path-separator.
+# Matching starts at the shared prefix of the NC name / program title.
+# G-code REV/REWIZJA must match the model revision; if the NC has no rev,
+# the latest matching .stp / .step is used. Missing models never block print.
+# model_roots = /mnt/cad/stp,/mnt/cad/archive

@@ -14,6 +14,7 @@ from tkinter import font as tkfont
 from . import usbwatch
 from ._version import __version__
 from .idle import ScreensaverGate
+from .modelprep import ModelPrep
 from .parser import parse_nc_file
 from .printer import print_ticket
 from .report import PAPER_80MM, PAPER_80MM_MIN, format_report
@@ -43,6 +44,12 @@ class KioskConfig:
     scan_depth: int = 1
     extensions: tuple[str, ...] = (".nc", ".tap")
     extra_roots: list[Path] = field(default_factory=list)
+    model_roots: list[Path] = field(default_factory=list)
+
+
+def _ini_paths(raw: str) -> list[Path]:
+    chunks = raw.replace(",", os.pathsep).split(os.pathsep)
+    return [Path(p.strip()) for p in chunks if p.strip()]
 
 
 def default_config_paths() -> list[Path]:
@@ -94,8 +101,9 @@ def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
         if e.strip()
     )
     extra = src.get("extra_roots", fallback="")
-    chunks = extra.replace(",", os.pathsep).split(os.pathsep)
-    cfg.extra_roots = [Path(p.strip()) for p in chunks if p.strip()]
+    cfg.extra_roots = _ini_paths(extra)
+    models = src.get("model_roots", fallback="")
+    cfg.model_roots = _ini_paths(models)
     return cfg
 
 
@@ -131,6 +139,7 @@ class KioskApp(tk.Tk):
         self._gpio: list[object] = []
         self._status_job: str | None = None
         self._bound_all: list[str] = []
+        self._models = ModelPrep(cfg.model_roots) if cfg.model_roots else None
 
         self.title(f"CNC kiosk {__version__}")
         self.configure(bg=BG)
@@ -350,18 +359,27 @@ class KioskApp(tk.Tk):
             self._claim_input()
         elif files != self._files:
             self._set_files(files, keep_highlight=True)
+        else:
+            self._sync_model_labels()
         self._poll_job = self.after(max(200, self.cfg.usb_poll_ms), self._poll_usb)
+
+    def _label_for(self, path: Path, names: list[str]) -> str:
+        label = path.name
+        if names.count(path.name) > 1:
+            label = f"{path.parent.name}/{path.name}"
+        if self._models is not None and self._models.is_ready(path):
+            return f"■ {label}"
+        return label
 
     def _set_files(self, files: list[Path], *, keep_highlight: bool) -> None:
         current = self._selected()
         self._files = files
+        if self._models is not None:
+            self._models.set_files(files)
         self.listbox.delete(0, tk.END)
         names = [p.name for p in files]
         for path in files:
-            label = path.name
-            if names.count(path.name) > 1:
-                label = f"{path.parent.name}/{path.name}"
-            self.listbox.insert(tk.END, label)
+            self.listbox.insert(tk.END, self._label_for(path, names))
         if not files:
             self.hint.config(text="Insert USB")
             self._index = 0
@@ -377,6 +395,24 @@ class KioskApp(tk.Tk):
         else:
             self._index = min(self._index, n - 1)
         self._paint_highlight()
+
+    def _sync_model_labels(self) -> None:
+        if self._models is None or not self._files:
+            return
+        names = [p.name for p in self._files]
+        changed = False
+        for i, path in enumerate(self._files):
+            label = self._label_for(path, names)
+            try:
+                current = self.listbox.get(i)
+            except tk.TclError:
+                return
+            if current != label:
+                self.listbox.delete(i)
+                self.listbox.insert(i, label)
+                changed = True
+        if changed:
+            self._paint_highlight()
 
     def _selected(self) -> Path | None:
         if not self._files:
@@ -433,10 +469,14 @@ class KioskApp(tk.Tk):
         try:
             result = parse_nc_file(path)
             text = format_report(result, paper=paper)
+            images: list[Path] = []
+            if self._models is not None:
+                images = self._models.ready_images(path)
             route = print_ticket(
                 text,
                 queue=self.cfg.printer_queue,
                 device=self.cfg.printer_device,
+                image_paths=images,
             )
             self._set_status(f"Printed {path.name}  ({route})")
         except Exception as exc:  # shop-floor: stay up
@@ -501,6 +541,11 @@ class KioskApp(tk.Tk):
                     close()
                 except Exception:
                     pass
+        if self._models is not None:
+            try:
+                self._models.close()
+            except Exception:
+                pass
         super().destroy()
 
 

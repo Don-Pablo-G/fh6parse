@@ -39,6 +39,11 @@ Raspberry Pi kiosk (portrait 600x800)
 
   Encoder highlights a file. FULL prints the current 80 mm ticket; MIN prints
   the short ticket (T, description, min Z, warnings per operation).
+  Optional STEP views: set model_roots in the ini (several folders allowed).
+  Matching starts at the NC name prefix; G-code rev must match the .stp rev
+  (latest .stp if the NC has no rev). A square mark appears when the stacked
+  isometrics are ready. Missing models never block print. CAD extra:
+  pip install -e '.[models]'
   After 60 seconds idle the screen goes black. Rotary encoder, USB insert,
   keyboard, or mouse wakes it. GPIO print buttons while asleep are ignored.
 

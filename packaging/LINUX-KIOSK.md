@@ -163,6 +163,8 @@ cd /home/pi
 git clone https://github.com/Don-Pablo-G/fh6parse.git
 cd fh6parse
 sudo pip3 install -e . --break-system-packages
+# optional: STEP isometric views on the 80 mm ticket
+# sudo pip3 install -e '.[models]' --break-system-packages
 ```
 
 `--break-system-packages` is normal on Bookworm when you are not using a venv. gpiozero stays the **apt** copy so it can see the Pi GPIO.
@@ -173,7 +175,7 @@ Check:
 python3 -m fh6parse --version
 ```
 
-Expect `fh6parse 1.2.0` or newer.
+Expect `fh6parse 1.3.0` or newer.
 
 Later upgrades: see **§8 Updating the kiosk**. Do not run `pip install` on every pull.
 
@@ -217,7 +219,18 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | `scan_depth` | 1 | USB root only. Raise to search subfolders. |
 | `extensions` | `.nc,.tap` | File types (case-insensitive) |
 | `extra_roots` | (empty) | Extra folders to list, comma-separated (for testing) |
+| `model_roots` | (empty) | Company `.stp` / `.step` folders (subfolders included). Several paths allowed. |
 | `fullscreen` | true | Shop display. Escape once exits fullscreen. |
+
+STEP pictures on the 80 mm ticket are optional. The kiosk walks every `model_roots` path, matches the NC part id from the start of the file/program name, reads `REV` / `REWIZJA` from the G-code header (or a trailing `-0` / `_Rev03` on the name), and picks that revision of the closest `.stp`. If the program has no revision, it uses the latest matching model. Two opposite isometric views are stacked near the top of FULL and MIN tickets, scaled to the 80 mm raster width. A **■** appears next to the file when the bitmap is ready. Print never waits: if the model is missing or still rendering, the ticket is text only.
+
+On a git checkout, install the CAD extra once (heavy; skip on Pi 3 if `cascadio` has no wheel):
+
+```
+sudo pip3 install -e '.[models]' --break-system-packages
+```
+
+The one-file ARM tarball does not bundle the CAD stack. Without it, matching still runs but nothing is rendered and the list icon stays off.
 
 ### 3.4 Groups and devices
 
@@ -368,7 +381,7 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 | Path | Role |
 | --- | --- |
 | `/home/pi/fh6parse` | Source checkout |
-| `/etc/fh6parse-kiosk.ini` | Pins, printer, idle |
+| `/etc/fh6parse-kiosk.ini` | Pins, printer, idle, model_roots |
 | `/etc/systemd/system/fh6parse-kiosk.service` | Autostart |
 | `packaging/fh6parse-kiosk.ini.example` | Template |
 | `packaging/fh6parse-kiosk.service` | Template |
