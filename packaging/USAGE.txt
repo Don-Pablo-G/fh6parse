@@ -40,12 +40,12 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.3.3
   Copy packaging/fh6parse-kiosk.ini.example to /etc/fh6parse-kiosk.ini
   Autostart: packaging/fh6parse-kiosk.service
   Once, so UPDATE can restart the unit:
-    echo 'pi ALL=(root) NOPASSWD: /usr/bin/systemctl restart fh6parse-kiosk' | sudo tee /etc/sudoers.d/fh6parse-kiosk
+    echo 'kiosk ALL=(root) NOPASSWD: /usr/bin/systemctl restart fh6parse-kiosk' | sudo tee /etc/sudoers.d/fh6parse-kiosk
     sudo chmod 440 /etc/sudoers.d/fh6parse-kiosk
 
   Update (git checkout only; never automatic)
     Need 1.3.3 first. If --version is older, SSH:
-      cd /home/pi/fh6parse && git pull --ff-only && sudo systemctl restart fh6parse-kiosk
+      cd /home/kiosk/fh6parse && git pull --ff-only && sudo systemctl restart fh6parse-kiosk
     From 1.3.2: on start the kiosk fetches origin in the background.
     If a newer commit exists, a yellow UPDATE button appears (touch or U).
     It does not update until you tap it. Print still works offline.

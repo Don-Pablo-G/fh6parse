@@ -21,12 +21,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         binutils \
         && rm -rf /var/lib/apt/lists/*
 
-RUN python3 -m pip install --no-cache-dir \
-        pyinstaller \
-        gpiozero \
-        RPi.GPIO \
-        lgpio \
-    || python3 -m pip install --no-cache-dir pyinstaller gpiozero
+# gpiozero always. lgpio (Pi 5) and RPi.GPIO (Pi 3/4) are best-effort; Debian
+# bookworm has no python3-lgpio package. Shop GPIO on Pi 5 is the git checkout.
+RUN python3 -m pip install --no-cache-dir pyinstaller gpiozero
+RUN python3 -m pip install --no-cache-dir lgpio || true
+RUN python3 -m pip install --no-cache-dir RPi.GPIO || true
 
 WORKDIR /src
 COPY pyproject.toml /src/pyproject.toml

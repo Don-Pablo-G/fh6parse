@@ -22,7 +22,7 @@ printer_device = /dev/usb/lp0
 usb_poll_ms = 500
 scan_depth = 1
 extensions = .nc,.tap
-# extra_roots = /home/pi/nc-samples
+# extra_roots = /home/kiosk/nc-samples
 
 # Company STEP folders (searched with subfolders). Comma or path-separator.
 # Matching starts at the shared prefix of the NC name / program title.

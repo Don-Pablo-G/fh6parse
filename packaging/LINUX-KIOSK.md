@@ -142,7 +142,7 @@ The app tries, in order:
 
 ## 3. Software
 
-Do this on the Pi, as user `pi` (or the user you created in Raspberry Pi Imager — then change `User=` and paths in the systemd unit and sudoers), with network.
+Do this on the Pi, as user **`kiosk`**, with network.
 
 ### 3.1 Packages
 
@@ -169,7 +169,7 @@ python3 --version
 **Recommended — from source (git).** This is the shop update path.
 
 ```
-cd /home/pi
+cd /home/kiosk
 git clone https://github.com/Don-Pablo-G/fh6parse.git
 cd fh6parse
 sudo pip3 install -e . --break-system-packages
@@ -183,10 +183,10 @@ sudo pip3 install -e '.[models]' --break-system-packages
 
 `--break-system-packages` is normal on Bookworm when you are not using a venv. gpiozero stays the **apt** copy so it can see the Pi GPIO.
 
-Allow user `pi` to restart the kiosk after an on-screen **UPDATE** (once, as root):
+Allow user `kiosk` to restart the kiosk after an on-screen **UPDATE** (once, as root):
 
 ```
-echo 'pi ALL=(root) NOPASSWD: /usr/bin/systemctl restart fh6parse-kiosk' | sudo tee /etc/sudoers.d/fh6parse-kiosk
+echo 'kiosk ALL=(root) NOPASSWD: /usr/bin/systemctl restart fh6parse-kiosk' | sudo tee /etc/sudoers.d/fh6parse-kiosk
 sudo chmod 440 /etc/sudoers.d/fh6parse-kiosk
 ```
 
@@ -205,7 +205,7 @@ Later upgrades are **§8**. Do not run `pip install` on every pull. The kiosk do
 On a Pi 5 use the **aarch64** tarball only (there is no 32-bit Raspberry Pi OS for Pi 5).
 
 ```
-cd /home/pi
+cd /home/kiosk
 tar -xzf fh6parse-*-raspberrypi-aarch64.tar.gz
 chmod +x fh6parse
 sudo cp fh6parse-kiosk.ini.example /etc/fh6parse-kiosk.ini
@@ -219,12 +219,12 @@ Run:
 
 The one-file ARM tarball does not bundle the CAD stack, so **§3.7** pictures are git-checkout only. There is no **UPDATE** button and `--update` refuses this install. To get the 1.3.3 shop update path later, switch to the git checkout above.
 
-For systemd, set `ExecStart=/home/pi/fh6parse --kiosk --config /etc/fh6parse-kiosk.ini` (path to the unpacked binary).
+For systemd, set `ExecStart=/home/kiosk/fh6parse --kiosk --config /etc/fh6parse-kiosk.ini` (path to the unpacked binary).
 
 ### 3.3 Kiosk config
 
 ```
-sudo cp /home/pi/fh6parse/packaging/fh6parse-kiosk.ini.example /etc/fh6parse-kiosk.ini
+sudo cp /home/kiosk/fh6parse/packaging/fh6parse-kiosk.ini.example /etc/fh6parse-kiosk.ini
 sudo nano /etc/fh6parse-kiosk.ini
 ```
 
@@ -247,8 +247,7 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 ### 3.4 Groups and devices
 
 ```
-sudo usermod -aG gpio,lp,lpadmin pi
-# if Imager created a different user:  sudo usermod -aG gpio,lp,lpadmin "$USER"
+sudo usermod -aG gpio,lp,lpadmin kiosk
 ```
 
 Log out and back in (or reboot) so the groups apply.
@@ -326,7 +325,7 @@ Mount the company share before the kiosk starts. Install `cifs-utils` if needed,
 ```
 sudo apt install -y cifs-utils
 sudo mkdir -p /mnt/cad
-sudo mount -t cifs //server/cad /mnt/cad -o guest,uid=pi,gid=pi,iocharset=utf8
+sudo mount -t cifs //server/cad /mnt/cad -o guest,uid=kiosk,gid=kiosk,iocharset=utf8
 ```
 
 Put a matching line in `/etc/fstab` so it survives reboot. If the share is down, the ticket is still text only.
@@ -368,10 +367,10 @@ On **Windows**, the GUI has **STEP folders…**. Paths are saved as `model_roots
 
 ## 4. Boot to kiosk
 
-Copy the unit and enable it. The service assumes user `pi`, display `:0`, and Desktop autologin. If `model_roots` is on a NAS, mount that share in `fstab` so it is up before the kiosk starts. The sudoers line from **§3.2** must exist if you want the **UPDATE** button to restart the unit.
+Copy the unit and enable it. The service assumes user `kiosk`, display `:0`, and Desktop autologin. If `model_roots` is on a NAS, mount that share in `fstab` so it is up before the kiosk starts. The sudoers line from **§3.2** must exist if you want the **UPDATE** button to restart the unit.
 
 ```
-sudo cp /home/pi/fh6parse/packaging/fh6parse-kiosk.service /etc/systemd/system/
+sudo cp /home/kiosk/fh6parse/packaging/fh6parse-kiosk.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable fh6parse-kiosk.service
 ```
@@ -430,14 +429,14 @@ Parse happens at print time, not when the list is shown. STEP matching and rende
 | Keyboard/mouse do nothing | Plug into the Pi USB-A; X11 picks them up. Click or press a key — the kiosk claims focus. **Esc** leaves fullscreen. GPIO print buttons still do not wake the screensaver. |
 | Black screen immediately | Desktop blanking plus app DPMS. Disable LXDE idle blank; keep kiosk `idle_seconds = 60`. |
 | Wrong aspect / sideways UI | Rotate until `xdpyinfo` (or Screen Configuration) shows 600×800. App geometry is 600×800 fullscreen. Pi 5 output is often `HDMI-A-1`. |
-| Service dead, UI never starts | `echo $DISPLAY` in a desktop terminal should be `:0`. `raspi-config` → X11, desktop autologin. `journalctl -u fh6parse-kiosk`. If Imager did not create user `pi`, edit `User=` in the unit. |
+| Service dead, UI never starts | `echo $DISPLAY` in a desktop terminal should be `:0`. `raspi-config` → X11, desktop autologin. `journalctl -u fh6parse-kiosk`. Unit `User=` must be `kiosk`. |
 | Undervoltage / random reboots | Official 27 W PSU. A phone charger or Pi 3 supply is not enough. |
 | Python 3.9 | Wrong image. Flash 64-bit Raspberry Pi OS Desktop for Pi 5. |
 | `--update` says one-file package | This Pi is running the ARM tarball. Copy a new tarball or reinstall from git (**§3.2**). |
 | `--update` / fast-forward failed | Uncommitted edits or a diverged branch. See **§8.1**. Do not merge on the shop floor. |
 | `--update` / **UPDATE** pulled but UI unchanged | `sudo systemctl restart fh6parse-kiosk`. Missing sudoers: **§3.2**. |
 | **UPDATE** button never appears | Offline, one-file tarball, already up to date, or version older than 1.3.3 (**§8.1**). Check is only at kiosk start. `python3 -m fh6parse --version`. |
-| **UPDATE** says failed / kiosk did not restart | `sudo -n systemctl restart fh6parse-kiosk` from user `pi` should succeed after **§3.2**. Then `sudo systemctl restart fh6parse-kiosk`. |
+| **UPDATE** says failed / kiosk did not restart | `sudo -n systemctl restart fh6parse-kiosk` from user `kiosk` should succeed after **§3.2**. Then `sudo systemctl restart fh6parse-kiosk`. |
 | No **■** next to files | `model_roots` empty or the share is not mounted (`ls` the path). CAD extra missing (`pip3 install -e '.[models]'`). Still rendering (wait). Rev in the G-code does not match any `.stp`. |
 | **■** shows, ticket has no picture | CUPS queue is not **raw**. Printer rejected `GS v 0`. Test text-only first (`printf` in §3.5). |
 | Pictures vanished after `--update` | `--update` runs `pip install -e .` **without** `[models]` when `pyproject.toml` changes. Re-run `sudo pip3 install -e '.[models]' --break-system-packages`. |
@@ -456,7 +455,7 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 
 | Path | Role |
 | --- | --- |
-| `/home/pi/fh6parse` | Source checkout (shop update path) |
+| `/home/kiosk/fh6parse` | Source checkout (shop update path) |
 | `/etc/fh6parse-kiosk.ini` | Pins, printer, idle, `model_roots` (never overwritten by **UPDATE**) |
 | `/etc/systemd/system/fh6parse-kiosk.service` | Autostart |
 | `/etc/sudoers.d/fh6parse-kiosk` | NOPASSWD restart for on-screen **UPDATE** |
@@ -468,7 +467,7 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 
 ## 8. Updating the kiosk
 
-This section is for **fh6parse 1.3.3** on a **git checkout** (`/home/pi/fh6parse`). Confirm first:
+This section is for **fh6parse 1.3.3** on a **git checkout** (`/home/kiosk/fh6parse`). Confirm first:
 
 ```
 python3 -m fh6parse --version
@@ -478,10 +477,10 @@ You want `fh6parse 1.3.3`. The kiosk **never updates by itself**. Print works wi
 
 ### 8.1 First pull to 1.3.3 (already installed, older number)
 
-If `--version` is older than 1.3.3, there is no Pi 5 GPIO path and (before 1.3.2) no on-screen **UPDATE**. SSH or plug in a keyboard:
+If `--version` is older than 1.3.3, SSH as `kiosk`:
 
 ```
-cd /home/pi/fh6parse
+cd /home/kiosk/fh6parse
 git fetch
 git pull --ff-only
 python3 -m fh6parse --version
@@ -495,15 +494,7 @@ sudo systemctl restart fh6parse-kiosk
 
 From this restart onward, later upgrades use **§8.2**.
 
-If `git pull --ff-only` fails, the clone has local edits or a diverged branch. `git status`. Do not merge on the shop floor. Reset to `origin/master` only if you mean to discard local changes:
-
-```
-cd /home/pi/fh6parse
-git fetch
-git reset --hard origin/master
-python3 -m fh6parse --version
-sudo systemctl restart fh6parse-kiosk
-```
+If `git pull --ff-only` fails, the clone has local edits or a diverged branch. `git status`. Do not merge on the shop floor.
 
 ### 8.2 On-screen UPDATE (1.3.2 and later)
 
@@ -516,7 +507,7 @@ On each kiosk start, a background thread runs `git fetch` (~20 s timeout) and co
 
 Tap **UPDATE** (touch or mouse) or press **U**. Print is paused only while that runs. Steps are the same as `--update` in **§8.3**. On success the unit restarts and the new version is live.
 
-`pi` cannot restart a system unit unless you installed the sudoers file in **§3.2**. Without it, the pull may still succeed; restart by hand:
+`kiosk` cannot restart a system unit unless you installed the sudoers file in **§3.2**. Without it, the pull may still succeed; restart by hand:
 
 ```
 sudo systemctl restart fh6parse-kiosk
@@ -526,7 +517,7 @@ The check runs **once per start**. After you put a new commit on GitHub, reboot 
 
 ### 8.3 Keyboard / SSH (`--update`)
 
-Wake the screen if it is black. **Esc** once leaves fullscreen, **Esc** again closes the window if you need a desktop terminal. If systemd owns the display, open a terminal on `:0` or SSH as `pi`.
+Wake the screen if it is black. **Esc** once leaves fullscreen, **Esc** again closes the window if you need a desktop terminal. If systemd owns the display, open a terminal on `:0` or SSH as `kiosk`.
 
 ```
 python3 -m fh6parse --version
