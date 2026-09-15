@@ -1,13 +1,22 @@
+# fh6parse 1.3.3 Raspberry Pi 5 kiosk. DISPLAY=:0 after raspi-config X11.
+# Shop user is kiosk (not pi). Shop update: on-screen UPDATE, or
+# python3 -m fh6parse --update
+# kiosk needs NOPASSWD for: /usr/bin/systemctl restart fh6parse-kiosk
+# (see packaging/LINUX-KIOSK.md §3.2 and §8). Otherwise: sudo systemctl restart …
+# STEP folders: set model_roots in /etc/fh6parse-kiosk.ini; mount the share
+# before this unit starts (fstab). CAD extra is pip install -e '.[models]'.
+# GPIO: python3-gpiozero + python3-lgpio (not python3-rpi.gpio on Pi 5).
+
 [Unit]
 Description=fh6parse CNC USB kiosk
 After=graphical.target cups.service
 
 [Service]
 Type=simple
-User=pi
+User=kiosk
 Environment=DISPLAY=:0
 Environment=PYTHONUNBUFFERED=1
-WorkingDirectory=/home/pi
+WorkingDirectory=/home/kiosk
 ExecStart=/usr/bin/python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 Restart=on-failure
 RestartSec=3

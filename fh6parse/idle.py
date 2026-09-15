@@ -1,10 +1,13 @@
-"""Kiosk screensaver gate: sleep after idle; wake on encoder or USB insert."""
+"""Kiosk screensaver gate: sleep after idle; GPIO print buttons do not wake."""
 
 from __future__ import annotations
 
 
 class ScreensaverGate:
-    """Print buttons do not wake the display. Encoder / USB insert do."""
+    """GPIO print buttons do not wake the display.
+
+    Wake: encoder, USB insert, or a plugged-in keyboard / mouse (troubleshooting).
+    """
 
     def __init__(self, idle_seconds: float = 60.0) -> None:
         self.idle_seconds = idle_seconds
@@ -35,6 +38,13 @@ class ScreensaverGate:
             return "wake"
         return "ok"
 
+    def hid(self) -> str:
+        """Keyboard or mouse: 'wake' if this event only turns the screen on."""
+        if self.asleep:
+            self.asleep = False
+            return "wake"
+        return "ok"
+
     def allow_print(self) -> bool:
-        """False while asleep (button is ignored, screen stays black)."""
+        """False while asleep (GPIO / F / M ignored, screen stays black)."""
         return not self.asleep

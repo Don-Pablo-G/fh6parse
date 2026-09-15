@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from html import escape
 from pathlib import Path
+import base64
 import textwrap
 import webbrowser
 
@@ -307,11 +308,43 @@ def format_print_html(
     paper: str = PAPER_A4,
     generated: datetime | None = None,
     auto_print: bool = False,
+    image_paths: list[Path] | None = None,
 ) -> str:
     paper = paper.lower()
     if paper == PAPER_80MM:
-        return _html_80mm(result, generated=generated, auto_print=auto_print)
-    return _html_a4(result, generated=generated, auto_print=auto_print)
+        return _html_80mm(
+            result,
+            generated=generated,
+            auto_print=auto_print,
+            image_paths=image_paths,
+        )
+    return _html_a4(
+        result,
+        generated=generated,
+        auto_print=auto_print,
+        image_paths=image_paths,
+    )
+
+
+def _step_views_html(image_paths: list[Path] | None) -> str:
+    """Stacked isometric PNGs as data URIs so a browser print needs no extra files."""
+    parts: list[str] = []
+    for raw in image_paths or []:
+        path = Path(raw)
+        try:
+            blob = path.read_bytes()
+        except OSError:
+            continue
+        if not blob:
+            continue
+        b64 = base64.b64encode(blob).decode("ascii")
+        parts.append(
+            f'<img class="step-view" alt="STEP isometric" '
+            f'src="data:image/png;base64,{b64}">'
+        )
+    if not parts:
+        return ""
+    return '<div class="step-views">' + "".join(parts) + "</div>"
 
 
 def _html_shell(title: str, css: str, body: str, *, auto_print: bool, hint: str) -> str:
@@ -345,7 +378,13 @@ window.addEventListener("load", function () {
 """
 
 
-def _html_a4(result: ParseResult, *, generated: datetime | None, auto_print: bool) -> str:
+def _html_a4(
+    result: ParseResult,
+    *,
+    generated: datetime | None,
+    auto_print: bool,
+    image_paths: list[Path] | None = None,
+) -> str:
     now = generated or datetime.now()
     title = f"Tool report {_program_line(result)}"
     css = """
@@ -375,6 +414,8 @@ td.c, th.c { text-align: center; width: 9mm; }
 .fine { font-size: 8.5pt; color: #222; margin: 0 0 8pt; }
 .toolbar { margin: 0 0 12pt; }
 .hint { margin-left: 10pt; font-size: 9pt; }
+.step-views { text-align: center; margin: 0 0 10pt; }
+.step-views img.step-view { width: 80mm; max-width: 100%; height: auto; display: block; margin: 0 auto; }
 @media screen {
   body { max-width: 210mm; margin: 12px auto; padding: 12mm; box-shadow: 0 0 8px #bbb; }
 }
@@ -455,6 +496,7 @@ td.c, th.c { text-align: center; width: 9mm; }
 
     body = f"""
 <h1>CNC tool report</h1>
+{_step_views_html(image_paths)}
 <div class="meta">
   <b>File</b><span>{escape(result.filename or result.path)}</span>
   <b>Units</b><span>{escape(_units_label(result.units))}</span>
@@ -476,7 +518,13 @@ Select a header op by changing M97 P# in main.</p>
     return _html_shell(title, css, body, auto_print=auto_print, hint=hint)
 
 
-def _html_80mm(result: ParseResult, *, generated: datetime | None, auto_print: bool) -> str:
+def _html_80mm(
+    result: ParseResult,
+    *,
+    generated: datetime | None,
+    auto_print: bool,
+    image_paths: list[Path] | None = None,
+) -> str:
     now = generated or datetime.now()
     title = f"80mm {_program_line(result)}"
     css = """
@@ -506,6 +554,8 @@ h1 { font-size: 13pt; margin: 0 0 4pt; text-align: center; letter-spacing: 0.04e
 .warn { font-weight: 700; }
 .toolbar { margin: 0 0 8pt; font-family: "Segoe UI", Arial, sans-serif; }
 .hint { display: block; margin-top: 4pt; font-size: 8pt; }
+.step-views { margin: 0 0 6pt; }
+.step-views img.step-view { width: 76mm; max-width: 100%; height: auto; display: block; }
 @media screen {
   body { margin: 12px auto; padding: 6px; border: 1px dashed #999; }
 }
@@ -520,6 +570,9 @@ h1 { font-size: 13pt; margin: 0 0 4pt; text-align: center; letter-spacing: 0.04e
     a = chunks.append
     a("<h1>CNC TOOLS</h1>")
     a(f'<div class="center">80 mm</div>')
+    views = _step_views_html(image_paths)
+    if views:
+        a(views)
     a(f'<div class="d">{escape(result.filename or result.path)}</div>')
     a(f'<div class="d">{escape(_program_line(result))}</div>')
     a(f"<div>{escape(_units_label(result.units))} · {escape(now.strftime('%Y-%m-%d %H:%M'))}</div>")
@@ -595,6 +648,7 @@ def write_report(
     *,
     out_dir: str | Path | None = None,
     papers: str = "both",
+    image_paths: list[Path] | None = None,
 ) -> list[Path]:
     """Write text + HTML for A4, 80 mm, or both. Returns paths written."""
     if dest:
@@ -616,13 +670,19 @@ def write_report(
         a4_txt = directory / f"{stem}_tool_report.txt"
         a4_txt.write_text(format_report(result, paper=PAPER_A4), encoding="utf-8")
         a4_html = directory / f"{stem}_tool_report_A4.html"
-        a4_html.write_text(format_print_html(result, paper=PAPER_A4), encoding="utf-8")
+        a4_html.write_text(
+            format_print_html(result, paper=PAPER_A4, image_paths=image_paths),
+            encoding="utf-8",
+        )
         written.extend([a4_txt, a4_html])
     if PAPER_80MM in want:
         mm_txt = directory / f"{stem}_tool_report_80mm.txt"
         mm_txt.write_text(format_report(result, paper=PAPER_80MM), encoding="utf-8")
         mm_html = directory / f"{stem}_tool_report_80mm.html"
-        mm_html.write_text(format_print_html(result, paper=PAPER_80MM), encoding="utf-8")
+        mm_html.write_text(
+            format_print_html(result, paper=PAPER_80MM, image_paths=image_paths),
+            encoding="utf-8",
+        )
         written.extend([mm_txt, mm_html])
     if PAPER_80MM_MIN in want:
         min_txt = directory / f"{stem}_tool_report_80mm_min.txt"
@@ -636,6 +696,7 @@ def open_print_html(
     *,
     paper: str = PAPER_A4,
     auto_print: bool = True,
+    image_paths: list[Path] | None = None,
 ) -> Path:
     """Write a temp HTML file and open it in the default browser for printing."""
     import tempfile
@@ -645,7 +706,9 @@ def open_print_html(
     tag = "A4" if paper == PAPER_A4 else "80mm"
     path = Path(tempfile.gettempdir()) / f"fh6parse_{stem}_{tag}.html"
     path.write_text(
-        format_print_html(result, paper=paper, auto_print=auto_print),
+        format_print_html(
+            result, paper=paper, auto_print=auto_print, image_paths=image_paths
+        ),
         encoding="utf-8",
     )
     webbrowser.open(path.resolve().as_uri())

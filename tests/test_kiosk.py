@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from fh6parse.idle import ScreensaverGate
-from fh6parse.kiosk import load_kiosk_config
+from fh6parse.kiosk import _gpio_fail_hint, load_kiosk_config, prefer_lgpio_factory
 from fh6parse.printer import CUT, INIT, encode_ticket
 from fh6parse.usbwatch import list_nc_files
 
@@ -27,6 +27,15 @@ class TestScreensaverGate(unittest.TestCase):
         self.assertFalse(gate.asleep)
         self.assertEqual(gate.usb_insert(), "ok")
 
+    def test_hid_wakes_without_print(self) -> None:
+        gate = ScreensaverGate(60)
+        gate.sleep()
+        self.assertFalse(gate.allow_print())
+        self.assertEqual(gate.hid(), "wake")
+        self.assertFalse(gate.asleep)
+        self.assertTrue(gate.allow_print())
+        self.assertEqual(gate.hid(), "ok")
+
     def test_print_ignored_while_asleep(self) -> None:
         gate = ScreensaverGate(60)
         self.assertTrue(gate.allow_print())
@@ -42,7 +51,7 @@ class TestScreensaverGate(unittest.TestCase):
 
 
 class TestUsbWatch(unittest.TestCase):
-    def test_lists_nc_and_tap_skips_deep_and_hidden(self) -> None:
+    def test_lists_nc_in_root_only_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             (root / "a.nc").write_text("O1\nM30\n", encoding="utf-8")
@@ -53,16 +62,20 @@ class TestUsbWatch(unittest.TestCase):
             hidden = root / ".hidden"
             hidden.mkdir()
             (hidden / "secret.nc").write_text("O3\nM30\n", encoding="utf-8")
-            deep = root / "one" / "two" / "three" / "four"
-            deep.mkdir(parents=True)
-            (deep / "too_deep.nc").write_text("O4\nM30\n", encoding="utf-8")
-            files = list_nc_files([root], max_depth=4)
+            files = list_nc_files([root])
             names = {p.name.lower() for p in files}
-            self.assertIn("a.nc", names)
-            self.assertIn("b.tap", names)
-            self.assertNotIn("notes.txt", names)
-            self.assertNotIn("secret.nc", names)
-            self.assertNotIn("too_deep.nc", names)
+            self.assertEqual(names, {"a.nc"})
+
+    def test_scan_depth_can_include_subfolders(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / "a.nc").write_text("O1\nM30\n", encoding="utf-8")
+            sub = root / "op1"
+            sub.mkdir()
+            (sub / "b.TAP").write_text("O2\nM30\n", encoding="utf-8")
+            files = list_nc_files([root], max_depth=2)
+            names = {p.name.lower() for p in files}
+            self.assertEqual(names, {"a.nc", "b.tap"})
 
 
 class TestPrinter(unittest.TestCase):
@@ -86,6 +99,37 @@ class TestKioskConfig(unittest.TestCase):
             self.assertEqual(cfg.idle_seconds, 60.0)
             self.assertEqual(cfg.encoder_clk, 5)
             self.assertEqual(cfg.button_full, 6)
+
+
+class TestPi5GpioFactory(unittest.TestCase):
+    def test_env_factory_is_left_alone(self) -> None:
+        import os
+
+        previous = os.environ.get("GPIOZERO_PIN_FACTORY")
+        os.environ["GPIOZERO_PIN_FACTORY"] = "mock"
+        try:
+            self.assertEqual(prefer_lgpio_factory(), "mock")
+        finally:
+            if previous is None:
+                os.environ.pop("GPIOZERO_PIN_FACTORY", None)
+            else:
+                os.environ["GPIOZERO_PIN_FACTORY"] = previous
+
+    def test_missing_gpiozero_is_empty(self) -> None:
+        import os
+
+        previous = os.environ.pop("GPIOZERO_PIN_FACTORY", None)
+        try:
+            name = prefer_lgpio_factory()
+        finally:
+            if previous is not None:
+                os.environ["GPIOZERO_PIN_FACTORY"] = previous
+        self.assertIn(name, {"", "lgpio"})
+
+    def test_rpi_gpio_error_mentions_pi5(self) -> None:
+        hint = _gpio_fail_hint(RuntimeError("Unable to load RPi.GPIO pin factory"))
+        self.assertIn("python3-lgpio", hint)
+        self.assertIn("Pi 5", hint)
 
 
 if __name__ == "__main__":
