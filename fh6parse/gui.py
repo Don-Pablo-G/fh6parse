@@ -8,7 +8,6 @@ from tkinter import filedialog, messagebox, ttk
 
 from ._version import __version__
 from .cadmark import (
-    LEGEND,
     apply_file_row,
     clear_file_tree,
     cube_photo,
@@ -16,7 +15,8 @@ from .cadmark import (
     make_file_tree,
     row_is_ready,
 )
-from .kiosk import load_kiosk_config, save_model_roots
+from .i18n import GUI_DEFAULT, file_count, parse_language, t
+from .kiosk import load_kiosk_config, save_kiosk_values, save_model_roots, ui_overlay_path
 from .modelprep import ModelPrep
 from .modelrender import render_available
 from .parser import ParseResult, parse_nc_file
@@ -41,60 +41,82 @@ class ToolReportApp(tk.Tk):
         self._out_dir: Path | None = None
         self._paper = tk.StringVar(value=PAPER_A4)
         cfg = load_kiosk_config()
+        self._cfg_source = cfg.source
+        self._lang = parse_language(cfg.language, default=GUI_DEFAULT)
+        self._lang_var = tk.StringVar(value=self._lang)
         self._model_roots = list(cfg.model_roots)
         self._models: ModelPrep | None = None
         self._model_job: str | None = None
 
         self._build()
+        self._apply_language()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._start_models()
         self.after(400, self._poll_models)
+
+    def _tr(self, key: str, **kwargs) -> str:
+        return t(self._lang, key, **kwargs)
 
     def _build(self) -> None:
         top = ttk.Frame(self, padding=8)
         top.pack(fill=tk.X)
 
-        ttk.Button(top, text="Open NC files…", command=self.open_files).pack(
-            side=tk.LEFT, padx=(0, 6)
-        )
-        ttk.Button(top, text="Save all formats", command=self.save_current).pack(
-            side=tk.LEFT, padx=(0, 6)
-        )
-        ttk.Button(top, text="Save all files", command=self.save_all).pack(
-            side=tk.LEFT, padx=(0, 6)
-        )
-        ttk.Button(top, text="Output folder…", command=self.choose_out_dir).pack(
-            side=tk.LEFT, padx=(0, 6)
-        )
-        ttk.Button(top, text="STEP folders…", command=self.choose_model_roots).pack(
-            side=tk.LEFT, padx=(0, 6)
-        )
-        self.out_label = ttk.Label(top, text="Save next to each .nc file")
+        self.btn_open = ttk.Button(top, command=self.open_files)
+        self.btn_open.pack(side=tk.LEFT, padx=(0, 6))
+        self.btn_save_fmt = ttk.Button(top, command=self.save_current)
+        self.btn_save_fmt.pack(side=tk.LEFT, padx=(0, 6))
+        self.btn_save_all = ttk.Button(top, command=self.save_all)
+        self.btn_save_all.pack(side=tk.LEFT, padx=(0, 6))
+        self.btn_out = ttk.Button(top, command=self.choose_out_dir)
+        self.btn_out.pack(side=tk.LEFT, padx=(0, 6))
+        self.btn_step = ttk.Button(top, command=self.choose_model_roots)
+        self.btn_step.pack(side=tk.LEFT, padx=(0, 6))
+        self.out_label = ttk.Label(top, text="")
         self.out_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.rb_lang_pl = ttk.Radiobutton(
+            top,
+            text="Polski",
+            value="pl",
+            variable=self._lang_var,
+            command=self._on_language,
+        )
+        self.rb_lang_en = ttk.Radiobutton(
+            top,
+            text="English",
+            value="en",
+            variable=self._lang_var,
+            command=self._on_language,
+        )
+        self.rb_lang_en.pack(side=tk.RIGHT)
+        self.rb_lang_pl.pack(side=tk.RIGHT, padx=(0, 8))
 
         paper_row = ttk.Frame(self, padding=(8, 0, 8, 8))
         paper_row.pack(fill=tk.X)
-        ttk.Label(paper_row, text="Preview / print:").pack(side=tk.LEFT, padx=(0, 8))
-        ttk.Radiobutton(
+        self.lbl_preview = ttk.Label(paper_row)
+        self.lbl_preview.pack(side=tk.LEFT, padx=(0, 8))
+        self.rb_a4 = ttk.Radiobutton(
             paper_row,
             text="A4",
             value=PAPER_A4,
             variable=self._paper,
             command=self._on_select,
-        ).pack(side=tk.LEFT, padx=(0, 8))
-        ttk.Radiobutton(
+        )
+        self.rb_a4.pack(side=tk.LEFT, padx=(0, 8))
+        self.rb_80 = ttk.Radiobutton(
             paper_row,
-            text="80 mm thermal",
             value=PAPER_80MM,
             variable=self._paper,
             command=self._on_select,
-        ).pack(side=tk.LEFT, padx=(0, 12))
-        ttk.Button(paper_row, text="Print A4…", command=lambda: self.print_paper(PAPER_A4)).pack(
-            side=tk.LEFT, padx=(0, 6)
         )
-        ttk.Button(
-            paper_row, text="Print 80 mm…", command=lambda: self.print_paper(PAPER_80MM)
-        ).pack(side=tk.LEFT)
+        self.rb_80.pack(side=tk.LEFT, padx=(0, 12))
+        self.btn_print_a4 = ttk.Button(
+            paper_row, command=lambda: self.print_paper(PAPER_A4)
+        )
+        self.btn_print_a4.pack(side=tk.LEFT, padx=(0, 6))
+        self.btn_print_80 = ttk.Button(
+            paper_row, command=lambda: self.print_paper(PAPER_80MM)
+        )
+        self.btn_print_80.pack(side=tk.LEFT)
 
         body = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
         body.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
@@ -104,14 +126,16 @@ class ToolReportApp(tk.Tk):
         legend = ttk.Frame(left)
         legend.pack(anchor=tk.W, fill=tk.X)
         tk.Label(legend, image=self._cad_ready).pack(side=tk.LEFT)
-        ttk.Label(legend, text=f"  {LEGEND}").pack(side=tk.LEFT)
+        self.cad_legend_lbl = ttk.Label(legend)
+        self.cad_legend_lbl.pack(side=tk.LEFT)
         self.file_list = make_file_tree(left, dark=False, rowheight=28)
         self.file_list.pack(fill=tk.BOTH, expand=True)
         self.file_list.bind("<<TreeviewSelect>>", self._on_select)
         body.add(left, weight=1)
 
         right = ttk.Frame(body)
-        ttk.Label(right, text="Report preview").pack(anchor=tk.W)
+        self.lbl_report = ttk.Label(right)
+        self.lbl_report.pack(anchor=tk.W)
         text_frame = ttk.Frame(right)
         text_frame.pack(fill=tk.BOTH, expand=True)
         scroll = ttk.Scrollbar(text_frame)
@@ -130,12 +154,53 @@ class ToolReportApp(tk.Tk):
         xscroll.pack(fill=tk.X)
         body.add(right, weight=3)
 
-        self.status = ttk.Label(
-            self,
-            text="Open NC files, then Print A4 or Print 80 mm.",
-            padding=8,
-        )
+        self.status = ttk.Label(self, padding=8)
         self.status.pack(fill=tk.X)
+
+    def _apply_language(self) -> None:
+        self.title(self._tr("app_title_gui", version=__version__))
+        self.btn_open.config(text=self._tr("open_nc"))
+        self.btn_save_fmt.config(text=self._tr("save_formats"))
+        self.btn_save_all.config(text=self._tr("save_all"))
+        self.btn_out.config(text=self._tr("output_folder"))
+        self.btn_step.config(text=self._tr("step_folders"))
+        if self._out_dir is None:
+            self.out_label.config(text=self._tr("save_next_to_nc"))
+        self.lbl_preview.config(text=self._tr("preview_print"))
+        self.rb_80.config(text=self._tr("paper_thermal"))
+        self.btn_print_a4.config(text=self._tr("print_a4"))
+        self.btn_print_80.config(text=self._tr("print_80"))
+        self.cad_legend_lbl.config(text=f"  {self._tr('cad_legend')}")
+        self.lbl_report.config(text=self._tr("report_preview"))
+        if not self._results:
+            self.status.config(text=self._tr("gui_idle"))
+        else:
+            self._status_loaded()
+
+    def _on_language(self) -> None:
+        self._lang = parse_language(self._lang_var.get(), default=GUI_DEFAULT)
+        self._apply_language()
+        try:
+            saved = save_kiosk_values(
+                {"language": self._lang}, source=self._cfg_source
+            )
+            self._cfg_source = saved
+            save_kiosk_values({"language": self._lang}, dest=ui_overlay_path())
+        except OSError:
+            pass
+
+    def _status_loaded(self, extra: str = "") -> None:
+        ready = sum(
+            1
+            for key in self._order
+            if self._models is not None and self._models.is_ready(Path(key))
+        )
+        text = self._tr("files_loaded", files=file_count(self._lang, len(self._results)))
+        if self._order:
+            text = f"{text}  ·  {self._tr('step_ready', ready=ready, total=len(self._order))}"
+        if extra:
+            text = f"{text}{extra}"
+        self.status.config(text=text)
 
     def _file_label(self, path: Path) -> str:
         return path.name
@@ -187,47 +252,44 @@ class ToolReportApp(tk.Tk):
                 )
                 changed = True
         if changed:
-            ready = sum(
-                1
-                for key in self._order
-                if self._models is not None and self._models.is_ready(Path(key))
-            )
-            self.status.config(
-                text=f"{len(self._results)} file(s) loaded  ·  STEP ready {ready}/{len(self._order)}"
-            )
+            extra = ""
+            if not render_available():
+                extra = f"  ·  {self._tr('cad_not_in_build')}"
+            elif not self._model_roots:
+                extra = f"  ·  {self._tr('step_hint')}"
+            self._status_loaded(extra)
 
     def choose_model_roots(self) -> None:
-        chosen = filedialog.askdirectory(
-            title="STEP / CAD folder (subfolders are searched)"
-        )
+        chosen = filedialog.askdirectory(title=self._tr("choose_step"))
         if not chosen:
             return
         path = Path(chosen)
         add = False
         if self._model_roots:
             add = messagebox.askyesno(
-                "STEP folders",
-                "Add this folder to the existing list?\n\n"
-                "Yes = keep current folders and add this one.\n"
-                "No = use only this folder.",
+                self._tr("step_add_title"),
+                self._tr("step_add_body"),
             )
         roots = list(self._model_roots) if add else []
         if path not in roots:
             roots.append(path)
-        saved = save_model_roots(roots)
+        saved = save_model_roots(roots, dest=self._cfg_source)
+        self._cfg_source = saved
         self._model_roots = roots
         self._start_models()
-        cad = "CAD ok" if render_available() else "CAD libraries missing in this build"
+        cad = self._tr("cad_ok") if render_available() else self._tr("cad_missing")
         self.status.config(
-            text=f"STEP folders: {len(roots)}  ({cad})  saved {saved.name}"
+            text=self._tr(
+                "step_folders_status", n=len(roots), cad=cad, name=saved.name
+            )
         )
 
     def open_files(self) -> None:
         paths = filedialog.askopenfilenames(
-            title="Select CNC programs",
+            title=self._tr("select_cnc"),
             filetypes=[
-                ("CNC programs", "*.nc *.NC *.tap *.TAP *.txt *.TXT"),
-                ("All files", "*.*"),
+                (self._tr("ft_cnc"), "*.nc *.NC *.tap *.TAP *.txt *.TXT"),
+                (self._tr("ft_all"), "*.*"),
             ],
         )
         if not paths:
@@ -247,13 +309,13 @@ class ToolReportApp(tk.Tk):
             self.file_list.focus(children[0])
             self._on_select()
         if errors:
-            messagebox.showerror("Parse error", "\n".join(errors))
+            messagebox.showerror(self._tr("parse_error"), "\n".join(errors))
         extra = ""
         if not render_available():
-            extra = "  ·  STEP CAD libraries not in this build"
+            extra = f"  ·  {self._tr('cad_not_in_build')}"
         elif not self._model_roots:
-            extra = "  ·  STEP next to the NC, or set STEP folders…"
-        self.status.config(text=f"{len(self._results)} file(s) loaded{extra}")
+            extra = f"  ·  {self._tr('step_hint')}"
+        self._status_loaded(extra)
 
     def _refresh_list(self) -> None:
         clear_file_tree(self.file_list)
@@ -295,7 +357,7 @@ class ToolReportApp(tk.Tk):
             self.preview.configure(width=82, font=("Consolas", 10), wrap=tk.WORD)
 
     def choose_out_dir(self) -> None:
-        chosen = filedialog.askdirectory(title="Report output folder")
+        chosen = filedialog.askdirectory(title=self._tr("out_folder_title"))
         if not chosen:
             return
         self._out_dir = Path(chosen)
@@ -304,17 +366,19 @@ class ToolReportApp(tk.Tk):
     def save_current(self) -> None:
         selected = self._selected_result()
         if selected is None:
-            messagebox.showinfo("Save", "Select a file first.")
+            messagebox.showinfo(self._tr("save_title"), self._tr("select_first"))
             return
         path, result = selected
         dests = write_report(
             result, out_dir=self._out_dir, image_paths=self._images_for(path)
         )
-        self.status.config(text=f"Wrote {len(dests)} files in {dests[0].parent}")
+        self.status.config(
+            text=self._tr("wrote_files", n=len(dests), folder=dests[0].parent)
+        )
 
     def save_all(self) -> None:
         if not self._results:
-            messagebox.showinfo("Save all", "Open NC files first.")
+            messagebox.showinfo(self._tr("save_all_title"), self._tr("open_first"))
             return
         written = 0
         for path, result in self._results.values():
@@ -322,12 +386,12 @@ class ToolReportApp(tk.Tk):
                 result, out_dir=self._out_dir, image_paths=self._images_for(path)
             )
             written += 1
-        self.status.config(text=f"Wrote A4 + 80 mm reports for {written} file(s)")
+        self.status.config(text=self._tr("wrote_all", n=written))
 
     def print_paper(self, paper: str) -> None:
         selected = self._selected_result()
         if selected is None:
-            messagebox.showinfo("Print", "Select a file first.")
+            messagebox.showinfo(self._tr("print_title"), self._tr("select_first"))
             return
         path, result = selected
         html = open_print_html(
@@ -337,7 +401,9 @@ class ToolReportApp(tk.Tk):
             image_paths=self._images_for(path),
         )
         label = "A4" if paper == PAPER_A4 else "80 mm"
-        self.status.config(text=f"Opened {label} print preview ({html.name})")
+        self.status.config(
+            text=self._tr("opened_print", label=label, name=html.name)
+        )
 
     def _on_close(self) -> None:
         if self._model_job is not None:

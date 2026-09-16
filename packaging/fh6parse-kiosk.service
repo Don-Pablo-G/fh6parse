@@ -5,6 +5,8 @@
 # (see packaging/LINUX-KIOSK.md §3.2 and §8). Otherwise: sudo systemctl restart …
 # STEP folders: set model_roots in /etc/fh6parse-kiosk.ini; mount the share
 # before this unit starts (fstab). CAD extra is pip install -e '.[models]'.
+# Screen language: Polish by default; F2 / mouse settings. Stored in
+# /home/kiosk/.config/fh6parse/ui.ini (not this unit file).
 # GPIO: python3-gpiozero + python3-lgpio (not python3-rpi.gpio on Pi 5).
 
 [Unit]

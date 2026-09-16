@@ -24,6 +24,8 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   (several folders allowed; saved in fh6parse-kiosk.ini next to the exe).
   A wireframe 3D cube appears when the stacked isometrics are ready. Print never
   waits — if the model is missing the report is text only.
+  Language: Polski / English radios (top right). Default English. Saved in the
+  same fh6parse-kiosk.ini as STEP folders (and in %USERPROFILE%\.config\fh6parse\ui.ini).
   Views are visible edges only (no shading). The longest axis is across the
   80 mm width; height is cropped to the part (a long shaft is a thin strip).
 
@@ -63,7 +65,9 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.3.4
     tarball or switch to git (LINUX-KIOSK.md §3.2 / §8.4).
 
   Keyboard/mouse (troubleshooting, hot-plug OK): arrows, click, wheel, F, M, U.
-  Escape leaves fullscreen, Escape again closes.
+  F2 or C (or click PL/EN) opens settings: Polish default, switch to English.
+  Language is saved in ~/.config/fh6parse/ui.ini (survives UPDATE).
+  Escape closes settings first, then leaves fullscreen, then closes.
 
   Encoder highlights a file. FULL prints the current 80 mm ticket; MIN prints
   the short ticket (T, description, min Z, warnings per operation).

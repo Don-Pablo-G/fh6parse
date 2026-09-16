@@ -15,13 +15,20 @@ from tkinter import font as tkfont
 from . import usbwatch
 from ._version import __version__
 from .cadmark import (
-    LEGEND,
     apply_file_row,
     clear_file_tree,
     cube_photo,
     insert_file_row,
     make_file_tree,
     row_is_ready,
+)
+from .i18n import (
+    KIOSK_DEFAULT,
+    file_count,
+    parse_language,
+    t,
+    update_button_label,
+    usb_count,
 )
 from .idle import ScreensaverGate
 from .modelprep import ModelPrep
@@ -55,6 +62,8 @@ class KioskConfig:
     extensions: tuple[str, ...] = (".nc", ".tap")
     extra_roots: list[Path] = field(default_factory=list)
     model_roots: list[Path] = field(default_factory=list)
+    language: str = ""
+    source: Path | None = None
 
 
 def _ini_paths(raw: str) -> list[Path]:
@@ -86,18 +95,41 @@ def kiosk_config_write_path() -> Path:
     return Path.cwd() / "fh6parse-kiosk.ini"
 
 
-def save_model_roots(roots: list[Path], dest: Path | None = None) -> Path:
-    path = dest or kiosk_config_write_path()
+def ui_overlay_path() -> Path:
+    """Writable per-user file for language (kiosk cannot write /etc)."""
+    return Path.home() / ".config" / "fh6parse" / "ui.ini"
+
+
+def save_kiosk_values(
+    updates: dict[str, str],
+    dest: Path | None = None,
+    *,
+    source: Path | None = None,
+) -> Path:
+    """Merge keys into [kiosk] without dropping the rest of the ini."""
+    path = dest or source or kiosk_config_write_path()
     parser = configparser.ConfigParser()
-    if path.is_file():
-        parser.read(path, encoding="utf-8")
+    read_from = None
+    if source is not None and source.is_file():
+        read_from = source
+    elif path.is_file():
+        read_from = path
+    if read_from is not None:
+        parser.read(read_from, encoding="utf-8")
     if not parser.has_section("kiosk"):
         parser.add_section("kiosk")
-    parser.set("kiosk", "model_roots", ",".join(str(p) for p in roots))
+    for key, value in updates.items():
+        parser.set("kiosk", key, value)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fh:
         parser.write(fh)
     return path
+
+
+def save_model_roots(roots: list[Path], dest: Path | None = None) -> Path:
+    return save_kiosk_values(
+        {"model_roots": ",".join(str(p) for p in roots)}, dest
+    )
 
 
 def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
@@ -110,6 +142,7 @@ def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
         chosen = next((p for p in default_config_paths() if p.is_file()), None)
     if chosen is None:
         return cfg
+    cfg.source = chosen
     parser = configparser.ConfigParser()
     parser.read(chosen, encoding="utf-8")
     if not parser.has_section("kiosk"):
@@ -138,6 +171,16 @@ def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
     cfg.extra_roots = _ini_paths(extra)
     models = src.get("model_roots", fallback="")
     cfg.model_roots = _ini_paths(models)
+    lang_raw = src.get("language", fallback="").strip()
+    cfg.language = parse_language(lang_raw, default=KIOSK_DEFAULT) if lang_raw else ""
+    overlay = ui_overlay_path()
+    if overlay.is_file():
+        extra = configparser.ConfigParser()
+        extra.read(overlay, encoding="utf-8")
+        if extra.has_section("kiosk"):
+            over = extra["kiosk"].get("language", "").strip()
+            if over:
+                cfg.language = parse_language(over, default=KIOSK_DEFAULT)
     return cfg
 
 
@@ -211,8 +254,10 @@ class KioskApp(tk.Tk):
         self._update_available = False
         self._updating = False
         self._pending_update: UpdateCheck | None = None
+        self._lang = parse_language(cfg.language, default=KIOSK_DEFAULT)
+        self._config_open = False
 
-        self.title(f"CNC kiosk {__version__}")
+        self.title(t(self._lang, "app_title_kiosk", version=__version__))
         self.configure(bg=BG)
         self.geometry(f"{cfg.width}x{cfg.height}")
         self.minsize(480, 640)
@@ -235,14 +280,30 @@ class KioskApp(tk.Tk):
         list_font = tkfont.Font(family=family, size=20)
         small = tkfont.Font(family=family, size=13)
         update_font = tkfont.Font(family=family, size=18, weight="bold")
+        self._font_title = title_font
+        self._font_small = small
+        self._font_update = update_font
 
         head = tk.Frame(self, bg=BG)
         head.pack(fill=tk.X, padx=16, pady=(18, 8))
         title_row = tk.Frame(head, bg=BG)
         title_row.pack(fill=tk.X)
-        tk.Label(
-            title_row, text="CNC TOOLS", font=title_font, bg=BG, fg=ACCENT
-        ).pack(side=tk.LEFT)
+        self.brand_lbl = tk.Label(
+            title_row, text=t(self._lang, "brand"), font=title_font, bg=BG, fg=ACCENT
+        )
+        self.brand_lbl.pack(side=tk.LEFT)
+        self.lang_chip = tk.Label(
+            title_row,
+            text=t(self._lang, "lang_chip"),
+            font=small,
+            bg="#2a2a2a",
+            fg=ACCENT,
+            padx=8,
+            pady=2,
+            cursor="hand2",
+        )
+        self.lang_chip.pack(side=tk.RIGHT, pady=(6, 0), padx=(8, 0))
+        self.lang_chip.bind("<Button-1>", self._on_config_pointer)
         self.version_lbl = tk.Label(
             title_row,
             text=f"v{__version__}",
@@ -253,7 +314,7 @@ class KioskApp(tk.Tk):
         self.version_lbl.pack(side=tk.RIGHT, pady=(6, 0))
         self.hint = tk.Label(
             head,
-            text="Insert USB",
+            text=t(self._lang, "insert_usb"),
             font=small,
             bg=BG,
             fg=MUTED,
@@ -266,13 +327,14 @@ class KioskApp(tk.Tk):
         legend = tk.Frame(head, bg=BG)
         legend.pack(anchor="w", pady=(6, 0))
         tk.Label(legend, image=self._cad_legend, bg=BG).pack(side=tk.LEFT)
-        tk.Label(
+        self.cad_legend_lbl = tk.Label(
             legend,
-            text=f"  {LEGEND}",
+            text=f"  {t(self._lang, 'cad_legend')}",
             font=small,
             bg=BG,
             fg=MUTED,
-        ).pack(side=tk.LEFT)
+        )
+        self.cad_legend_lbl.pack(side=tk.LEFT)
 
         mid = tk.Frame(self, bg=BG)
         mid.pack(fill=tk.BOTH, expand=True, padx=12, pady=8)
@@ -287,7 +349,7 @@ class KioskApp(tk.Tk):
         foot.pack(fill=tk.X, padx=16, pady=(4, 16))
         self.update_btn = tk.Button(
             foot,
-            text="UPDATE",
+            text=t(self._lang, "update"),
             font=update_font,
             bg=ACCENT,
             fg="#111111",
@@ -303,10 +365,12 @@ class KioskApp(tk.Tk):
         )
         self._keys_hint = tk.Label(
             foot,
-            text="FULL / F  full ticket     MIN / M  short ticket     Esc  window",
+            text=t(self._lang, "keys_hint"),
             font=small,
             bg=BG,
             fg=MUTED,
+            wraplength=self.cfg.width - 40,
+            justify="left",
         )
         self._keys_hint.pack(anchor="w")
         self.status = tk.Label(
@@ -320,6 +384,8 @@ class KioskApp(tk.Tk):
         )
         self.status.pack(anchor="w", pady=(6, 0))
 
+        self._build_config_panel(small, update_font)
+
         self.saver = tk.Frame(self, bg="#000000", takefocus=True, cursor="arrow")
         self.saver.bind("<Button-1>", self._on_saver_pointer)
         self.saver.bind("<Button-2>", self._on_saver_pointer)
@@ -327,6 +393,201 @@ class KioskApp(tk.Tk):
         self.saver.bind("<MouseWheel>", self._on_wheel)
         self.saver.bind("<Button-4>", lambda e: self._on_wheel_button(-1))
         self.saver.bind("<Button-5>", lambda e: self._on_wheel_button(1))
+
+    def _build_config_panel(self, small, update_font) -> None:
+        panel = tk.Frame(
+            self,
+            bg="#1a1a1a",
+            highlightbackground=ACCENT,
+            highlightthickness=2,
+            padx=18,
+            pady=16,
+        )
+        self._config = panel
+        self._config_title = tk.Label(
+            panel,
+            text=t(self._lang, "settings"),
+            font=update_font,
+            bg="#1a1a1a",
+            fg=ACCENT,
+        )
+        self._config_title.pack(anchor="w")
+        self._config_blurb = tk.Label(
+            panel,
+            text=t(self._lang, "settings_blurb"),
+            font=small,
+            bg="#1a1a1a",
+            fg=MUTED,
+            wraplength=self.cfg.width - 80,
+            justify="left",
+        )
+        self._config_blurb.pack(anchor="w", pady=(8, 12))
+        self._config_lang_lbl = tk.Label(
+            panel,
+            text=t(self._lang, "language"),
+            font=small,
+            bg="#1a1a1a",
+            fg="#eeeeee",
+        )
+        self._config_lang_lbl.pack(anchor="w", pady=(0, 8))
+        row = tk.Frame(panel, bg="#1a1a1a")
+        row.pack(fill=tk.X, pady=(0, 12))
+        self._btn_pl = tk.Button(
+            row,
+            text=t(self._lang, "lang_pl"),
+            font=update_font,
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+            cursor="hand2",
+            command=lambda: self._set_language("pl"),
+        )
+        self._btn_pl.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 6), ipady=10)
+        self._btn_en = tk.Button(
+            row,
+            text=t(self._lang, "lang_en"),
+            font=update_font,
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+            cursor="hand2",
+            command=lambda: self._set_language("en"),
+        )
+        self._btn_en.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0), ipady=10)
+        self._config_saved = tk.Label(
+            panel,
+            text="",
+            font=small,
+            bg="#1a1a1a",
+            fg=OK,
+            wraplength=self.cfg.width - 80,
+            justify="left",
+        )
+        self._config_saved.pack(anchor="w")
+        self._config_keys = tk.Label(
+            panel,
+            text=t(self._lang, "settings_keys"),
+            font=small,
+            bg="#1a1a1a",
+            fg=MUTED,
+            wraplength=self.cfg.width - 80,
+            justify="left",
+        )
+        self._config_keys.pack(anchor="w", pady=(10, 0))
+        self._style_lang_buttons()
+
+    def _tr(self, key: str, **kwargs) -> str:
+        return t(self._lang, key, **kwargs)
+
+    def _style_lang_buttons(self) -> None:
+        for code, btn in (("pl", self._btn_pl), ("en", self._btn_en)):
+            if code == self._lang:
+                btn.config(bg=ACCENT, fg="#111111", activebackground="#ffd54a")
+            else:
+                btn.config(bg="#333333", fg="#eeeeee", activebackground="#444444")
+
+    def _apply_language(self) -> None:
+        self.title(self._tr("app_title_kiosk", version=__version__))
+        self.brand_lbl.config(text=self._tr("brand"))
+        self.lang_chip.config(text=self._tr("lang_chip"))
+        self.cad_legend_lbl.config(text=f"  {self._tr('cad_legend')}")
+        self._keys_hint.config(text=self._tr("keys_hint"))
+        self._config_title.config(text=self._tr("settings"))
+        self._config_blurb.config(text=self._tr("settings_blurb"))
+        self._config_lang_lbl.config(text=self._tr("language"))
+        self._btn_pl.config(text=self._tr("lang_pl"))
+        self._btn_en.config(text=self._tr("lang_en"))
+        self._config_keys.config(text=self._tr("settings_keys"))
+        self._style_lang_buttons()
+        self._refresh_hint()
+        if self._update_available and self._pending_update is not None and not self._updating:
+            self.update_btn.config(text=update_button_label(self._lang, self._pending_update))
+        elif not self._updating:
+            self.update_btn.config(text=self._tr("update"))
+
+    def _refresh_hint(self) -> None:
+        if not self._files:
+            self.hint.config(text=self._tr("insert_usb"))
+            return
+        n = len(self._files)
+        usb_n = len(self._mounts)
+        extra = (
+            f"  {self._tr('local_extra', n=len(self.cfg.extra_roots))}"
+            if self.cfg.extra_roots
+            else ""
+        )
+        self.hint.config(
+            text=f"{file_count(self._lang, n)}   {usb_count(usb_n)}{extra}"
+        )
+
+    def _set_language(self, lang: str) -> None:
+        self._lang = parse_language(lang, default=KIOSK_DEFAULT)
+        self.cfg.language = self._lang
+        self._apply_language()
+        self._persist_language()
+
+    def _persist_language(self) -> None:
+        overlay = ui_overlay_path()
+        try:
+            saved = save_kiosk_values({"language": self._lang}, dest=overlay)
+        except OSError as exc:
+            self._config_saved.config(
+                text=self._tr("settings_save_fail", detail=exc), fg=ERR
+            )
+            return
+        if self.cfg.source is not None:
+            try:
+                save_kiosk_values(
+                    {"language": self._lang},
+                    dest=self.cfg.source,
+                    source=self.cfg.source,
+                )
+            except OSError:
+                pass
+        self._config_saved.config(
+            text=self._tr("settings_saved", path=str(saved)), fg=OK
+        )
+
+    def _show_config(self) -> None:
+        self._config_open = True
+        self._config.place(relx=0.05, rely=0.18, relwidth=0.90, relheight=0.52)
+        self._config.lift()
+        self._style_lang_buttons()
+        self._arm_idle()
+
+    def _hide_config(self) -> None:
+        if not self._config_open:
+            return
+        self._config_open = False
+        self._config.place_forget()
+        self._claim_input()
+
+    def _toggle_config(self) -> None:
+        if self._config_open:
+            self._hide_config()
+        else:
+            self._show_config()
+
+    def _on_config_pointer(self, _event: tk.Event | None = None) -> str:
+        if self._wake_hid():
+            return "break"
+        self._toggle_config()
+        self._arm_idle()
+        return "break"
+
+    def _on_config_key(self) -> str:
+        if self._wake_hid():
+            return "break"
+        self._toggle_config()
+        self._arm_idle()
+        return "break"
+
+    def _dismiss_config(self) -> bool:
+        """Close settings without changing the file list. True if it was open."""
+        if not self._config_open:
+            return False
+        self._hide_config()
+        return True
 
     def _bind_keys(self) -> None:
         # bind_all: a plugged-in keyboard works even if the listbox has focus.
@@ -343,6 +604,9 @@ class KioskApp(tk.Tk):
             ("<Key-M>", lambda e: self._on_print(PAPER_80MM_MIN)),
             ("<Key-u>", lambda e: self._on_update()),
             ("<Key-U>", lambda e: self._on_update()),
+            ("<F2>", lambda e: self._on_config_key()),
+            ("<Key-c>", lambda e: self._on_config_key()),
+            ("<Key-C>", lambda e: self._on_config_key()),
             ("<Escape>", self._on_escape),
             ("<KeyPress>", self._on_keypress),
         )
@@ -376,6 +640,12 @@ class KioskApp(tk.Tk):
         return None
 
     def _on_nav(self, delta: int) -> str:
+        if self._wake_hid():
+            return "break"
+        if self._config_open:
+            self._set_language("en" if self._lang == "pl" else "pl")
+            self._arm_idle()
+            return "break"
         self._on_encoder(delta)
         return "break"
 
@@ -388,15 +658,30 @@ class KioskApp(tk.Tk):
             delta = -1 if event.delta > 0 else 1
         else:
             delta = 1
+        if self._wake_hid():
+            return "break"
+        if self._config_open:
+            self._set_language("en" if self._lang == "pl" else "pl")
+            self._arm_idle()
+            return "break"
         self._on_encoder(delta)
         return "break"
 
     def _on_wheel_button(self, delta: int) -> str:
+        if self._wake_hid():
+            return "break"
+        if self._config_open:
+            self._set_language("en" if self._lang == "pl" else "pl")
+            self._arm_idle()
+            return "break"
         self._on_encoder(delta)
         return "break"
 
     def _on_escape(self, _event: tk.Event | None = None) -> str:
         if self._wake_hid():
+            return "break"
+        if self._dismiss_config():
+            self._arm_idle()
             return "break"
         if self.cfg.fullscreen:
             self.attributes("-fullscreen", False)
@@ -444,7 +729,7 @@ class KioskApp(tk.Tk):
             )
             self._gpio.extend([enc, full, mini])
         except Exception as exc:  # GPIO missing or pin busy
-            self._set_status(f"GPIO off: {_gpio_fail_hint(exc)}", error=True)
+            self._set_status(self._tr("gpio_off", detail=_gpio_fail_hint(exc)), error=True)
 
     def _roots(self) -> list[Path]:
         return list(self._mounts) + list(self.cfg.extra_roots)
@@ -495,16 +780,10 @@ class KioskApp(tk.Tk):
                 ready_img=self._cad_ready,
                 empty_img=self._cad_empty,
             )
+        self._refresh_hint()
         if not files:
-            self.hint.config(text="Insert USB")
             self._index = 0
             return
-        n = len(files)
-        usb_n = len(self._mounts)
-        extra = f"  +{len(self.cfg.extra_roots)} local" if self.cfg.extra_roots else ""
-        self.hint.config(
-            text=f"{n} file{'s' if n != 1 else ''}   {usb_n} USB{extra}"
-        )
         if keep_highlight and current in files:
             self._index = files.index(current)
         else:
@@ -566,6 +845,9 @@ class KioskApp(tk.Tk):
             self._arm_idle()
             self._claim_input()
             return
+        if self._dismiss_config():
+            self._arm_idle()
+            return
         if not self._files:
             self._arm_idle()
             return
@@ -575,6 +857,9 @@ class KioskApp(tk.Tk):
 
     def _on_list_click(self, event: tk.Event) -> str | None:
         if self._wake_hid() or self.gate.asleep:
+            return "break"
+        if self._dismiss_config():
+            self._arm_idle()
             return "break"
         iid = self.listbox.identify_row(event.y)
         if iid:
@@ -598,7 +883,7 @@ class KioskApp(tk.Tk):
             return
         self._update_available = True
         self._pending_update = status
-        label = status.button_label()
+        label = update_button_label(self._lang, status)
         try:
             mapped = self.update_btn.winfo_ismapped()
         except tk.TclError:
@@ -608,20 +893,27 @@ class KioskApp(tk.Tk):
             self.update_btn.pack(fill=tk.X, pady=(0, 10), before=self._keys_hint)
         if status.new_version and status.new_version != status.current_version:
             self._set_status(
-                f"v{status.current_version} → {status.new_version}  ·  tap UPDATE to install and restart"
+                self._tr(
+                    "update_status",
+                    current=status.current_version,
+                    new=status.new_version,
+                )
             )
         else:
-            self._set_status("Update available  ·  tap UPDATE to install and restart")
+            self._set_status(self._tr("update_available"))
 
     def _on_update(self, _event: tk.Event | None = None) -> str | None:
         if self._wake_hid():
+            return "break"
+        if self._dismiss_config():
+            self._arm_idle()
             return "break"
         if not self._update_available or self._updating:
             return "break"
         self._arm_idle()
         self._updating = True
-        self.update_btn.config(state=tk.DISABLED, text="UPDATING…")
-        self._set_status("Updating — will restart the kiosk")
+        self.update_btn.config(state=tk.DISABLED, text=self._tr("updating"))
+        self._set_status(self._tr("update_progress"))
         threading.Thread(target=self._update_worker, daemon=True).start()
         return "break"
 
@@ -637,25 +929,25 @@ class KioskApp(tk.Tk):
                 self._update_available = False
                 self._pending_update = None
                 self.update_btn.pack_forget()
-                self.update_btn.config(state=tk.NORMAL, text="UPDATE")
+                self.update_btn.config(state=tk.NORMAL, text=self._tr("update"))
                 self._updating = False
-                self._set_status("Updated — restarting kiosk")
+                self._set_status(self._tr("update_restarting"))
                 return
             self._updating = False
             retry = (
-                self._pending_update.button_label()
+                update_button_label(self._lang, self._pending_update)
                 if self._pending_update is not None
-                else "UPDATE"
+                else self._tr("update")
             )
             self.update_btn.config(state=tk.NORMAL, text=retry)
             if code == 2:
                 self._update_available = False
                 self._pending_update = None
                 self.update_btn.pack_forget()
-                self._set_status("This install cannot auto-update", error=True)
+                self._set_status(self._tr("update_frozen"), error=True)
                 return
             self._set_status(
-                "Update failed — tap again, or: sudo systemctl restart fh6parse-kiosk",
+                self._tr("update_failed"),
                 error=True,
             )
         except tk.TclError:
@@ -663,17 +955,20 @@ class KioskApp(tk.Tk):
 
     def _on_print(self, paper: str) -> str | None:
         if self._updating:
-            self._set_status("Updating…", error=True)
+            self._set_status(self._tr("busy_update"), error=True)
+            return "break"
+        if self._dismiss_config():
+            self._arm_idle()
             return "break"
         if not self.gate.allow_print():
             return None
         self._arm_idle()
         path = self._selected()
         if path is None:
-            self._set_status("No file", error=True)
+            self._set_status(self._tr("no_file"), error=True)
             return "break"
-        kind = "full" if paper == PAPER_80MM else "min"
-        self._set_status(f"Printing {kind}: {path.name}…")
+        kind = self._tr("print_kind_full" if paper == PAPER_80MM else "print_kind_min")
+        self._set_status(self._tr("printing", kind=kind, name=path.name))
         self.update_idletasks()
         try:
             result = parse_nc_file(path)
@@ -687,7 +982,7 @@ class KioskApp(tk.Tk):
                 device=self.cfg.printer_device,
                 image_paths=images,
             )
-            self._set_status(f"Printed {path.name}  ({route})")
+            self._set_status(self._tr("printed", name=path.name, route=route))
         except Exception as exc:  # shop-floor: stay up
             self._set_status(str(exc), error=True)
         return "break"
@@ -716,6 +1011,9 @@ class KioskApp(tk.Tk):
             self._show_saver()
 
     def _show_saver(self) -> None:
+        if self._config_open:
+            self._config_open = False
+            self._config.place_forget()
         self.saver.place(relx=0, rely=0, relwidth=1, relheight=1)
         self.saver.lift()
         try:

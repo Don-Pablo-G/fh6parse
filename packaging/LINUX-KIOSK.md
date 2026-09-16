@@ -1,6 +1,6 @@
 # fh6parse Linux kiosk manual
 
-**Version 1.3.4.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings. The screen shows **v1.3.4**. A yellow **UPDATE to …** button appears only when the network has a newer git commit — it does **not** apply until you tap it, then it restarts the kiosk.
+**Version 1.3.4.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. The screen shows **v1.3.4**. A yellow **UPDATE to …** button appears only when the network has a newer git commit — it does **not** apply until you tap it, then it restarts the kiosk.
 
 Python **3.10+** is required (Bookworm ships 3.11). Use **Raspberry Pi OS 64-bit Desktop** (Bookworm or later). Pi 5 has no 32-bit OS.
 
@@ -31,7 +31,7 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 | MUNBYN P047 (ITPP047) | USB, 80 mm ESC/POS, auto-cutter. Own mains PSU. |
 | Company STEP folder (optional) | NAS of `.stp` / `.step` if the stick has none. See **§3.7**. Stick copy is enough. |
 | Network (optional) | Only for git install and later **UPDATE**. Printing works offline. |
-| Keyboard / mouse | First-time setup, SSH, or tap **UPDATE**. Not required for encoder + GPIO print. |
+| Keyboard / mouse | First-time setup, **settings** (language), SSH, or tap **UPDATE**. Not required for encoder + GPIO print. |
 
 Default GPIO (**BCM** numbers, not header pin numbers):
 
@@ -240,6 +240,7 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | `extensions` | `.nc,.tap` | File types (case-insensitive) |
 | `extra_roots` | (empty) | Extra folders to list, comma-separated (for testing) |
 | `model_roots` | (empty) | Optional company `.stp` folders. USB stick is searched first. See **§3.7**. |
+| `language` | `pl` | Screen language: `pl` (default) or `en`. Change on the kiosk in **settings** (**F2** / **C**, or click **PL** / **EN**). Stored in `~/.config/fh6parse/ui.ini` (and in this ini if it is writable). |
 | `fullscreen` | true | Shop display. Escape once exits fullscreen. |
 
 ### 3.4 Groups and devices
@@ -288,13 +289,17 @@ python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 
 Without GPIO you can still use a **USB keyboard and mouse** at any time (hot-plug is fine). The kiosk keeps keyboard focus and the black screensaver wakes on a key, click, or mouse wheel.
 
+The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**. The choice is written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini as `language = pl` or `en`. **Esc** closes settings first; the next **Esc** still leaves fullscreen. Encoder or a GPIO print button closes settings without printing / skipping a file.
+
 | Input | While awake | While screensaver |
 | --- | --- | --- |
 | Arrows, mouse wheel, click a file | Move highlight | First event only wakes |
 | **F** / **M** | Print full / min | Ignored (no ticket); another key or click wakes |
 | GPIO FULL / MIN | Print | Ignored (no ticket, stays black) |
 | Yellow **UPDATE to …** / **U** | One tap: pull, then restart kiosk | Wake first, then tap |
-| **Esc** | Leave fullscreen, then close | Wake, then Esc again leaves fullscreen |
+| **F2** / **C** / click **PL**·**EN** | Open or close settings (language) | Wake first |
+| In settings: arrows / wheel / **Polski**·**English** | Switch language | — |
+| **Esc** | Close settings, else leave fullscreen, then close | Wake, then Esc again leaves fullscreen |
 
 Plug in a USB stick with `.nc` files; the list should fill by itself.
 
@@ -399,7 +404,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 
 ## 5. Daily use
 
-1. Power on. Screen shows **Insert USB** (or the last stick if it was already plugged in).
+1. Power on. Screen shows **Włóż pendrive** / **Insert USB** (or the last stick if it was already plugged in). The kiosk is Polish unless settings were changed.
 2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear.
 3. Turn the encoder to highlight a file. A **3D cube** next to the name means the STEP views are ready for that program.
 4. **FULL** — 80 mm ticket: stacked line-art isometrics when ready, then operations, tool list, each tool change, warnings, min Z.
@@ -409,8 +414,9 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 8. **WARNING:** lines: `H{n} does not match T{tool}` on G43, and `D{n} does not match T{tool}` on any D (G43 or G41/G42). Matching H/D stay quiet.
 9. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
 10. Wake: encoder, inserting a USB stick, or a **keyboard / mouse**. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored.
-11. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
-12. Current version is **v…** at the top right. If the Pi is on the network and origin is ahead, a yellow **UPDATE to x.y.z** button appears **after this boot’s check**. It does **not** update by itself. One tap installs and **restarts** the kiosk (sudoers in **§3.2**). Print still works until you tap it.
+11. Language: **F2** / **C** or the **PL**/**EN** chip (mouse) — **§3.6**. Encoder does not open settings.
+12. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
+13. Current version is **v…** at the top right. If the Pi is on the network and origin is ahead, a yellow **UPDATE to x.y.z** button appears **after this boot’s check**. It does **not** update by itself. One tap installs and **restarts** the kiosk (sudoers in **§3.2**). Print still works until you tap it.
 
 Parse happens at print time, not when the list is shown. STEP matching and rendering run in the background and must not delay the ticket.
 
@@ -424,12 +430,14 @@ Parse happens at print time, not when the list is shown. STEP matching and rende
 | Knob does nothing | CLK/DT on 17/27; common GND; 3.3 V VCC. Try `encoder_swap = true`. |
 | Knob skips or jitters | Shorter wires; module decoupling. The kiosk sets a short encoder `bounce_time` for Pi 5. |
 | Buttons print on press and release | Use momentary NO to GND, not a latching switch. |
-| List stays on Insert USB | Stick mounted? `ls /media` / `ls /run/media`. Format FAT32. Files ending `.nc` or `.tap`. |
+| List stays on Insert USB / Włóż pendrive | Stick mounted? `ls /media` / `ls /run/media`. Format FAT32. Files ending `.nc` or `.tap`. |
 | `printer failed` | `ls -l /dev/usb/lp0`; user `kiosk` in group `lp`; test the Python write in **§3.5**. *Permission denied* → log out after `usermod`. *Busy* → CUPS still owns the printer (`sudo systemctl disable --now cups`). |
 | Garbage on the slip | CUPS grabbed the job. The kiosk writes `/dev/usb/lp0` first; disable CUPS (**§3.5**). Status must show `device:/dev/usb/lp0`, not `lp:…`. |
 | Ticket does not cut | Cutter empty/jammed. App already sends ESC/POS cut (`GS V`). |
 | Screen never sleeps | `idle_seconds = 0`, or encoder bouncing. Still on Wayland? Switch to X11 so `xset` works. |
-| Keyboard/mouse do nothing | Plug into the Pi USB-A; X11 picks them up. Click or press a key — the kiosk claims focus. **Esc** leaves fullscreen. GPIO print buttons still do not wake the screensaver. |
+| Keyboard/mouse do nothing | Plug into the Pi USB-A; X11 picks them up. Click or press a key — the kiosk claims focus. **F2** / **C** opens settings. **Esc** closes settings, then leaves fullscreen. GPIO print buttons still do not wake the screensaver. |
+| Language resets to Polish after you picked English | Stored in `/home/kiosk/.config/fh6parse/ui.ini`. Pick **English** again in settings. **UPDATE** does not delete that file. |
+| Screen stays in English and **F2** does nothing | Wake first if the screen is black. Click the **EN** chip next to **v…**. Encoder never opens settings. |
 | Black screen immediately | Desktop blanking plus app DPMS. Disable LXDE idle blank; keep kiosk `idle_seconds = 60`. |
 | Wrong aspect / sideways UI | Rotate until `xdpyinfo` (or Screen Configuration) shows 600×800. App geometry is 600×800 fullscreen. Pi 5 output is often `HDMI-A-1`. |
 | Service dead, UI never starts | `echo $DISPLAY` in a desktop terminal should be `:0`. `raspi-config` → X11, desktop autologin. `journalctl -u fh6parse-kiosk`. Unit `User=` must be `kiosk`. |
@@ -461,6 +469,7 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 | --- | --- |
 | `/home/kiosk/fh6parse` | Source checkout (shop update path) |
 | `/etc/fh6parse-kiosk.ini` | Pins, printer, idle, `model_roots` (never overwritten by **UPDATE**) |
+| `/home/kiosk/.config/fh6parse/ui.ini` | Screen language (`pl` / `en`). Written by settings. Survives **UPDATE**. |
 | `/etc/systemd/system/fh6parse-kiosk.service` | Autostart |
 | `/etc/sudoers.d/fh6parse-kiosk` | NOPASSWD restart for on-screen **UPDATE** |
 | `packaging/fh6parse-kiosk.ini.example` | Template |
@@ -535,7 +544,7 @@ python3 -m fh6parse --version
 2. `pip3 install -e .` **only if** `pyproject.toml` changed; otherwise skips pip. That command does **not** reinstall the `[models]` extra; see **§3.7** if pictures disappear.
 3. `systemctl restart fh6parse-kiosk` if that unit exists; if that fails, `sudo -n systemctl restart fh6parse-kiosk`. Otherwise it prints “restart the kiosk yourself”
 
-It never writes `/etc/fh6parse-kiosk.ini`. Pins, printer, idle, and `model_roots` stay as you set them.
+It never writes `/etc/fh6parse-kiosk.ini` or `~/.config/fh6parse/ui.ini`. Pins, printer, idle, `model_roots`, and language stay as you set them.
 
 ### 8.4 One-file ARM tarball
 
@@ -558,7 +567,7 @@ git log -1 --oneline
 sudo systemctl restart fh6parse-kiosk
 ```
 
-`git log -1` must mention D vs T and USB `/dev/usb/lp0`. Or wait for the yellow **UPDATE** after a restart (check runs once per boot).
+`git log -1` should mention the latest drop (Polish/English UI, or the wireframe cube). D vs T and USB `/dev/usb/lp0` are already in older 1.3.4 commits. Or wait for the yellow **UPDATE** after a restart (check runs once per boot).
 
 Clear old STEP bitmaps:
 
@@ -604,6 +613,7 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Through-holes as ellipses, not filled blobs | |
 | Long shaft is a thin strip across 80 mm | |
 | Print without a cube is still text-only, no wait | |
+| Settings (**F2** / **PL** chip): Polish default, switch to English, survives restart | |
 
-Windows office PC: replace the exe with `fh6parse-1.3.3-windows-x64.exe` from this same tree (same `--version`, new behaviour). Set **STEP folders…**. Windows print is still the browser dialog, not `/dev/usb/lp0`.
+Windows office PC: replace the exe with `fh6parse-1.3.4-windows-x64.exe` from this same tree (same `--version`). **Polski / English** radios at the top right (default English). Set **STEP folders…**. A wireframe cube means the STEP bitmap is ready. Windows print is still the browser dialog, not `/dev/usb/lp0`.
 

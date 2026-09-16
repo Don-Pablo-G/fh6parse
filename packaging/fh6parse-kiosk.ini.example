@@ -9,6 +9,8 @@ width = 600
 height = 800
 fullscreen = true
 idle_seconds = 60
+# Screen language: pl (default on the kiosk) or en. Change in settings (F2 / mouse).
+# language = pl
 
 encoder_clk = 17
 encoder_dt = 27
