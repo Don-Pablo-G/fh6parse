@@ -22,7 +22,7 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   80 mm:  thermal printer, 80 mm paper, 100%, do not fit to A4
   STEP views: click STEP folders… and pick the company .stp/.step share
   (several folders allowed; saved in fh6parse-kiosk.ini next to the exe).
-  A square mark appears when the stacked isometrics are ready. Print never
+  A wireframe 3D cube appears when the stacked isometrics are ready. Print never
   waits — if the model is missing the report is text only.
   Views are visible edges only (no shading). The longest axis is across the
   80 mm width; height is cropped to the part (a long shaft is a thin strip).
@@ -77,6 +77,6 @@ STEP models on the 80 mm ticket (kiosk, optional)
   Matching starts at the NC name prefix. G-code rev must match the .stp rev.
   If the NC has no rev, the latest matching .stp is used (USB copy wins).
   Two opposite isometric line drawings, stacked, cropped to the part, at the top of
-  FULL and MIN tickets. A square mark (■) appears when the bitmap is ready.
+  FULL and MIN tickets. A wireframe 3D cube appears when the bitmap is ready.
   Missing or still-rendering models never block print.
   Full matching table and NAS mount: packaging/LINUX-KIOSK.md §3.7

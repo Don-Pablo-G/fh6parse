@@ -14,6 +14,15 @@ from tkinter import font as tkfont
 
 from . import usbwatch
 from ._version import __version__
+from .cadmark import (
+    LEGEND,
+    apply_file_row,
+    clear_file_tree,
+    cube_photo,
+    insert_file_row,
+    make_file_tree,
+    row_is_ready,
+)
 from .idle import ScreensaverGate
 from .modelprep import ModelPrep
 from .parser import parse_nc_file
@@ -22,7 +31,6 @@ from .report import PAPER_80MM, PAPER_80MM_MIN, format_report
 from .update import UpdateCheck
 
 BG = "#111111"
-FG = "#eeeeee"
 ACCENT = "#e6b800"
 MUTED = "#888888"
 ERR = "#ff6b6b"
@@ -253,24 +261,22 @@ class KioskApp(tk.Tk):
             justify="left",
         )
         self.hint.pack(anchor="w", pady=(4, 0))
+        self._cad_ready, self._cad_empty = cube_photo(self, size=32, dark=True)
+        self._cad_legend, _unused_empty = cube_photo(self, size=26, dark=True)
+        legend = tk.Frame(head, bg=BG)
+        legend.pack(anchor="w", pady=(6, 0))
+        tk.Label(legend, image=self._cad_legend, bg=BG).pack(side=tk.LEFT)
+        tk.Label(
+            legend,
+            text=f"  {LEGEND}",
+            font=small,
+            bg=BG,
+            fg=MUTED,
+        ).pack(side=tk.LEFT)
 
         mid = tk.Frame(self, bg=BG)
         mid.pack(fill=tk.BOTH, expand=True, padx=12, pady=8)
-        self.listbox = tk.Listbox(
-            mid,
-            font=list_font,
-            bg="#1a1a1a",
-            fg=FG,
-            selectbackground=ACCENT,
-            selectforeground="#111111",
-            activestyle="none",
-            highlightthickness=0,
-            borderwidth=0,
-            relief="flat",
-            selectmode=tk.SINGLE,
-            exportselection=False,
-            takefocus=True,
-        )
+        self.listbox = make_file_tree(mid, dark=True, font=list_font, rowheight=40)
         self.listbox.pack(fill=tk.BOTH, expand=True)
         self.listbox.bind("<Button-1>", self._on_list_click)
         self.listbox.bind("<MouseWheel>", self._on_wheel)
@@ -469,19 +475,26 @@ class KioskApp(tk.Tk):
         label = path.name
         if names.count(path.name) > 1:
             label = f"{path.parent.name}/{path.name}"
-        if self._models is not None and self._models.is_ready(path):
-            return f"■ {label}"
         return label
+
+    def _cad_ready_for(self, path: Path) -> bool:
+        return self._models is not None and self._models.is_ready(path)
 
     def _set_files(self, files: list[Path], *, keep_highlight: bool) -> None:
         current = self._selected()
         self._files = files
         if self._models is not None:
             self._models.set_files(files)
-        self.listbox.delete(0, tk.END)
+        clear_file_tree(self.listbox)
         names = [p.name for p in files]
         for path in files:
-            self.listbox.insert(tk.END, self._label_for(path, names))
+            insert_file_row(
+                self.listbox,
+                self._label_for(path, names),
+                ready=self._cad_ready_for(path),
+                ready_img=self._cad_ready,
+                empty_img=self._cad_empty,
+            )
         if not files:
             self.hint.config(text="Insert USB")
             self._index = 0
@@ -503,15 +516,26 @@ class KioskApp(tk.Tk):
             return
         names = [p.name for p in self._files]
         changed = False
+        children = self.listbox.get_children()
+        if len(children) != len(self._files):
+            return
         for i, path in enumerate(self._files):
+            iid = children[i]
             label = self._label_for(path, names)
+            ready = self._cad_ready_for(path)
             try:
-                current = self.listbox.get(i)
+                current = self.listbox.item(iid, "text")
             except tk.TclError:
                 return
-            if current != label:
-                self.listbox.delete(i)
-                self.listbox.insert(i, label)
+            if current != label or row_is_ready(self.listbox, iid) != ready:
+                apply_file_row(
+                    self.listbox,
+                    iid,
+                    label,
+                    ready=ready,
+                    ready_img=self._cad_ready,
+                    empty_img=self._cad_empty,
+                )
                 changed = True
         if changed:
             self._paint_highlight()
@@ -527,10 +551,13 @@ class KioskApp(tk.Tk):
         if not self._files:
             return
         self._index %= len(self._files)
-        self.listbox.selection_clear(0, tk.END)
-        self.listbox.selection_set(self._index)
-        self.listbox.activate(self._index)
-        self.listbox.see(self._index)
+        children = self.listbox.get_children()
+        if not children:
+            return
+        iid = children[self._index]
+        self.listbox.selection_set(iid)
+        self.listbox.focus(iid)
+        self.listbox.see(iid)
 
     def _on_encoder(self, delta: int) -> None:
         action = self.gate.encoder()
@@ -549,9 +576,9 @@ class KioskApp(tk.Tk):
     def _on_list_click(self, event: tk.Event) -> str | None:
         if self._wake_hid() or self.gate.asleep:
             return "break"
-        idx = self.listbox.nearest(event.y)
-        if 0 <= idx < len(self._files):
-            self._index = idx
+        iid = self.listbox.identify_row(event.y)
+        if iid:
+            self._index = int(self.listbox.index(iid))
             self._paint_highlight()
             self._arm_idle()
         self.listbox.focus_set()

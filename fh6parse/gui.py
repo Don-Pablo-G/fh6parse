@@ -7,6 +7,15 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from ._version import __version__
+from .cadmark import (
+    LEGEND,
+    apply_file_row,
+    clear_file_tree,
+    cube_photo,
+    insert_file_row,
+    make_file_tree,
+    row_is_ready,
+)
 from .kiosk import load_kiosk_config, save_model_roots
 from .modelprep import ModelPrep
 from .modelrender import render_available
@@ -91,10 +100,14 @@ class ToolReportApp(tk.Tk):
         body.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
 
         left = ttk.Frame(body)
-        ttk.Label(left, text="Files  (■ = STEP view ready)").pack(anchor=tk.W)
-        self.file_list = tk.Listbox(left, width=36, exportselection=False)
+        self._cad_ready, self._cad_empty = cube_photo(self, size=24, dark=False)
+        legend = ttk.Frame(left)
+        legend.pack(anchor=tk.W, fill=tk.X)
+        tk.Label(legend, image=self._cad_ready).pack(side=tk.LEFT)
+        ttk.Label(legend, text=f"  {LEGEND}").pack(side=tk.LEFT)
+        self.file_list = make_file_tree(left, dark=False, rowheight=28)
         self.file_list.pack(fill=tk.BOTH, expand=True)
-        self.file_list.bind("<<ListboxSelect>>", self._on_select)
+        self.file_list.bind("<<TreeviewSelect>>", self._on_select)
         body.add(left, weight=1)
 
         right = ttk.Frame(body)
@@ -125,10 +138,10 @@ class ToolReportApp(tk.Tk):
         self.status.pack(fill=tk.X)
 
     def _file_label(self, path: Path) -> str:
-        name = path.name
-        if self._models is not None and self._models.is_ready(path):
-            return f"■ {name}"
-        return name
+        return path.name
+
+    def _cad_ready_for(self, path: Path) -> bool:
+        return self._models is not None and self._models.is_ready(path)
 
     def _images_for(self, path: Path) -> list[Path]:
         if self._models is None:
@@ -151,19 +164,27 @@ class ToolReportApp(tk.Tk):
         if self._models is None or not self._order:
             return
         changed = False
+        children = self.file_list.get_children()
+        if len(children) != len(self._order):
+            return
         for i, key in enumerate(self._order):
             path = Path(key)
+            iid = children[i]
             label = self._file_label(path)
+            ready = self._cad_ready_for(path)
             try:
-                current = self.file_list.get(i)
+                current = self.file_list.item(iid, "text")
             except tk.TclError:
                 return
-            if current != label:
-                sel = self.file_list.curselection()
-                self.file_list.delete(i)
-                self.file_list.insert(i, label)
-                if sel and sel[0] == i:
-                    self.file_list.selection_set(i)
+            if current != label or row_is_ready(self.file_list, iid) != ready:
+                apply_file_row(
+                    self.file_list,
+                    iid,
+                    label,
+                    ready=ready,
+                    ready_img=self._cad_ready,
+                    empty_img=self._cad_empty,
+                )
                 changed = True
         if changed:
             ready = sum(
@@ -220,9 +241,10 @@ class ToolReportApp(tk.Tk):
                 errors.append(f"{path.name}: {exc}")
         self._refresh_list()
         self._enqueue_open_files()
-        if self.file_list.size():
-            self.file_list.selection_clear(0, tk.END)
-            self.file_list.selection_set(0)
+        children = self.file_list.get_children()
+        if children:
+            self.file_list.selection_set(children[0])
+            self.file_list.focus(children[0])
             self._on_select()
         if errors:
             messagebox.showerror("Parse error", "\n".join(errors))
@@ -234,16 +256,23 @@ class ToolReportApp(tk.Tk):
         self.status.config(text=f"{len(self._results)} file(s) loaded{extra}")
 
     def _refresh_list(self) -> None:
-        self.file_list.delete(0, tk.END)
+        clear_file_tree(self.file_list)
         self._order = list(self._results)
         for key in self._order:
-            self.file_list.insert(tk.END, self._file_label(Path(key)))
+            path = Path(key)
+            insert_file_row(
+                self.file_list,
+                self._file_label(path),
+                ready=self._cad_ready_for(path),
+                ready_img=self._cad_ready,
+                empty_img=self._cad_empty,
+            )
 
     def _selected_key(self) -> str | None:
-        sel = self.file_list.curselection()
+        sel = self.file_list.selection()
         if not sel:
             return None
-        return self._order[sel[0]]
+        return self._order[int(self.file_list.index(sel[0]))]
 
     def _selected_result(self) -> tuple[Path, ParseResult] | None:
         key = self._selected_key()

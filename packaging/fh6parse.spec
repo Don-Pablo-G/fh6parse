@@ -26,6 +26,7 @@ hiddenimports = [
     "fh6parse.modelmatch",
     "fh6parse.modelrender",
     "fh6parse.modelprep",
+    "fh6parse.cadmark",
 ]
 extra_datas = []
 extra_binaries = []

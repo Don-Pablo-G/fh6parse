@@ -360,7 +360,7 @@ If the program **has** a revision, only a STEP file with the **same** rev is use
 | `SE0241282.nc` | `O01282 (SE0241282-0 …)` | `SE0241282-0.stp` (or `_Rev0`) |
 | `000814086.nc` | title `000814086 OP1/OP2` | `000814086_Rev02.stp` if that is latest |
 
-**5. On the screen**, a **■** appears next to the file when the bitmap is rendered and ready. The walk and render run in the background for every USB file in the list. Cache: `/tmp/fh6parse-models`.
+**5. On the screen**, a small **wireframe 3D cube** appears next to the file when the bitmap is rendered and ready (same icon as the legend under the title — the same visible-edge isometric language as the ticket). The walk and render run in the background for every USB file in the list. Cache: `/tmp/fh6parse-models`.
 
 On **Windows**, the GUI also searches next to the opened NC file. **STEP folders…** is the NAS fallback. Paths are saved as `model_roots` in `fh6parse-kiosk.ini` next to the exe. The Windows one-file build bundles the CAD stack; print still works if a model is missing.
 
@@ -401,10 +401,10 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 
 1. Power on. Screen shows **Insert USB** (or the last stick if it was already plugged in).
 2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear.
-3. Turn the encoder to highlight a file. A **■** means the STEP views are ready for that program.
+3. Turn the encoder to highlight a file. A **3D cube** next to the name means the STEP views are ready for that program.
 4. **FULL** — 80 mm ticket: stacked line-art isometrics when ready, then operations, tool list, each tool change, warnings, min Z.
 5. **MIN** — short ticket: stacked line-art isometrics when ready, then per operation only T, description, min Z, warnings.
-6. If there is no **■**, print anyway. The slip is text only.
+6. If there is no cube, print anyway. The slip is text only.
 7. Status after a good print: **`device:/dev/usb/lp0`**. If it says `lp:…`, CUPS took the job — **§3.5**.
 8. **WARNING:** lines: `H{n} does not match T{tool}` on G43, and `D{n} does not match T{tool}` on any D (G43 or G41/G42). Matching H/D stay quiet.
 9. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
@@ -440,10 +440,10 @@ Parse happens at print time, not when the list is shown. STEP matching and rende
 | `--update` / **UPDATE** pulled but UI unchanged | `sudo systemctl restart fh6parse-kiosk`. Missing sudoers: **§3.2**. |
 | **UPDATE** button never appears | Offline, one-file tarball, already up to date. Check is only at kiosk start. Screen should show **v1.3.4**. |
 | **UPDATE** says failed / kiosk did not restart | `sudo -n systemctl restart fh6parse-kiosk` from user `kiosk` should succeed after **§3.2**. Then `sudo systemctl restart fh6parse-kiosk`. |
-| No **■** next to files | No matching `.stp` on the stick (or in `model_roots`). CAD extra missing (`pip3 install -e '.[models]'`). Still rendering (wait). G-code rev does not match any `.stp`. |
-| **■** shows, ticket has no picture | Status not `device:/dev/usb/lp0` (CUPS intercepted). Printer rejected `GS v 0`. Test text-only first (**§3.5**). |
+| No **3D cube** next to files | No matching `.stp` on the stick (or in `model_roots`). CAD extra missing (`pip3 install -e '.[models]'`). Still rendering (wait). G-code rev does not match any `.stp`. |
+| Cube shows, ticket has no picture | Status not `device:/dev/usb/lp0` (CUPS intercepted). Printer rejected `GS v 0`. Test text-only first (**§3.5**). |
 | Pictures vanished after `--update` | `--update` runs `pip install -e .` **without** `[models]` when `pyproject.toml` changes. Re-run `sudo pip3 install -e '.[models]' --break-system-packages`. |
-| Pictures still shaded / grey mush | Old cache. `rm -rf /tmp/fh6parse-models` and wait for **■** again. The current renderer is black edges on white only. |
+| Pictures still shaded / grey mush | Old cache. `rm -rf /tmp/fh6parse-models` and wait for the cube again. The current renderer is black edges on white only. |
 | No `WARNING:` for a wrong D | Clone is older than this pull. `git log -1 --oneline` must mention D vs T. D is checked on G43 and on G41/G42. |
 
 CLI without the kiosk (reports next to the NC file):
@@ -598,12 +598,12 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Check | Pass |
 | --- | --- |
 | Stick has `Program.nc` + matching `.stp` (root or subfolder) | |
-| **■** appears when the model is ready (no NAS needed) | |
+| **3D cube** appears when the model is ready (no NAS needed) | |
 | Two stacked views, part not a flat 45° slab (true isometric) | |
 | Black lines on white — no grey shading | |
 | Through-holes as ellipses, not filled blobs | |
 | Long shaft is a thin strip across 80 mm | |
-| Print without **■** is still text-only, no wait | |
+| Print without a cube is still text-only, no wait | |
 
 Windows office PC: replace the exe with `fh6parse-1.3.3-windows-x64.exe` from this same tree (same `--version`, new behaviour). Set **STEP folders…**. Windows print is still the browser dialog, not `/dev/usb/lp0`.
 
