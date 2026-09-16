@@ -1,4 +1,4 @@
-"""Optional STEP → stacked opposite-isometric PNG for 80 mm tickets."""
+"""Optional STEP → stacked opposite-isometric line drawings for 80 mm tickets."""
 
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ MAX_VIEW_HEIGHT = 240
 # A 2 m × 20 mm shaft becomes a few pixels; keep a sliver so it is not 1 px.
 MIN_VIEW_HEIGHT = 12
 STACK_GAP = 4
+# Feature edges: dihedral steeper than this (smooth tessellation stays hidden).
+CREASE_DEG = 30.0
 
 
 def render_available() -> bool:
@@ -34,8 +36,8 @@ def cache_dir() -> Path:
 
 def cache_png_path(step_path: Path, mtime: float, size: int) -> Path:
     key = (
-        f"{step_path.resolve()}|{mtime}|{size}|ticket-v2|"
-        f"{THERMAL_DOTS}|{MAX_VIEW_HEIGHT}|{MIN_VIEW_HEIGHT}"
+        f"{step_path.resolve()}|{mtime}|{size}|ticket-v3-edges|"
+        f"{THERMAL_DOTS}|{MAX_VIEW_HEIGHT}|{MIN_VIEW_HEIGHT}|{CREASE_DEG}"
     )
     digest = hashlib.sha1(key.encode("utf-8", "replace")).hexdigest()[:20]
     return cache_dir() / f"{digest}.png"
@@ -69,8 +71,6 @@ def render_step_stack(step_path: Path, dest: Path) -> Path | None:
             return None
         vertices = np.asarray(mesh.vertices, dtype=np.float64)
         faces = np.asarray(mesh.faces, dtype=np.int64)
-        if len(faces) > 80000:
-            faces = faces[:: max(1, len(faces) // 80000)]
         view_a = _raster_view(vertices, faces, opposite=False)
         view_b = _raster_view(vertices, faces, opposite=True)
         gap = STACK_GAP
@@ -86,25 +86,34 @@ def render_step_stack(step_path: Path, dest: Path) -> Path | None:
 
 
 def _ticket_basis(vertices, *, opposite: bool):
-    """Screen X = longest 3D axis (across 80 mm). Look from the two short axes."""
+    """True isometric camera; longest AABB axis stays across the 80 mm width.
+
+    Sequential shop rotations are 45° about vertical then arctan(1/√2)≈35.264°
+    about the screen-horizontal axis — same as looking along (1,1,1). The old
+    view only did the 45° (look in the plane of the two short axes), so the
+    long axis stayed face-on.
+    """
     import numpy as np
 
     size = vertices.max(axis=0) - vertices.min(axis=0)
     long_i = int(np.argmax(size))
     axes = np.eye(3, dtype=np.float64)
-    xaxis = axes[long_i]
-    rest = [i for i in range(3) if i != long_i]
-    look = axes[rest[0]] + axes[rest[1]]
+    look = axes[0] + axes[1] + axes[2]
     n = np.linalg.norm(look)
-    look = look / n if n > 1e-12 else axes[rest[0]]
+    look = look / n if n > 1e-12 else axes[2]
     if opposite:
         look = -look
+    xaxis = axes[long_i]
     xaxis = xaxis - look * float(np.dot(xaxis, look))
     xn = np.linalg.norm(xaxis)
     xaxis = xaxis / xn if xn > 1e-12 else axes[(long_i + 1) % 3]
     yaxis = np.cross(look, xaxis)
     yn = np.linalg.norm(yaxis)
     yaxis = yaxis / yn if yn > 1e-12 else axes[(long_i + 2) % 3]
+    up_i = 2 if long_i != 2 else 1
+    if float(np.dot(yaxis, axes[up_i])) < 0:
+        yaxis = -yaxis
+        xaxis = -xaxis
     return np.stack([xaxis, yaxis, look], axis=1)
 
 
@@ -128,11 +137,12 @@ def _fit_pixels(vertices, basis) -> tuple[int, int]:
 
 
 def _raster_view(vertices, faces, *, opposite: bool):
+    """Z-buffer the solid, then stroke silhouette + crease edges in black."""
     import numpy as np
 
     basis = _ticket_basis(vertices, opposite=opposite)
     width, height = _fit_pixels(vertices, basis)
-    zaxis = basis[:, 2]
+    look = basis[:, 2]
     center = vertices.mean(axis=0)
     pts = (vertices - center) @ basis
     xy = pts[:, :2]
@@ -155,21 +165,64 @@ def _raster_view(vertices, faces, *, opposite: bool):
 
     tri = screen[faces]
     ztri = depth[faces]
+    for (a, b, c), (za, zb, zc) in zip(tri, ztri):
+        _fill_z(zbuf, a, b, c, za, zb, zc)
+
     v0 = vertices[faces[:, 0]]
     v1 = vertices[faces[:, 1]]
     v2 = vertices[faces[:, 2]]
     normals = np.cross(v1 - v0, v2 - v0)
-    nlen = np.linalg.norm(normals, axis=1)
+    nlen = np.linalg.norm(normals, axis=1, keepdims=True)
     nlen = np.where(nlen < 1e-12, 1.0, nlen)
-    lambert = np.abs((normals @ zaxis) / nlen)
-    shades = (40.0 + 170.0 * lambert).astype(np.uint8)
-
-    for (a, b, c), (za, zb, zc), shade in zip(tri, ztri, shades):
-        _fill_triangle(img, zbuf, a, b, c, za, zb, zc, int(shade))
+    normals = normals / nlen
+    facing = normals @ look
+    depth_span = float(max(depth.max() - depth.min(), 1e-9))
+    bias = 0.004 * depth_span
+    crease_cos = float(np.cos(np.deg2rad(CREASE_DEG)))
+    for (i, j), fis in _edge_faces(faces).items():
+        if not _is_visible_edge(fis, facing, normals, crease_cos):
+            continue
+        _draw_line(
+            img,
+            zbuf,
+            screen[i],
+            screen[j],
+            float(depth[i]),
+            float(depth[j]),
+            bias,
+        )
     return img
 
 
-def _fill_triangle(img, zbuf, a, b, c, za, zb, zc, shade: int) -> None:
+def _edge_faces(faces) -> dict[tuple[int, int], list[int]]:
+    edges: dict[tuple[int, int], list[int]] = {}
+    for fi, (a, b, c) in enumerate(faces):
+        a, b, c = int(a), int(b), int(c)
+        for u, v in ((a, b), (b, c), (c, a)):
+            key = (u, v) if u < v else (v, u)
+            edges.setdefault(key, []).append(fi)
+    return edges
+
+
+def _is_visible_edge(
+    fis: list[int],
+    facing,
+    normals,
+    crease_cos: float,
+) -> bool:
+    if len(fis) == 1:
+        return bool(facing[fis[0]] > 0)
+    f0, f1 = fis[0], fis[1]
+    front0 = facing[f0] > 0
+    front1 = facing[f1] > 0
+    if front0 != front1:
+        return True
+    if not (front0 or front1):
+        return False
+    return float(normals[f0] @ normals[f1]) < crease_cos
+
+
+def _fill_z(zbuf, a, b, c, za, zb, zc) -> None:
     import numpy as np
 
     ax, ay = float(a[0]), float(a[1])
@@ -178,7 +231,7 @@ def _fill_triangle(img, zbuf, a, b, c, za, zb, zc, shade: int) -> None:
     area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
     if abs(area) < 1e-8:
         return
-    h, w = img.shape
+    h, w = zbuf.shape
     minx = max(int(min(ax, bx, cx)), 0)
     maxx = min(int(max(ax, bx, cx)) + 1, w - 1)
     miny = max(int(min(ay, by, cy)), 0)
@@ -200,7 +253,24 @@ def _fill_triangle(img, zbuf, a, b, c, za, zb, zc, shade: int) -> None:
         bary = np.stack([w0, w1, w2], axis=1) / area
         z = bary[:, 0] * za + bary[:, 1] * zb + bary[:, 2] * zc
         row_z = zbuf[y, minx : maxx + 1]
-        row_i = img[y, minx : maxx + 1]
         closer = inside & (z >= row_z)
         row_z[closer] = z[closer]
-        row_i[closer] = shade
+
+
+def _draw_line(img, zbuf, p0, p1, z0: float, z1: float, bias: float) -> None:
+    x0, y0 = float(p0[0]), float(p0[1])
+    x1, y1 = float(p1[0]), float(p1[1])
+    dx = x1 - x0
+    dy = y1 - y0
+    steps = int(max(abs(dx), abs(dy))) + 1
+    h, w = img.shape
+    for i in range(steps + 1):
+        t = i / steps if steps else 0.0
+        x = x0 + t * dx
+        y = y0 + t * dy
+        z = z0 + t * (z1 - z0) + bias
+        xi = int(round(x))
+        yi = int(round(y))
+        for px, py in ((xi, yi), (xi + 1, yi), (xi, yi + 1)):
+            if 0 <= px < w and 0 <= py < h and z >= zbuf[py, px]:
+                img[py, px] = 0

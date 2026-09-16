@@ -47,7 +47,7 @@ def png_to_escpos(path: Path, *, max_width: int = RASTER_MAX_WIDTH) -> bytes:
         canvas = Image.new("L", (image.width + pad, image.height), 255)
         canvas.paste(image, (0, 0))
         image = canvas
-    bw = image.convert("1")
+    bw = image.convert("1", dither=Image.Dither.NONE)
     width, height = bw.size
     pixels = bw.load()
     packed = bytearray()
@@ -82,11 +82,14 @@ def encode_ticket(text: str, rasters: list[bytes] | None = None) -> bytes:
 def print_ticket(
     text: str,
     *,
-    queue: str = "munbyn",
+    queue: str = "",
     device: str = "/dev/usb/lp0",
     image_paths: list[Path] | None = None,
 ) -> str:
-    """Send a ticket. Returns a short route label. Raises on total failure."""
+    """Send a ticket. USB device first; CUPS only if that node fails.
+
+    Returns a short route label. Raises on total failure.
+    """
     rasters: list[bytes] = []
     for path in image_paths or []:
         try:
@@ -95,6 +98,18 @@ def print_ticket(
             continue
     data = encode_ticket(text, rasters=rasters)
     errors: list[str] = []
+
+    node = Path(device) if device else None
+    if node is not None:
+        try:
+            if node.exists():
+                with node.open("wb") as fh:
+                    fh.write(data)
+                    fh.flush()
+                return f"device:{node}"
+            errors.append(f"missing {node}")
+        except OSError as exc:
+            errors.append(str(exc))
 
     lp = shutil.which("lp")
     if lp and queue:
@@ -111,34 +126,6 @@ def print_ticket(
             err = (proc.stderr or b"").decode("utf-8", "replace").strip()
             errors.append(err or f"lp -d {queue} exit {proc.returncode}")
         except (OSError, subprocess.TimeoutExpired) as exc:
-            errors.append(str(exc))
-
-    if lp:
-        try:
-            proc = subprocess.run(
-                [lp, "-o", "raw"],
-                input=data,
-                check=False,
-                capture_output=True,
-                timeout=30,
-            )
-            if proc.returncode == 0:
-                return "lp:default"
-            err = (proc.stderr or b"").decode("utf-8", "replace").strip()
-            errors.append(err or f"lp exit {proc.returncode}")
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            errors.append(str(exc))
-
-    path = Path(device) if device else None
-    if path is not None:
-        try:
-            if path.exists():
-                with path.open("wb") as fh:
-                    fh.write(data)
-                    fh.flush()
-                return f"device:{path}"
-            errors.append(f"missing {path}")
-        except OSError as exc:
             errors.append(str(exc))
 
     detail = "; ".join(errors) if errors else "no printer route"

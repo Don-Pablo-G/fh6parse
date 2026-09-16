@@ -9,7 +9,7 @@
 
 [Unit]
 Description=fh6parse CNC USB kiosk
-After=graphical.target cups.service
+After=graphical.target
 
 [Service]
 Type=simple

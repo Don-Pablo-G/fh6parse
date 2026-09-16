@@ -47,6 +47,10 @@ def _fmt_h(h: int | None) -> str:
     return f"H{h}" if h is not None else ""
 
 
+def _fmt_d(d: int | None) -> str:
+    return f"D{d}" if d is not None else ""
+
+
 def _units_label(units: str) -> str:
     if units == "mm":
         return "mm (G21)"
@@ -94,6 +98,9 @@ def _usage_meta(u: ToolUsage, *, include_lines: bool = True) -> str:
     h = _fmt_h(u.h_offset)
     if h:
         parts.append(h)
+    d = _fmt_d(u.d_offset)
+    if d:
+        parts.append(d)
     s = _fmt_s(u.s_rpm)
     if s:
         parts.append(s)
@@ -471,7 +478,7 @@ td.c, th.c { text-align: center; width: 9mm; }
                 f"<td>{escape(u.description or '(no comment)')}{extra}</td>"
                 f"<td>{escape(u.subprogram)}</td>"
                 f"<td>{escape(bc)}</td>"
-                f"<td>{escape(_fmt_h(u.h_offset) or '—')} {escape(_fmt_s(u.s_rpm))}</td>"
+                f"<td>{escape(' '.join(p for p in (_fmt_h(u.h_offset), _fmt_d(u.d_offset), _fmt_s(u.s_rpm)) if p) or '—')}</td>"
                 f'<td class="n">{escape(_fmt_z(u.min_z))}</td>'
                 "</tr>"
             )
@@ -488,7 +495,7 @@ td.c, th.c { text-align: center; width: 9mm; }
         op_html.append(
             "<table><thead><tr>"
             '<th class="c">Load</th><th>T</th><th>Description</th><th>Sub</th>'
-            '<th>B/C</th><th>H / S</th><th class="n">Min Z</th>'
+            '<th>B/C</th><th>H / D / S</th><th class="n">Min Z</th>'
             "</tr></thead><tbody>"
             + "".join(change_rows)
             + "</tbody></table>"

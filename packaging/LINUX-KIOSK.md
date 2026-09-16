@@ -132,11 +132,9 @@ Do not use legacy `display_rotate=` in `/boot/firmware/config.txt`. Pi 5 is KMS-
 
 USB to the Pi. The kiosk sends **raw ESC/POS**: optional STEP bitmaps (`GS v 0`), then 48-column Font A, then cut. Do **not** print HTML or use a Windows GDI/POS-80 raster driver.
 
-The app tries, in order:
+The app writes that blob to **`/dev/usb/lp0`** first (same as `open("/dev/usb/lp0", "wb").write(...)`). CUPS is not involved on a working Pi. Named CUPS (`lp -d munbyn -o raw`) is only a fallback if the USB node is missing or busy. There is no `lp` default-queue attempt.
 
-1. `lp -d munbyn -o raw`
-2. `lp -o raw` (CUPS default)
-3. `/dev/usb/lp0`
+If CUPS has already claimed the printer, the USB write fails with *Device or resource busy*. Stop or disable that queue (or CUPS) so `usblp` owns `/dev/usb/lp0`.
 
 ---
 
@@ -150,13 +148,12 @@ Do this on the Pi, as user **`kiosk`**, with network.
 sudo apt update
 sudo apt install -y git python3 python3-pip python3-tk \
     python3-gpiozero python3-lgpio python3-rpi-lgpio \
-    cups cups-client cups-bsd \
     x11-xserver-utils
 ```
 
 Do **not** install `python3-rpi.gpio` on a Pi 5. That library talks to the old SoC GPIO; Pi 5 GPIO is on RP1. `python3-lgpio` is the driver; `python3-rpi-lgpio` is only a compatibility shim. The kiosk prefers lgpio automatically.
 
-`python3-tk` is the kiosk UI. `cups` is optional if you only write to `/dev/usb/lp0`. `x11-xserver-utils` provides `xset` so the panel can blank.
+`python3-tk` is the kiosk UI. **Do not install CUPS** for the shop P047 — the kiosk prints by writing `/dev/usb/lp0`. `x11-xserver-utils` provides `xset` so the panel can blank.
 
 Confirm Python is 3.10 or newer:
 
@@ -236,8 +233,8 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | `encoder_clk` / `encoder_dt` | 17 / 27 | BCM pins |
 | `button_full` / `button_min` | 22 / 23 | BCM pins |
 | `encoder_swap` | false | Reverse knob direction |
-| `printer_queue` | munbyn | CUPS queue name |
-| `printer_device` | /dev/usb/lp0 | Fallback character device |
+| `printer_device` | /dev/usb/lp0 | USB printer node (**tried first**) |
+| `printer_queue` | (empty) | Optional CUPS name; used only if the USB node fails. Empty = never call `lp`. |
 | `scan_depth` | 1 | USB root only. Raise to search subfolders. |
 | `extensions` | `.nc,.tap` | File types (case-insensitive) |
 | `extra_roots` | (empty) | Extra folders to list, comma-separated (for testing) |
@@ -247,46 +244,38 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 ### 3.4 Groups and devices
 
 ```
-sudo usermod -aG gpio,lp,lpadmin kiosk
+sudo usermod -aG gpio,lp kiosk
 ```
 
-Log out and back in (or reboot) so the groups apply.
+Log out and back in (or reboot) so the groups apply. Printer node check is **§3.5**.
 
-Check the printer node after plugging the P047 in:
+### 3.5 Direct USB printer (recommended)
+
+No CUPS. After the P047 is plugged in:
 
 ```
 lsusb
 ls -l /dev/usb/lp0
 ```
 
-If `/dev/usb/lp0` is missing, unplug/replug and look at `dmesg | tail`.
-
-### 3.5 CUPS raw queue (recommended)
+User `kiosk` must be able to write the node (`lp` group, then log out / reboot). Test the same write the kiosk uses:
 
 ```
-sudo lpadmin -p munbyn -E -v usb:/dev/usb/lp0 -m raw
-sudo lpoptions -d munbyn
+python3 - <<'PY'
+from pathlib import Path
+Path("/dev/usb/lp0").write_bytes(b"\x1b@TEST\n\n\n\x1dVB\x00")
+PY
 ```
 
-If `usb:/dev/usb/lp0` is rejected, list URIs and pick the P047:
+You should get a short slip and a cut. If you see *Permission denied*, the group has not applied yet. If you see *Device or resource busy*, something else (usually CUPS) has the printer — `sudo systemctl stop cups` and try again, then disable CUPS so it does not come back:
 
 ```
-sudo lpinfo -v
+sudo systemctl disable --now cups
 ```
 
-Then:
+If `/dev/usb/lp0` is missing, unplug/replug and look at `dmesg | tail`. A second printer can appear as `/dev/usb/lp1` — set `printer_device` in the ini.
 
-```
-sudo lpadmin -p munbyn -E -v 'usb://...' -m raw
-```
-
-Test **raw** text, not a desktop print dialog:
-
-```
-printf 'TEST\n\n\n' | lp -d munbyn -o raw
-```
-
-You should get a short slip. The kiosk adds the cutter command itself.
+**CUPS is not required.** Leave `printer_queue` empty to never call `lp`. Only set a raw queue if the USB node never appears on that machine.
 
 ### 3.6 First run (with keyboard)
 
@@ -312,7 +301,7 @@ Desktop autostart of the kiosk is in the next section. Until then, Escape leaves
 
 ### 3.7 STEP models on the ticket
 
-Optional. FULL and MIN tickets can show two opposite **solid** isometric views (visible surfaces, not wireframe), stacked at the top of the slip. The longest 3D axis is laid across the 80 mm width (~512 dots); height is cropped to the part, so a long thin shaft is a thin strip, not a metre of paper. A bulky part is capped (~30 mm of paper per view). Print never waits for a model.
+Optional. FULL and MIN tickets can show two opposite **isometric** views as **visible edges only** (no shading — thermal printers cannot print grey). The longest 3D axis is laid across the 80 mm width (~512 dots); height is cropped to the part, so a long thin shaft is a thin strip, not a metre of paper. A bulky part is capped (~30 mm of paper per view). Print never waits for a model.
 
 **1. Point the kiosk at the CAD folders** in `/etc/fh6parse-kiosk.ini`. Several roots are allowed (comma or `:` / `;`). Subfolders are searched.
 
@@ -422,8 +411,8 @@ Parse happens at print time, not when the list is shown. STEP matching and rende
 | Knob skips or jitters | Shorter wires; module decoupling. The kiosk sets a short encoder `bounce_time` for Pi 5. |
 | Buttons print on press and release | Use momentary NO to GND, not a latching switch. |
 | List stays on Insert USB | Stick mounted? `ls /media` / `ls /run/media`. Format FAT32. Files ending `.nc` or `.tap`. |
-| `printer failed` | `ls -l /dev/usb/lp0`; user in `lp`; `lpstat -p munbyn`; test `lp -d munbyn -o raw`. Queue must be **raw**, not a raster POS-80 driver. |
-| Garbage on the slip | CUPS is not raw, or a desktop “print HTML” path was used. The kiosk never sends HTML. |
+| `printer failed` | `ls -l /dev/usb/lp0`; user `kiosk` in group `lp`; test the Python write in **§3.5**. *Permission denied* → log out after `usermod`. *Busy* → CUPS still owns the printer (`sudo systemctl disable --now cups`). |
+| Garbage on the slip | CUPS grabbed the job. The kiosk writes `/dev/usb/lp0` first; disable CUPS (**§3.5**). Status must show `device:/dev/usb/lp0`, not `lp:…`. |
 | Ticket does not cut | Cutter empty/jammed. App already sends ESC/POS cut (`GS V`). |
 | Screen never sleeps | `idle_seconds = 0`, or encoder bouncing. Still on Wayland? Switch to X11 so `xset` works. |
 | Keyboard/mouse do nothing | Plug into the Pi USB-A; X11 picks them up. Click or press a key — the kiosk claims focus. **Esc** leaves fullscreen. GPIO print buttons still do not wake the screensaver. |
@@ -438,7 +427,7 @@ Parse happens at print time, not when the list is shown. STEP matching and rende
 | **UPDATE** button never appears | Offline, one-file tarball, already up to date, or version older than 1.3.3 (**§8.1**). Check is only at kiosk start. `python3 -m fh6parse --version`. |
 | **UPDATE** says failed / kiosk did not restart | `sudo -n systemctl restart fh6parse-kiosk` from user `kiosk` should succeed after **§3.2**. Then `sudo systemctl restart fh6parse-kiosk`. |
 | No **■** next to files | `model_roots` empty or the share is not mounted (`ls` the path). CAD extra missing (`pip3 install -e '.[models]'`). Still rendering (wait). Rev in the G-code does not match any `.stp`. |
-| **■** shows, ticket has no picture | CUPS queue is not **raw**. Printer rejected `GS v 0`. Test text-only first (`printf` in §3.5). |
+| **■** shows, ticket has no picture | Status not `device:/dev/usb/lp0` (CUPS intercepted). Printer rejected `GS v 0`. Test text-only first (**§3.5**). |
 | Pictures vanished after `--update` | `--update` runs `pip install -e .` **without** `[models]` when `pyproject.toml` changes. Re-run `sudo pip3 install -e '.[models]' --break-system-packages`. |
 | Kiosk sluggish after USB insert | Huge CAD tree on a slow NAS. Narrow `model_roots` to the live folder, not the whole archive. Render is background and must not block print. |
 

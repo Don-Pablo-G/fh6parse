@@ -9,13 +9,56 @@ from pathlib import Path
 from fh6parse.kiosk import load_kiosk_config, save_model_roots
 from fh6parse.modelmatch import ModelFile, index_models, pick_model
 from fh6parse.modelprep import ModelPrep
-from fh6parse.modelrender import MAX_VIEW_HEIGHT, MIN_VIEW_HEIGHT, THERMAL_DOTS, ticket_view_pixels
+from fh6parse.modelrender import (
+    MAX_VIEW_HEIGHT,
+    MIN_VIEW_HEIGHT,
+    THERMAL_DOTS,
+    _raster_view,
+    _ticket_basis,
+    ticket_view_pixels,
+)
 from fh6parse.partid import identity_from_nc, identity_from_nc_path, parse_model_stem
 from fh6parse.parser import parse_nc_file
 from fh6parse.printer import CUT, INIT, bitmap_to_escpos, encode_ticket
 from fh6parse.report import PAPER_80MM, format_print_html
 
 SAMPLES = Path(__file__).resolve().parent / "samples"
+
+
+def _outward_unit_cube():
+    import numpy as np
+
+    vertices = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 1.0],
+            [1.0, 1.0, 1.0],
+            [0.0, 1.0, 1.0],
+        ],
+        dtype=np.float64,
+    )
+    faces = np.array(
+        [
+            [0, 2, 1],
+            [0, 3, 2],
+            [4, 5, 6],
+            [4, 6, 7],
+            [0, 1, 5],
+            [0, 5, 4],
+            [3, 6, 2],
+            [3, 7, 6],
+            [0, 7, 3],
+            [0, 4, 7],
+            [1, 2, 6],
+            [1, 6, 5],
+        ],
+        dtype=np.int64,
+    )
+    return vertices, faces
 
 
 class TestParseModelStem(unittest.TestCase):
@@ -212,6 +255,75 @@ class TestTicketViewLayout(unittest.TestCase):
         width, height = ticket_view_pixels(grid)
         self.assertEqual(width, THERMAL_DOTS)
         self.assertLessEqual(height, MAX_VIEW_HEIGHT)
+
+    def test_isometric_look_uses_all_three_axes(self) -> None:
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy not installed")
+        cube = np.array(
+            [[i, j, k] for i in (0.0, 1.0) for j in (0.0, 1.0) for k in (0.0, 1.0)]
+        )
+        look = _ticket_basis(cube, opposite=False)[:, 2]
+        for component in look:
+            self.assertAlmostEqual(abs(float(component)), 1.0 / np.sqrt(3.0), places=6)
+
+    def test_isometric_axes_equally_foreshortened(self) -> None:
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy not installed")
+        cube = np.array(
+            [[i, j, k] for i in (0.0, 1.0) for j in (0.0, 1.0) for k in (0.0, 1.0)]
+        )
+        basis = _ticket_basis(cube, opposite=False)
+        lengths = [float(np.linalg.norm((axis @ basis)[:2])) for axis in np.eye(3)]
+        self.assertAlmostEqual(lengths[0], lengths[1], places=6)
+        self.assertAlmostEqual(lengths[1], lengths[2], places=6)
+
+    def test_longest_axis_stays_across_the_ticket(self) -> None:
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy not installed")
+        box = np.array(
+            [
+                [x, y, z]
+                for x in (-100.0, 100.0)
+                for y in (-10.0, 10.0)
+                for z in (-5.0, 5.0)
+            ]
+        )
+        basis = _ticket_basis(box, opposite=False)
+        projected = (np.array([1.0, 0.0, 0.0]) @ basis)[:2]
+        self.assertGreater(abs(float(projected[0])), abs(float(projected[1])) * 8)
+
+    def test_opposite_view_flips_look(self) -> None:
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy not installed")
+        cube = np.array(
+            [[i, j, k] for i in (0.0, 1.0) for j in (0.0, 1.0) for k in (0.0, 1.0)]
+        )
+        a = _ticket_basis(cube, opposite=False)[:, 2]
+        b = _ticket_basis(cube, opposite=True)[:, 2]
+        np.testing.assert_allclose(a, -b)
+
+    def test_raster_is_visible_edges_not_shading(self) -> None:
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy not installed")
+        vertices, faces = _outward_unit_cube()
+        img = _raster_view(vertices, faces, opposite=False)
+        unique = set(int(v) for v in np.unique(img))
+        self.assertEqual(unique, {0, 255})
+        ink = float((img == 0).mean())
+        self.assertGreater(ink, 0.002)
+        self.assertLess(ink, 0.12)
+        # A filled isometric cube would ink a hexagon (~1/3 of the frame).
+        self.assertLess(ink, 0.25)
 
 
 class TestModelPrepDoesNotBlock(unittest.TestCase):

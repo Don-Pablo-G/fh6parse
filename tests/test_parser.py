@@ -117,7 +117,9 @@ class Test000814086(unittest.TestCase):
     def test_h_mismatch_warning(self) -> None:
         t10 = _by_tool(_called(self.result.usages), 10)[0]
         self.assertEqual(t10.h_offset, 25)
+        self.assertEqual(t10.d_offset, 25)
         self.assertTrue(any("H25" in w for w in t10.warnings))
+        self.assertTrue(any("D25" in w for w in t10.warnings))
 
     def test_op2_is_separate_operation(self) -> None:
         ops = {op.n: op for op in self.result.operations}
@@ -259,6 +261,84 @@ M99
         z1 = {s.tool: s.min_z for s in ops[5].summaries}
         self.assertEqual(z1[1], -1.0)
         self.assertEqual(z1[3], -3.0)
+
+
+class TestDOffsetMismatch(unittest.TestCase):
+    def test_g43_wrong_d_warns(self) -> None:
+        src = """O1
+T1 M6
+G43 Z10. H1 D99
+G1 Z-1.
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.d_offset, 99)
+        self.assertIn("D99 does not match T1", u.warnings)
+        self.assertFalse(any(w.startswith("H") for w in u.warnings))
+
+    def test_g41_wrong_d_warns(self) -> None:
+        src = """O1
+T2 M6
+G43 Z10. H2
+G41 D50 X0.
+G1 Z-1.
+G40
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.d_offset, 50)
+        self.assertIn("D50 does not match T2", u.warnings)
+
+    def test_g42_wrong_d_warns(self) -> None:
+        src = """O1
+T3 M6
+G43 Z10. H3
+G42 D8 X0.
+G1 Z-1.
+G40
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.d_offset, 8)
+        self.assertIn("D8 does not match T3", u.warnings)
+
+    def test_matching_d_does_not_warn(self) -> None:
+        src = """O1
+T4 M6
+G43 Z10. H4 D4
+G41 D4 X0.
+G1 Z-1.
+G40
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.d_offset, 4)
+        self.assertEqual(u.warnings, [])
+
+    def test_wrong_d_on_g43_and_g41_is_one_warning(self) -> None:
+        src = """O1
+T5 M6
+G43 Z10. H5 D9
+G41 D9 X0.
+G1 Z-1.
+G40
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        d_warns = [w for w in u.warnings if w.startswith("D")]
+        self.assertEqual(d_warns, ["D9 does not match T5"])
+
+    def test_report_prints_d_mismatch(self) -> None:
+        src = """O1
+T1 M6
+G43 Z10. H1 D99
+G41 D99 X0.
+G1 Z-1.
+G40
+M30
+"""
+        text = format_report(parse_nc_text(src, "t.nc"))
+        self.assertIn("WARNING: D99 does not match T1", text)
 
 
 class TestReport(unittest.TestCase):

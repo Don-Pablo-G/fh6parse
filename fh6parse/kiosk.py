@@ -40,7 +40,7 @@ class KioskConfig:
     encoder_swap: bool = False
     button_full: int = 22
     button_min: int = 23
-    printer_queue: str = "munbyn"
+    printer_queue: str = ""
     printer_device: str = "/dev/usb/lp0"
     usb_poll_ms: int = 500
     scan_depth: int = 1
@@ -116,7 +116,7 @@ def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
     cfg.encoder_swap = src.getboolean("encoder_swap", fallback=cfg.encoder_swap)
     cfg.button_full = src.getint("button_full", fallback=cfg.button_full)
     cfg.button_min = src.getint("button_min", fallback=cfg.button_min)
-    cfg.printer_queue = src.get("printer_queue", fallback=cfg.printer_queue)
+    cfg.printer_queue = src.get("printer_queue", fallback=cfg.printer_queue).strip()
     cfg.printer_device = src.get("printer_device", fallback=cfg.printer_device)
     cfg.usb_poll_ms = src.getint("usb_poll_ms", fallback=cfg.usb_poll_ms)
     cfg.scan_depth = src.getint("scan_depth", fallback=cfg.scan_depth)

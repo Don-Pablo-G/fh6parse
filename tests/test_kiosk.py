@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fh6parse.idle import ScreensaverGate
 from fh6parse.kiosk import _gpio_fail_hint, load_kiosk_config, prefer_lgpio_factory
-from fh6parse.printer import CUT, INIT, encode_ticket
+from fh6parse.printer import CUT, INIT, encode_ticket, print_ticket
 from fh6parse.usbwatch import list_nc_files
 
 
@@ -86,6 +86,55 @@ class TestPrinter(unittest.TestCase):
         self.assertTrue(data.endswith(CUT))
         self.assertNotIn(b"\x00HELLO", data)
 
+    def test_writes_usb_device_and_skips_cups(self) -> None:
+        from unittest.mock import patch
+
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            dest = Path(tmp.name)
+        try:
+            with patch("fh6parse.printer.shutil.which", return_value="/usr/bin/lp"):
+                with patch("fh6parse.printer.subprocess.run") as run:
+                    route = print_ticket(
+                        "HELLO", queue="munbyn", device=str(dest)
+                    )
+            self.assertEqual(route, f"device:{dest}")
+            run.assert_not_called()
+            data = dest.read_bytes()
+            self.assertTrue(data.startswith(INIT))
+            self.assertTrue(data.endswith(CUT))
+        finally:
+            dest.unlink(missing_ok=True)
+
+    def test_named_cups_only_if_device_missing(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        proc = MagicMock(returncode=0, stderr=b"")
+        with patch("fh6parse.printer.shutil.which", return_value="/usr/bin/lp"):
+            with patch("fh6parse.printer.subprocess.run", return_value=proc) as run:
+                route = print_ticket(
+                    "HELLO",
+                    queue="munbyn",
+                    device="/no/such/fh6parse-lp",
+                )
+        self.assertEqual(route, "lp:munbyn")
+        cmd = run.call_args[0][0]
+        self.assertEqual(cmd[:4], ["/usr/bin/lp", "-d", "munbyn", "-o"])
+        self.assertEqual(cmd[4], "raw")
+
+    def test_empty_queue_never_calls_lp(self) -> None:
+        from unittest.mock import patch
+
+        with patch("fh6parse.printer.shutil.which", return_value="/usr/bin/lp"):
+            with patch("fh6parse.printer.subprocess.run") as run:
+                with self.assertRaises(RuntimeError) as ctx:
+                    print_ticket(
+                        "HELLO",
+                        queue="",
+                        device="/no/such/fh6parse-lp",
+                    )
+        run.assert_not_called()
+        self.assertIn("missing", str(ctx.exception))
+
 
 class TestKioskConfig(unittest.TestCase):
     def test_reads_idle_and_pins(self) -> None:
@@ -99,6 +148,8 @@ class TestKioskConfig(unittest.TestCase):
             self.assertEqual(cfg.idle_seconds, 60.0)
             self.assertEqual(cfg.encoder_clk, 5)
             self.assertEqual(cfg.button_full, 6)
+            self.assertEqual(cfg.printer_queue, "")
+            self.assertEqual(str(cfg.printer_device), "/dev/usb/lp0")
 
 
 class TestPi5GpioFactory(unittest.TestCase):

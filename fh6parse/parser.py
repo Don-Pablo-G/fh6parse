@@ -85,6 +85,7 @@ class ToolUsage:
     line_start: int
     line_end: int = 0
     h_offset: int | None = None
+    d_offset: int | None = None
     s_rpm: float | None = None
     b: float | None = None
     c: float | None = None
@@ -376,6 +377,15 @@ def _apply_line_to_usage(usage: ToolUsage, line: Line, cycle_active: bool) -> No
         z_word = line.first("Z")
         if z_word is not None:
             usage.g43_z = z_word.value
+
+    d_word = line.first("D")
+    d = _int_or_none(d_word)
+    if d is not None:
+        usage.d_offset = d
+        if d != usage.tool:
+            msg = f"D{d} does not match T{usage.tool}"
+            if msg not in usage.warnings:
+                usage.warnings.append(msg)
 
     r_word = line.first("R")
     if r_word is not None and (cycle_active or any(g in CYCLE_START for g in line.g_ints())):

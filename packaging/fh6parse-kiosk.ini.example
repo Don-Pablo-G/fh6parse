@@ -16,8 +16,9 @@ encoder_swap = false
 button_full = 22
 button_min = 23
 
-printer_queue = munbyn
 printer_device = /dev/usb/lp0
+# Optional CUPS name — only if /dev/usb/lp0 is missing. Leave empty on the shop Pi.
+# printer_queue = munbyn
 
 usb_poll_ms = 500
 scan_depth = 1
