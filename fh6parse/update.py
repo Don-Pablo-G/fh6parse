@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 import subprocess
-import sys
 from pathlib import Path
+import sys
 from typing import Callable, Sequence
+
+from ._version import __version__
 
 Run = Callable[..., subprocess.CompletedProcess[str]]
 
@@ -15,7 +18,14 @@ FROZEN_MSG = (
 )
 KIOSK_UNIT = "fh6parse-kiosk"
 PYPROJECT = "pyproject.toml"
+VERSION_FILE = "fh6parse/_version.py"
 FETCH_TIMEOUT = 20
+VERSION_RE = re.compile(r"""__version__\s*=\s*["']([^"']+)["']""")
+
+
+def version_from_text(text: str) -> str:
+    match = VERSION_RE.search(text or "")
+    return match.group(1) if match else ""
 
 
 def find_git_root(start: Path) -> Path | None:
@@ -76,6 +86,25 @@ class UpdateCheck:
 
     available: bool
     detail: str = ""
+    current_version: str = ""
+    new_version: str = ""
+    remote_sha: str = ""
+
+    def button_label(self) -> str:
+        if self.new_version and self.new_version != self.current_version:
+            return f"UPDATE to {self.new_version}"
+        if self.remote_sha:
+            return f"UPDATE  {self.remote_sha}"
+        return "UPDATE"
+
+
+def _remote_sha(root: Path, *, runner: Run) -> str:
+    for ref in ("@{upstream}", "origin/HEAD", "origin/master", "origin/main"):
+        proc = _run(["git", "-C", str(root), "rev-parse", ref], runner=runner)
+        sha = (proc.stdout or "").strip()
+        if proc.returncode == 0 and sha:
+            return sha
+    return ""
 
 
 def check_for_update(
@@ -87,36 +116,43 @@ def check_for_update(
 ) -> UpdateCheck:
     """Fetch origin and compare HEAD to the tracked branch. Offline = no update."""
     run: Run = runner if runner is not None else subprocess.run
+    current = __version__
     if frozen is None:
         frozen = bool(getattr(sys, "frozen", False))
     if frozen:
-        return UpdateCheck(False, "frozen")
+        return UpdateCheck(False, "frozen", current_version=current)
     here = start if start is not None else Path(__file__).resolve()
     root = find_git_root(here)
     if root is None:
-        return UpdateCheck(False, "not git")
+        return UpdateCheck(False, "not git", current_version=current)
     fetch = _run(
         ["git", "-C", str(root), "fetch", "--quiet"],
         runner=run,
         timeout=timeout,
     )
     if fetch.returncode != 0:
-        return UpdateCheck(False, "offline")
+        return UpdateCheck(False, "offline", current_version=current)
     local = _run(["git", "-C", str(root), "rev-parse", "HEAD"], runner=run)
     if local.returncode != 0:
-        return UpdateCheck(False, "git error")
-    remote = _run(["git", "-C", str(root), "rev-parse", "@{upstream}"], runner=run)
-    if remote.returncode != 0:
-        remote = _run(["git", "-C", str(root), "rev-parse", "origin/HEAD"], runner=run)
-    if remote.returncode != 0:
-        remote = _run(["git", "-C", str(root), "rev-parse", "origin/master"], runner=run)
-    if remote.returncode != 0:
-        return UpdateCheck(False, "no remote")
+        return UpdateCheck(False, "git error", current_version=current)
     local_sha = (local.stdout or "").strip()
-    remote_sha = (remote.stdout or "").strip()
-    if not local_sha or not remote_sha or local_sha == remote_sha:
-        return UpdateCheck(False, "up to date")
-    return UpdateCheck(True, "available")
+    remote_sha = _remote_sha(root, runner=run)
+    if not local_sha or not remote_sha:
+        return UpdateCheck(False, "no remote", current_version=current)
+    if local_sha == remote_sha:
+        return UpdateCheck(False, "up to date", current_version=current)
+    shown = _run(
+        ["git", "-C", str(root), "show", f"{remote_sha}:{VERSION_FILE}"],
+        runner=run,
+    )
+    new_ver = version_from_text(shown.stdout or "") or current
+    return UpdateCheck(
+        True,
+        "available",
+        current_version=current,
+        new_version=new_ver,
+        remote_sha=remote_sha[:7],
+    )
 
 
 def _restart_kiosk(*, runner: Run) -> subprocess.CompletedProcess[str]:

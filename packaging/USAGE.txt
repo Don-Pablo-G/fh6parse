@@ -1,4 +1,4 @@
-fh6parse 1.3.3 — CNC tool list / min-Z report
+fh6parse 1.3.4 — CNC tool list / min-Z report
 
 Windows:  double-click fh6parse.exe  (or run from Command Prompt)
 Linux:    ./fh6parse                 (or fh6parse --gui)
@@ -27,7 +27,7 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   Views are visible edges only (no shading). The longest axis is across the
   80 mm width; height is cropped to the part (a long shaft is a thin strip).
 
-Raspberry Pi 5 kiosk (portrait 600x800) — version 1.3.3
+Raspberry Pi 5 kiosk (portrait 600x800) — version 1.3.4
   Full wiring + OS + printer + update: packaging/LINUX-KIOSK.md
   64-bit Raspberry Pi OS Desktop. raspi-config: X11 + desktop autologin.
   Official 27 W USB-C PSU. micro-HDMI on HDMI0. Same BCM pins as Pi 3/4.
@@ -35,7 +35,7 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.3.3
   Do not install python3-rpi.gpio (Pi 5 RP1 GPIO needs lgpio).
   git clone https://github.com/Don-Pablo-G/fh6parse.git
   cd fh6parse && sudo pip3 install -e . --break-system-packages
-  python3 -m fh6parse --version          (expect fh6parse 1.3.3)
+  python3 -m fh6parse --version          (expect fh6parse 1.3.4)
   python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
   Copy packaging/fh6parse-kiosk.ini.example to /etc/fh6parse-kiosk.ini
   Autostart: packaging/fh6parse-kiosk.service
@@ -44,11 +44,12 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.3.3
     sudo chmod 440 /etc/sudoers.d/fh6parse-kiosk
 
   Update (git checkout only; never automatic)
-    Need 1.3.3 first. If --version is older, SSH:
+    Need 1.3.4. If --version is older, SSH:
       cd /home/kiosk/fh6parse && git pull --ff-only && sudo systemctl restart fh6parse-kiosk
     From 1.3.2: on start the kiosk fetches origin in the background.
-    If a newer commit exists, a yellow UPDATE button appears (touch or U).
-    It does not update until you tap it. Print still works offline.
+    If a newer commit exists, a yellow UPDATE to x.y.z button appears (touch or U).
+    It does not update until you tap it; one tap pulls and restarts the kiosk.
+    Print still works offline. Screen shows v1.3.4 at the top.
     CLI:
       python3 -m fh6parse --version
       python3 -m fh6parse --update
@@ -70,10 +71,11 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.3.3
   keyboard, or mouse wakes it. GPIO print buttons while asleep are ignored.
 
 STEP models on the 80 mm ticket (kiosk, optional)
-  Set model_roots in /etc/fh6parse-kiosk.ini (several folders, subfolders ok).
+  Put a matching .stp / .step on the USB stick (next to the .nc or in a
+  subfolder). Company model_roots are a fallback if the stick has none.
   pip install -e '.[models]'   (git checkout; not in the one-file Pi tarball)
   Matching starts at the NC name prefix. G-code rev must match the .stp rev.
-  If the NC has no rev, the latest matching .stp is used.
+  If the NC has no rev, the latest matching .stp is used (USB copy wins).
   Two opposite isometric line drawings, stacked, cropped to the part, at the top of
   FULL and MIN tickets. A square mark (■) appears when the bitmap is ready.
   Missing or still-rendering models never block print.

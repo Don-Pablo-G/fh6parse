@@ -138,9 +138,6 @@ class ToolReportApp(tk.Tk):
     def _start_models(self) -> None:
         if self._models is not None:
             self._models.close()
-            self._models = None
-        if not self._model_roots:
-            return
         self._models = ModelPrep(self._model_roots)
         self._enqueue_open_files()
 
@@ -230,10 +227,10 @@ class ToolReportApp(tk.Tk):
         if errors:
             messagebox.showerror("Parse error", "\n".join(errors))
         extra = ""
-        if not self._model_roots:
-            extra = "  ·  set STEP folders to attach isometric views"
-        elif not render_available():
+        if not render_available():
             extra = "  ·  STEP CAD libraries not in this build"
+        elif not self._model_roots:
+            extra = "  ·  STEP next to the NC, or set STEP folders…"
         self.status.config(text=f"{len(self._results)} file(s) loaded{extra}")
 
     def _refresh_list(self) -> None:

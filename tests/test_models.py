@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
 from fh6parse.kiosk import load_kiosk_config, save_model_roots
-from fh6parse.modelmatch import ModelFile, index_models, pick_model
+from fh6parse.modelmatch import ModelFile, index_models, pick_model, pick_model_near
 from fh6parse.modelprep import ModelPrep
 from fh6parse.modelrender import (
     MAX_VIEW_HEIGHT,
@@ -157,6 +158,33 @@ class TestPickModel(unittest.TestCase):
         models = self._files("SE0241282-0", "SE0241282-0_extra_notes")
         picked = pick_model(nc, models)
         self.assertEqual(picked.path.stem, "SE0241282-0")
+
+    def test_usb_copy_beats_nas_latest(self) -> None:
+        nc = parse_model_stem("D0134078")
+        nc_path = Path("/media/kiosk/STICK/D0134078.nc")
+        stick = ModelFile(
+            path=Path("/media/kiosk/STICK/D0134078_Rev01.stp"),
+            identity=parse_model_stem("D0134078_Rev01"),
+            mtime=1.0,
+        )
+        nas = ModelFile(
+            path=Path("/mnt/cad/D0134078_Rev09.stp"),
+            identity=parse_model_stem("D0134078_Rev09"),
+            mtime=9.0,
+        )
+        picked = pick_model_near(nc, nc_path, [nas, stick])
+        self.assertEqual(picked.path, stick.path)
+
+    def test_falls_back_to_nas_when_stick_has_no_stp(self) -> None:
+        nc = parse_model_stem("D0134078")
+        nc_path = Path("/media/kiosk/STICK/D0134078.nc")
+        nas = ModelFile(
+            path=Path("/mnt/cad/D0134078_Rev02.stp"),
+            identity=parse_model_stem("D0134078_Rev02"),
+            mtime=2.0,
+        )
+        picked = pick_model_near(nc, nc_path, [nas])
+        self.assertEqual(picked.path, nas.path)
 
     def test_index_walks_subfolders(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -329,8 +357,34 @@ class TestTicketViewLayout(unittest.TestCase):
 class TestModelPrepDoesNotBlock(unittest.TestCase):
     def test_missing_model_returns_no_images(self) -> None:
         prep = ModelPrep([])
-        self.assertEqual(prep.ready_images(Path("missing.nc")), [])
-        self.assertFalse(prep.is_ready(Path("missing.nc")))
+        try:
+            self.assertEqual(prep.ready_images(Path("missing.nc")), [])
+            self.assertFalse(prep.is_ready(Path("missing.nc")))
+        finally:
+            prep.close()
+
+    def test_indexes_stp_next_to_nc(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            stick = Path(raw)
+            nc = stick / "D0134078.nc"
+            stp = stick / "cad" / "D0134078_Rev01.stp"
+            stp.parent.mkdir()
+            nc.write_text("%\nO1 (D0134078)\nT1 M6\nM30\n", encoding="utf-8")
+            stp.write_text("ISO-10303", encoding="utf-8")
+            prep = ModelPrep([])
+            try:
+                prep.set_files([nc])
+                deadline = time.time() + 3
+                while time.time() < deadline:
+                    with prep._lock:
+                        indexed = list(prep._index)
+                    if any(m.path.resolve() == stp.resolve() for m in indexed):
+                        break
+                    time.sleep(0.05)
+                else:
+                    self.fail("USB STEP file was not indexed")
+            finally:
+                prep.close()
 
 
 if __name__ == "__main__":

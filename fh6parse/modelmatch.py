@@ -96,6 +96,14 @@ def match_score(nc: PartIdentity, model: ModelFile) -> tuple | None:
     return (0, rev_key, prefix_len, -extra)
 
 
+def is_under(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except (OSError, ValueError):
+        return False
+
+
 def pick_model(nc: PartIdentity, models: list[ModelFile]) -> ModelFile | None:
     """Closest prefix match. Same G-code rev if present, else latest STP rev."""
     scored: list[tuple[tuple, ModelFile]] = []
@@ -108,3 +116,17 @@ def pick_model(nc: PartIdentity, models: list[ModelFile]) -> ModelFile | None:
         return None
     scored.sort(key=lambda item: (item[0], item[1].mtime), reverse=True)
     return scored[0][1]
+
+
+def pick_model_near(
+    nc: PartIdentity,
+    nc_path: Path,
+    models: list[ModelFile],
+) -> ModelFile | None:
+    """Prefer a match on the same volume/folder as the NC (USB stick), else any."""
+    try:
+        local_root = nc_path.resolve().parent
+    except OSError:
+        return pick_model(nc, models)
+    local = [m for m in models if is_under(m.path, local_root)]
+    return pick_model(nc, local) or pick_model(nc, models)

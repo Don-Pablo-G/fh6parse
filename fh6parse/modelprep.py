@@ -6,7 +6,7 @@ from pathlib import Path
 import threading
 import time
 
-from .modelmatch import ModelFile, index_models, pick_model
+from .modelmatch import ModelFile, index_models, pick_model_near
 from .modelrender import cache_png_path, render_available, render_step_stack
 from .partid import identity_from_nc_path
 
@@ -14,30 +14,36 @@ INDEX_EVERY = 90.0
 
 
 class ModelPrep:
-    """Walk configured model folders, match NC files, render when a CAD stack exists."""
+    """Walk NC folders + configured model roots, match, render in the background."""
 
-    def __init__(self, roots: list[Path]) -> None:
-        self.roots = [Path(p) for p in roots]
+    def __init__(self, roots: list[Path] | None = None) -> None:
+        self.roots = [Path(p) for p in (roots or [])]
         self._lock = threading.Lock()
         self._nc: list[Path] = []
+        self._local_roots: list[Path] = []
         self._index: list[ModelFile] = []
+        self._index_dirty = True
         self._ready: dict[str, Path] = {}
         self._tried: set[str] = set()
         self._stop = threading.Event()
         self._wake = threading.Event()
-        self._thread: threading.Thread | None = None
-        if self.roots:
-            self._thread = threading.Thread(
-                target=self._run, name="fh6parse-models", daemon=True
-            )
-            self._thread.start()
+        self._thread = threading.Thread(
+            target=self._run, name="fh6parse-models", daemon=True
+        )
+        self._thread.start()
 
     def set_files(self, files: list[Path]) -> None:
+        parents = _unique_parents(files)
         with self._lock:
             self._nc = list(files)
             live = {str(p.resolve()) for p in files}
             self._ready = {k: v for k, v in self._ready.items() if k in live}
-            self._tried &= live
+            if parents != self._local_roots:
+                self._local_roots = parents
+                self._index_dirty = True
+                self._tried = set(self._ready)
+            else:
+                self._tried &= live
         self._wake.set()
 
     def is_ready(self, path: Path) -> bool:
@@ -69,9 +75,12 @@ class ModelPrep:
         last_index = 0.0
         while not self._stop.is_set():
             now = time.monotonic()
-            if now - last_index >= INDEX_EVERY or not self._index:
+            if now - last_index >= INDEX_EVERY or self._index_dirty:
+                with self._lock:
+                    roots = list(self.roots) + list(self._local_roots)
+                    self._index_dirty = False
                 try:
-                    models = index_models(self.roots)
+                    models = index_models(roots)
                 except Exception:
                     models = []
                 with self._lock:
@@ -107,7 +116,7 @@ class ModelPrep:
         if not ident.base:
             self._mark_tried(key)
             return
-        chosen = pick_model(ident, models)
+        chosen = pick_model_near(ident, nc, models)
         if chosen is None or not render_available():
             self._mark_tried(key)
             return
@@ -131,3 +140,18 @@ class ModelPrep:
     def _mark_tried(self, key: str) -> None:
         with self._lock:
             self._tried.add(key)
+
+
+def _unique_parents(files: list[Path]) -> list[Path]:
+    seen: set[Path] = set()
+    out: list[Path] = []
+    for path in files:
+        try:
+            parent = path.resolve().parent
+        except OSError:
+            continue
+        if parent in seen or not parent.is_dir():
+            continue
+        seen.add(parent)
+        out.append(parent)
+    return out

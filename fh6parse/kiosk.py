@@ -199,9 +199,10 @@ class KioskApp(tk.Tk):
         self._gpio: list[object] = []
         self._status_job: str | None = None
         self._bound_all: list[str] = []
-        self._models = ModelPrep(cfg.model_roots) if cfg.model_roots else None
+        self._models = ModelPrep(cfg.model_roots)
         self._update_available = False
         self._updating = False
+        self._pending_update: UpdateCheck | None = None
 
         self.title(f"CNC kiosk {__version__}")
         self.configure(bg=BG)
@@ -229,9 +230,19 @@ class KioskApp(tk.Tk):
 
         head = tk.Frame(self, bg=BG)
         head.pack(fill=tk.X, padx=16, pady=(18, 8))
+        title_row = tk.Frame(head, bg=BG)
+        title_row.pack(fill=tk.X)
         tk.Label(
-            head, text="CNC TOOLS", font=title_font, bg=BG, fg=ACCENT
-        ).pack(anchor="w")
+            title_row, text="CNC TOOLS", font=title_font, bg=BG, fg=ACCENT
+        ).pack(side=tk.LEFT)
+        self.version_lbl = tk.Label(
+            title_row,
+            text=f"v{__version__}",
+            font=small,
+            bg=BG,
+            fg=MUTED,
+        )
+        self.version_lbl.pack(side=tk.RIGHT, pady=(6, 0))
         self.hint = tk.Label(
             head,
             text="Insert USB",
@@ -559,13 +570,21 @@ class KioskApp(tk.Tk):
         if not status.available or self._updating:
             return
         self._update_available = True
+        self._pending_update = status
+        label = status.button_label()
         try:
             mapped = self.update_btn.winfo_ismapped()
         except tk.TclError:
             return
+        self.update_btn.config(text=label)
         if not mapped:
             self.update_btn.pack(fill=tk.X, pady=(0, 10), before=self._keys_hint)
-        self._set_status("Update available")
+        if status.new_version and status.new_version != status.current_version:
+            self._set_status(
+                f"v{status.current_version} → {status.new_version}  ·  tap UPDATE to install and restart"
+            )
+        else:
+            self._set_status("Update available  ·  tap UPDATE to install and restart")
 
     def _on_update(self, _event: tk.Event | None = None) -> str | None:
         if self._wake_hid():
@@ -575,7 +594,7 @@ class KioskApp(tk.Tk):
         self._arm_idle()
         self._updating = True
         self.update_btn.config(state=tk.DISABLED, text="UPDATING…")
-        self._set_status("Updating…")
+        self._set_status("Updating — will restart the kiosk")
         threading.Thread(target=self._update_worker, daemon=True).start()
         return "break"
 
@@ -589,19 +608,29 @@ class KioskApp(tk.Tk):
         try:
             if code == 0:
                 self._update_available = False
+                self._pending_update = None
                 self.update_btn.pack_forget()
                 self.update_btn.config(state=tk.NORMAL, text="UPDATE")
                 self._updating = False
                 self._set_status("Updated — restarting kiosk")
                 return
             self._updating = False
-            self.update_btn.config(state=tk.NORMAL, text="UPDATE")
+            retry = (
+                self._pending_update.button_label()
+                if self._pending_update is not None
+                else "UPDATE"
+            )
+            self.update_btn.config(state=tk.NORMAL, text=retry)
             if code == 2:
                 self._update_available = False
+                self._pending_update = None
                 self.update_btn.pack_forget()
                 self._set_status("This install cannot auto-update", error=True)
                 return
-            self._set_status("Update failed — try again or use --update", error=True)
+            self._set_status(
+                "Update failed — tap again, or: sudo systemctl restart fh6parse-kiosk",
+                error=True,
+            )
         except tk.TclError:
             pass
 

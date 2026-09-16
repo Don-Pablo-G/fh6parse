@@ -7,7 +7,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fh6parse.update import FROZEN_MSG, check_for_update, find_git_root, perform_update
+from fh6parse.update import (
+    FROZEN_MSG,
+    UpdateCheck,
+    check_for_update,
+    find_git_root,
+    perform_update,
+    version_from_text,
+)
 
 
 class _Proc:
@@ -236,12 +243,16 @@ class TestCheckForUpdate(unittest.TestCase):
                 return _Proc(0, stdout="oldsha\n")
             if cmd[-1] == "@{upstream}":
                 return _Proc(0, stdout="newsha\n")
+            if "show" in cmd:
+                return _Proc(0, stdout='__version__ = "9.9.9"\n')
             self.fail(f"unexpected command: {cmd}")
             return _Proc(0)
 
         status = check_for_update(frozen=False, start=self.start, runner=run)
         self.assertTrue(status.available)
         self.assertEqual(status.detail, "available")
+        self.assertEqual(status.new_version, "9.9.9")
+        self.assertEqual(status.button_label(), "UPDATE to 9.9.9")
 
     def test_falls_back_to_origin_head(self) -> None:
         def run(cmd: list[str], **_kwargs) -> _Proc:
@@ -253,6 +264,8 @@ class TestCheckForUpdate(unittest.TestCase):
                 return _Proc(0, stdout="newsha\n")
             if cmd[-1] == "HEAD":
                 return _Proc(0, stdout="oldsha\n")
+            if "show" in cmd:
+                return _Proc(0, stdout='__version__ = "2.0.0"\n')
             self.fail(f"unexpected command: {cmd}")
             return _Proc(0)
 
@@ -270,6 +283,34 @@ class TestCheckForUpdate(unittest.TestCase):
             )
             self.assertFalse(status.available)
             self.assertEqual(status.detail, "not git")
+
+
+class TestVersionLabel(unittest.TestCase):
+    def test_parses_version_file(self) -> None:
+        self.assertEqual(
+            version_from_text('"""pkg"""\n__version__ = "1.2.3"\n'),
+            "1.2.3",
+        )
+
+    def test_button_prefers_new_version(self) -> None:
+        status = UpdateCheck(
+            True,
+            "available",
+            current_version="1.3.3",
+            new_version="1.3.4",
+            remote_sha="abc1234",
+        )
+        self.assertEqual(status.button_label(), "UPDATE to 1.3.4")
+
+    def test_button_uses_sha_when_version_unchanged(self) -> None:
+        status = UpdateCheck(
+            True,
+            "available",
+            current_version="1.3.4",
+            new_version="1.3.4",
+            remote_sha="deadbee",
+        )
+        self.assertEqual(status.button_label(), "UPDATE  deadbee")
 
 
 if __name__ == "__main__":

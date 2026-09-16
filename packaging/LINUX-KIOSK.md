@@ -1,6 +1,6 @@
 # fh6parse Linux kiosk manual
 
-**Version 1.3.3.** Shop-floor install for **Raspberry Pi 5** with a **portrait 800×600** screen: boot, wait for a USB stick, pick an NC file with a rotary encoder, print an 80 mm ticket on a **MUNBYN P047**. Optional STEP isometrics on the slip. If the Pi is on the network, the kiosk can offer an on-screen **UPDATE**.
+**Version 1.3.4.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings. The screen shows **v1.3.4**. A yellow **UPDATE to …** button appears only when the network has a newer git commit — it does **not** apply until you tap it, then it restarts the kiosk.
 
 Python **3.10+** is required (Bookworm ships 3.11). Use **Raspberry Pi OS 64-bit Desktop** (Bookworm or later). Pi 5 has no 32-bit OS.
 
@@ -13,7 +13,8 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 5. [Daily use](#5-daily-use)
 6. [Troubleshooting](#6-troubleshooting)
 7. [Files on disk](#7-files-on-disk)
-8. [Updating (1.3.3)](#8-updating-the-kiosk)
+8. [Updating (1.3.4)](#8-updating-the-kiosk)
+9. [Field test](#9-field-test)
 
 ---
 
@@ -28,7 +29,7 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 | Two momentary buttons | Normally-open, wired to GPIO and GND. |
 | USB stick | FAT/exFAT/NTFS. Programs as `.nc` / `.NC` / `.tap` in the **stick root** only (not subfolders). |
 | MUNBYN P047 (ITPP047) | USB, 80 mm ESC/POS, auto-cutter. Own mains PSU. |
-| Company STEP folder (optional) | Network share of `.stp` / `.step` files. See **§3.7**. |
+| Company STEP folder (optional) | NAS of `.stp` / `.step` if the stick has none. See **§3.7**. Stick copy is enough. |
 | Network (optional) | Only for git install and later **UPDATE**. Printing works offline. |
 | Keyboard / mouse | First-time setup, SSH, or tap **UPDATE**. Not required for encoder + GPIO print. |
 
@@ -193,7 +194,7 @@ Check:
 python3 -m fh6parse --version
 ```
 
-Expect `fh6parse 1.3.3`. If the number is older, this clone is behind — `git fetch && git pull --ff-only` then check again (**§8**).
+Expect `fh6parse 1.3.4`. If the number is older, this clone is behind — `git fetch && git pull --ff-only` then check again (**§8**).
 
 Later upgrades are **§8**. Do not run `pip install` on every pull. The kiosk does not update by itself.
 
@@ -214,7 +215,7 @@ Run:
 ./fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 ```
 
-The one-file ARM tarball does not bundle the CAD stack, so **§3.7** pictures are git-checkout only. There is no **UPDATE** button and `--update` refuses this install. To get the 1.3.3 shop update path later, switch to the git checkout above.
+The one-file ARM tarball does not bundle the CAD stack, so **§3.7** pictures are git-checkout only. There is no **UPDATE** button and `--update` refuses this install. To get the 1.3.4 shop update path later, switch to the git checkout above.
 
 For systemd, set `ExecStart=/home/kiosk/fh6parse --kiosk --config /etc/fh6parse-kiosk.ini` (path to the unpacked binary).
 
@@ -238,7 +239,7 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | `scan_depth` | 1 | USB root only. Raise to search subfolders. |
 | `extensions` | `.nc,.tap` | File types (case-insensitive) |
 | `extra_roots` | (empty) | Extra folders to list, comma-separated (for testing) |
-| `model_roots` | (empty) | Company `.stp` / `.step` folders. Several paths, subfolders included. See **§3.7**. |
+| `model_roots` | (empty) | Optional company `.stp` folders. USB stick is searched first. See **§3.7**. |
 | `fullscreen` | true | Shop display. Escape once exits fullscreen. |
 
 ### 3.4 Groups and devices
@@ -292,7 +293,7 @@ Without GPIO you can still use a **USB keyboard and mouse** at any time (hot-plu
 | Arrows, mouse wheel, click a file | Move highlight | First event only wakes |
 | **F** / **M** | Print full / min | Ignored (no ticket); another key or click wakes |
 | GPIO FULL / MIN | Print | Ignored (no ticket, stays black) |
-| Yellow **UPDATE** / **U** | Apply pending git update (button only if origin is ahead) | Wake first, then tap |
+| Yellow **UPDATE to …** / **U** | One tap: pull, then restart kiosk | Wake first, then tap |
 | **Esc** | Leave fullscreen, then close | Wake, then Esc again leaves fullscreen |
 
 Plug in a USB stick with `.nc` files; the list should fill by itself.
@@ -301,9 +302,20 @@ Desktop autostart of the kiosk is in the next section. Until then, Escape leaves
 
 ### 3.7 STEP models on the ticket
 
-Optional. FULL and MIN tickets can show two opposite **isometric** views as **visible edges only** (no shading — thermal printers cannot print grey). The longest 3D axis is laid across the 80 mm width (~512 dots); height is cropped to the part, so a long thin shaft is a thin strip, not a metre of paper. A bulky part is capped (~30 mm of paper per view). Print never waits for a model.
+Optional. The kiosk looks for a matching `.stp` / `.step` **on the USB stick first** (same folder as the `.nc`, then subfolders on that stick). No NAS is required. Company folders in `model_roots` are a fallback if the stick has no match.
 
-**1. Point the kiosk at the CAD folders** in `/etc/fh6parse-kiosk.ini`. Several roots are allowed (comma or `:` / `;`). Subfolders are searched.
+FULL and MIN tickets can show two opposite **true isometric** views (45° then ~35.3° — look along the cube diagonal), as **visible edges only** (silhouette + sharp creases, no shading). Through-holes draw as ellipses (near rim, and the far rim only where you can see through). The longest 3D axis is laid across the 80 mm width (~512 dots); height is cropped to the part, so a long thin shaft is a thin strip, not a metre of paper. A bulky part is capped (~30 mm of paper per view). Print never waits for a model. After an update, delete `/tmp/fh6parse-models` so old shaded bitmaps are not reused.
+
+**1. USB (usual shop path).** Put the STEP file next to the program, or in a subfolder on the same stick:
+
+```
+D0134078.nc
+D0134078_Rev03.stp
+```
+
+or `D0134078.nc` plus `cad/D0134078_Rev03.stp`. The kiosk indexes the stick when it is inserted. Matching rules are **§3.7 step 4**. CAD extra (**step 3**) is still required to draw the picture.
+
+**2. Optional company CAD folders** in `/etc/fh6parse-kiosk.ini` if the stick has no STEP. Several roots are allowed (comma or `:` / `;`). Subfolders are searched. A file on the stick always wins over the NAS.
 
 ```
 model_roots = /mnt/cad/stp,/mnt/cad/archive
@@ -319,7 +331,7 @@ sudo mount -t cifs //server/cad /mnt/cad -o guest,uid=kiosk,gid=kiosk,iocharset=
 
 Put a matching line in `/etc/fstab` so it survives reboot. If the share is down, the ticket is still text only.
 
-**2. Install the CAD extra** (git checkout only; heavy: numpy, pillow, trimesh, cascadio):
+**3. Install the CAD extra** (git checkout only; heavy: numpy, pillow, trimesh, cascadio):
 
 ```
 sudo pip3 install -e '.[models]' --break-system-packages
@@ -327,7 +339,7 @@ sudo pip3 install -e '.[models]' --break-system-packages
 
 If that install fails, leave it off. Matching still runs; nothing is rendered and the list icon stays off.
 
-**3. Matching** starts at the first characters of the NC file name (and the `O` program title). The end of the STEP name may differ (`_Rev03`, `_OP1`, extra words). Nearby part numbers do not match (`D0134078` will not pick `D0134079`).
+**4. Matching** starts at the first characters of the NC file name (and the `O` program title). The end of the STEP name may differ (`_Rev03`, `_OP1`, extra words). Nearby part numbers do not match (`D0134078` will not pick `D0134079`).
 
 Revision is taken from the G-code header, then the title, then the file name:
 
@@ -348,9 +360,9 @@ If the program **has** a revision, only a STEP file with the **same** rev is use
 | `SE0241282.nc` | `O01282 (SE0241282-0 …)` | `SE0241282-0.stp` (or `_Rev0`) |
 | `000814086.nc` | title `000814086 OP1/OP2` | `000814086_Rev02.stp` if that is latest |
 
-**4. On the screen**, a **■** appears next to the file when the bitmap is rendered and ready. The walk and render run in the background for every USB file in the list. Cache: `/tmp/fh6parse-models`.
+**5. On the screen**, a **■** appears next to the file when the bitmap is rendered and ready. The walk and render run in the background for every USB file in the list. Cache: `/tmp/fh6parse-models`.
 
-On **Windows**, the GUI has **STEP folders…**. Paths are saved as `model_roots` in `fh6parse-kiosk.ini` next to the exe. The Windows one-file build bundles the CAD stack; print still works if a model is missing.
+On **Windows**, the GUI also searches next to the opened NC file. **STEP folders…** is the NAS fallback. Paths are saved as `model_roots` in `fh6parse-kiosk.ini` next to the exe. The Windows one-file build bundles the CAD stack; print still works if a model is missing.
 
 ---
 
@@ -390,13 +402,15 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 1. Power on. Screen shows **Insert USB** (or the last stick if it was already plugged in).
 2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear.
 3. Turn the encoder to highlight a file. A **■** means the STEP views are ready for that program.
-4. **FULL** — 80 mm ticket: stacked isometrics when ready, then operations, tool list, each tool change, warnings, min Z.
-5. **MIN** — short ticket: stacked isometrics when ready, then per operation only T, description, min Z, warnings.
+4. **FULL** — 80 mm ticket: stacked line-art isometrics when ready, then operations, tool list, each tool change, warnings, min Z.
+5. **MIN** — short ticket: stacked line-art isometrics when ready, then per operation only T, description, min Z, warnings.
 6. If there is no **■**, print anyway. The slip is text only.
-7. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
-8. Wake: encoder, inserting a USB stick, or a **keyboard / mouse**. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored.
-9. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
-10. If the Pi is on the network and a newer git commit exists, a yellow **UPDATE** button appears **after this boot’s check**. Tap it (or **U**). Nothing is applied until then; print still works. After a successful update the kiosk restarts (needs the sudoers line in **§3.2** / **§8**).
+7. Status after a good print: **`device:/dev/usb/lp0`**. If it says `lp:…`, CUPS took the job — **§3.5**.
+8. **WARNING:** lines: `H{n} does not match T{tool}` on G43, and `D{n} does not match T{tool}` on any D (G43 or G41/G42). Matching H/D stay quiet.
+9. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
+10. Wake: encoder, inserting a USB stick, or a **keyboard / mouse**. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored.
+11. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
+12. Current version is **v…** at the top right. If the Pi is on the network and origin is ahead, a yellow **UPDATE to x.y.z** button appears **after this boot’s check**. It does **not** update by itself. One tap installs and **restarts** the kiosk (sudoers in **§3.2**). Print still works until you tap it.
 
 Parse happens at print time, not when the list is shown. STEP matching and rendering run in the background and must not delay the ticket.
 
@@ -424,12 +438,13 @@ Parse happens at print time, not when the list is shown. STEP matching and rende
 | `--update` says one-file package | This Pi is running the ARM tarball. Copy a new tarball or reinstall from git (**§3.2**). |
 | `--update` / fast-forward failed | Uncommitted edits or a diverged branch. See **§8.1**. Do not merge on the shop floor. |
 | `--update` / **UPDATE** pulled but UI unchanged | `sudo systemctl restart fh6parse-kiosk`. Missing sudoers: **§3.2**. |
-| **UPDATE** button never appears | Offline, one-file tarball, already up to date, or version older than 1.3.3 (**§8.1**). Check is only at kiosk start. `python3 -m fh6parse --version`. |
+| **UPDATE** button never appears | Offline, one-file tarball, already up to date. Check is only at kiosk start. Screen should show **v1.3.4**. |
 | **UPDATE** says failed / kiosk did not restart | `sudo -n systemctl restart fh6parse-kiosk` from user `kiosk` should succeed after **§3.2**. Then `sudo systemctl restart fh6parse-kiosk`. |
-| No **■** next to files | `model_roots` empty or the share is not mounted (`ls` the path). CAD extra missing (`pip3 install -e '.[models]'`). Still rendering (wait). Rev in the G-code does not match any `.stp`. |
+| No **■** next to files | No matching `.stp` on the stick (or in `model_roots`). CAD extra missing (`pip3 install -e '.[models]'`). Still rendering (wait). G-code rev does not match any `.stp`. |
 | **■** shows, ticket has no picture | Status not `device:/dev/usb/lp0` (CUPS intercepted). Printer rejected `GS v 0`. Test text-only first (**§3.5**). |
 | Pictures vanished after `--update` | `--update` runs `pip install -e .` **without** `[models]` when `pyproject.toml` changes. Re-run `sudo pip3 install -e '.[models]' --break-system-packages`. |
-| Kiosk sluggish after USB insert | Huge CAD tree on a slow NAS. Narrow `model_roots` to the live folder, not the whole archive. Render is background and must not block print. |
+| Pictures still shaded / grey mush | Old cache. `rm -rf /tmp/fh6parse-models` and wait for **■** again. The current renderer is black edges on white only. |
+| No `WARNING:` for a wrong D | Clone is older than this pull. `git log -1 --oneline` must mention D vs T. D is checked on G43 and on G41/G42. |
 
 CLI without the kiosk (reports next to the NC file):
 
@@ -456,17 +471,17 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 
 ## 8. Updating the kiosk
 
-This section is for **fh6parse 1.3.3** on a **git checkout** (`/home/kiosk/fh6parse`). Confirm first:
+This section is for **fh6parse 1.3.4** on a **git checkout** (`/home/kiosk/fh6parse`). Confirm first:
 
 ```
 python3 -m fh6parse --version
 ```
 
-You want `fh6parse 1.3.3`. The kiosk **never updates by itself**. Print works with or without a network.
+You want `fh6parse 1.3.4` (also **v1.3.4** on the kiosk). The kiosk **never updates by itself**. Print works with or without a network.
 
-### 8.1 First pull to 1.3.3 (already installed, older number)
+### 8.1 First pull to 1.3.4 (already installed, older number)
 
-If `--version` is older than 1.3.3, SSH as `kiosk`:
+If `--version` is older than 1.3.4, SSH as `kiosk`:
 
 ```
 cd /home/kiosk/fh6parse
@@ -487,16 +502,16 @@ If `git pull --ff-only` fails, the clone has local edits or a diverged branch. `
 
 ### 8.2 On-screen UPDATE (1.3.2 and later)
 
-On each kiosk start, a background thread runs `git fetch` (~20 s timeout) and compares `HEAD` to the tracked branch (`@{upstream}`, else `origin/HEAD`, else `origin/master`).
+On each kiosk start, a background thread runs `git fetch` (~20 s timeout) and compares `HEAD` to the tracked branch (`@{upstream}`, else `origin/HEAD`, else `origin/master` / `origin/main`). **Nothing is installed until you tap the button.**
 
 | After the check | What you see |
 | --- | --- |
-| Offline, timeout, one-file binary, or already current | No button. Print as usual. |
-| Origin has a newer commit | Large yellow **UPDATE** at the bottom. Status: “Update available”. |
+| Offline, timeout, one-file binary, or already current | No button. **v…** stays at the top. Print as usual. |
+| Origin has a newer commit | Yellow **UPDATE to x.y.z** (or a short git hash if the number did not change). Status: `v1.3.4 → x.y.z · tap UPDATE to install and restart`. |
 
-Tap **UPDATE** (touch or mouse) or press **U**. Print is paused only while that runs. Steps are the same as `--update` in **§8.3**. On success the unit restarts and the new version is live.
+Tap **UPDATE** once (touch or **U**). That is the only action: `git pull --ff-only`, pip only if `pyproject.toml` changed, then **restart** `fh6parse-kiosk`. Print is paused only while that runs. The new version is live after the restart.
 
-`kiosk` cannot restart a system unit unless you installed the sudoers file in **§3.2**. Without it, the pull may still succeed; restart by hand:
+`kiosk` cannot restart a system unit unless you installed the sudoers file in **§3.2**. Without it the pull may succeed and the screen stays on the old process — then:
 
 ```
 sudo systemctl restart fh6parse-kiosk
@@ -524,5 +539,71 @@ It never writes `/etc/fh6parse-kiosk.ini`. Pins, printer, idle, and `model_roots
 
 ### 8.4 One-file ARM tarball
 
-No **UPDATE** button. `python3 -m fh6parse --update` (or `./fh6parse --update`) exits with a message to copy a new tarball or switch to a git clone. That package is a first copy, not the 1.3.3 upgrade path. To convert: follow **§3.2** (git + pip), point systemd `ExecStart` back to `python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini`, then **§8.2**.
+No **UPDATE** button. `python3 -m fh6parse --update` (or `./fh6parse --update`) exits with a message to copy a new tarball or switch to a git clone. That package is a first copy, not the 1.3.4 upgrade path. To convert: follow **§3.2** (git + pip), point systemd `ExecStart` back to `python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini`, then **§8.2**.
+
+---
+
+## 9. Field test
+
+Take this sheet to the Pi. The kiosk must show **v1.3.4** at the top right.
+
+**1. Get this code onto the Pi** (user `kiosk`):
+
+```
+cd /home/kiosk/fh6parse
+git fetch
+git checkout main
+git pull --ff-only
+git log -1 --oneline
+sudo systemctl restart fh6parse-kiosk
+```
+
+`git log -1` must mention D vs T and USB `/dev/usb/lp0`. Or wait for the yellow **UPDATE** after a restart (check runs once per boot).
+
+Clear old STEP bitmaps:
+
+```
+rm -rf /tmp/fh6parse-models
+```
+
+If `/etc/fh6parse-kiosk.ini` still has `printer_queue = munbyn`, you can leave it (USB is tried first) or comment it out. User `kiosk` must be in group `lp`. If the printer is busy:
+
+```
+sudo systemctl disable --now cups
+```
+
+**2. Printer (P047)**
+
+| Check | Pass |
+| --- | --- |
+| `ls -l /dev/usb/lp0` exists, writable by `kiosk` | |
+| Python test in **§3.5** prints TEST and cuts | |
+| FULL ticket status: `device:/dev/usb/lp0` (not `lp:…`) | |
+| Ticket text is readable (PC852 Polish comments), then cut | |
+| No CUPS garbage / doubled jobs | |
+
+**3. D and H vs tool number**
+
+Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H25 D25).
+
+| Check | Pass |
+| --- | --- |
+| Wrong H on G43 → `WARNING: H… does not match T…` | |
+| Wrong D on G43 → `WARNING: D… does not match T…` | |
+| Wrong D on G41/G42 → same D warning, once | |
+| Matching D (= T) → no D warning | |
+
+**4. STEP views** (`.stp` on the USB stick, or `model_roots`; CAD extra required)
+
+| Check | Pass |
+| --- | --- |
+| Stick has `Program.nc` + matching `.stp` (root or subfolder) | |
+| **■** appears when the model is ready (no NAS needed) | |
+| Two stacked views, part not a flat 45° slab (true isometric) | |
+| Black lines on white — no grey shading | |
+| Through-holes as ellipses, not filled blobs | |
+| Long shaft is a thin strip across 80 mm | |
+| Print without **■** is still text-only, no wait | |
+
+Windows office PC: replace the exe with `fh6parse-1.3.3-windows-x64.exe` from this same tree (same `--version`, new behaviour). Set **STEP folders…**. Windows print is still the browser dialog, not `/dev/usb/lp0`.
 

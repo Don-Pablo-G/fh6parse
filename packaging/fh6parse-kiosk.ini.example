@@ -2,7 +2,7 @@
 # GPIO numbers are BCM (same pins as Pi 3/4). Buttons: momentary to GND.
 # KY-040 encoder: CLK / DT; shaft switch unused. Pi 5 needs lgpio, not RPi.GPIO.
 # Updates are not configured here. Git checkout + on-screen UPDATE: see
-# packaging/LINUX-KIOSK.md §8 (fh6parse 1.3.3). This file is never overwritten.
+# packaging/LINUX-KIOSK.md §8 (fh6parse 1.3.4). This file is never overwritten.
 
 [kiosk]
 width = 600
@@ -25,7 +25,8 @@ scan_depth = 1
 extensions = .nc,.tap
 # extra_roots = /home/kiosk/nc-samples
 
-# Company STEP folders (searched with subfolders). Comma or path-separator.
+# USB stick is searched first (folder of the .nc + subfolders). Stick wins.
+# Company STEP folders below are optional fallback. Comma or path-separator.
 # Matching starts at the shared prefix of the NC name / program title.
 # G-code (REV 3) / (Rewizja: 02) / trailing -0 or _Rev03 must match the
 # model revision. If the NC has no rev, the latest matching .stp is used.
