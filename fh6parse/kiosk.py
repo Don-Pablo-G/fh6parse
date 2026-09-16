@@ -787,7 +787,7 @@ class KioskApp(tk.Tk):
         if keep_highlight and current in files:
             self._index = files.index(current)
         else:
-            self._index = min(self._index, n - 1)
+            self._index = min(self._index, len(files) - 1)
         self._paint_highlight()
 
     def _sync_model_labels(self) -> None:

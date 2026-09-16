@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -9,6 +10,11 @@ if TYPE_CHECKING:
 
 LEGEND = "3D view ready to print"
 TAG_READY = "cad"
+# Same gold as the kiosk legend / UPDATE button.
+CUBE_YELLOW = (0xFF, 0xD5, 0x4A)
+# Chroma key — GIF transparency. Must not match the cube ink.
+CUBE_CLEAR = (0x00, 0x01, 0x02)
+KIOSK_BG = "#111111"
 
 
 def cube_pixels(
@@ -53,32 +59,116 @@ def cube_photo(
     master: tk.Misc,
     *,
     size: int,
-    dark: bool,
+    dark: bool = True,
 ) -> tuple[tk.PhotoImage, tk.PhotoImage]:
-    """(ready cube, empty spacer) — keep both on the widget so Tk does not GC them."""
+    """Yellow cube like the legend. Empty spacer matches the list background."""
     if dark:
-        bg = (0x1A, 0x1A, 0x1A)
-        edge = (0xFF, 0xD5, 0x4A)
+        bg = (0x11, 0x11, 0x11)
+        trans = None
     else:
-        bg = (0xF0, 0xF0, 0xF0)
-        edge = (0x1A, 0x1A, 0x1A)
-    ready = _photo(master, cube_pixels(size, bg=bg, edge=edge, width=2))
-    empty = _photo(master, [[bg for _ in range(size)] for _ in range(size)])
+        bg = CUBE_CLEAR
+        trans = CUBE_CLEAR
+    ready = _photo_gif(
+        master,
+        cube_pixels(size, bg=bg, edge=CUBE_YELLOW, width=2),
+        trans=trans,
+    )
+    empty = _photo_gif(
+        master,
+        [[bg for _ in range(size)] for _ in range(size)],
+        trans=trans,
+    )
     return ready, empty
 
 
-def _photo(master: tk.Misc, grid: list[list[tuple[int, int, int]]]) -> tk.PhotoImage:
+def _photo_gif(
+    master: tk.Misc,
+    grid: list[list[tuple[int, int, int]]],
+    *,
+    trans: tuple[int, int, int] | None,
+) -> tk.PhotoImage:
+    """GIF in one shot. Treeview paints an empty PhotoImage+put() as a black square."""
     import tkinter as tk
 
+    raw = gif89a(grid, trans=trans)
+    return tk.PhotoImage(master=master, data=base64.b64encode(raw), format="gif")
+
+
+def gif89a(
+    grid: list[list[tuple[int, int, int]]],
+    *,
+    trans: tuple[int, int, int] | None = None,
+) -> bytes:
+    """GIF89a, 256-colour table. Index 0 is transparent when trans is set."""
     h = len(grid)
     w = len(grid[0])
-    img = tk.PhotoImage(master=master, width=w, height=h)
-    rows = [
-        "{" + " ".join(f"#{r:02x}{g:02x}{b:02x}" for r, g, b in row) + "}"
-        for row in grid
-    ]
-    img.put(" ".join(rows))
-    return img
+    palette: list[tuple[int, int, int]] = []
+    index: dict[tuple[int, int, int], int] = {}
+    if trans is not None:
+        palette.append(trans)
+        index[trans] = 0
+    pixels: list[int] = []
+    for row in grid:
+        for px in row:
+            if px not in index:
+                if len(palette) >= 256:
+                    px = palette[0]
+                else:
+                    index[px] = len(palette)
+                    palette.append(px)
+            pixels.append(index[px])
+    if not palette:
+        palette.append((0, 0, 0))
+    while len(palette) < 256:
+        palette.append((0, 0, 0))
+    lzw = _gif_lzw_uncompressed(pixels)
+    out = bytearray()
+    out += b"GIF89a"
+    out += int(w).to_bytes(2, "little")
+    out += int(h).to_bytes(2, "little")
+    out += bytes([0xF7, 0x00, 0x00])
+    for r, g, b in palette:
+        out += bytes((r, g, b))
+    if trans is not None:
+        out += bytes([0x21, 0xF9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00])
+    out += bytes([0x2C, 0x00, 0x00, 0x00, 0x00])
+    out += int(w).to_bytes(2, "little")
+    out += int(h).to_bytes(2, "little")
+    out += bytes([0x00, 0x08])
+    for i in range(0, len(lzw), 255):
+        chunk = lzw[i : i + 255]
+        out.append(len(chunk))
+        out += chunk
+    out += bytes([0x00, 0x3B])
+    return bytes(out)
+
+
+def _gif_lzw_uncompressed(indices: list[int]) -> bytes:
+    """GIF LZW, min code size 8, CLEAR every 100 literals so width stays 9 bits."""
+    clear, eoi = 256, 257
+    width = 9
+    codes: list[tuple[int, int]] = [(clear, width)]
+    nlit = 0
+    for idx in indices:
+        codes.append((idx & 0xFF, width))
+        nlit += 1
+        if nlit >= 100:
+            codes.append((clear, width))
+            nlit = 0
+    codes.append((eoi, width))
+    acc = 0
+    nbits = 0
+    out = bytearray()
+    for val, n in codes:
+        acc |= (val & ((1 << n) - 1)) << nbits
+        nbits += n
+        while nbits >= 8:
+            out.append(acc & 0xFF)
+            acc >>= 8
+            nbits -= 8
+    if nbits:
+        out.append(acc & 0xFF)
+    return bytes(out)
 
 
 def make_file_tree(
@@ -100,8 +190,8 @@ def make_file_tree(
         except tk.TclError:
             pass
         kwargs: dict = {
-            "background": "#1a1a1a",
-            "fieldbackground": "#1a1a1a",
+            "background": KIOSK_BG,
+            "fieldbackground": KIOSK_BG,
             "foreground": "#eeeeee",
             "rowheight": rowheight,
             "borderwidth": 0,
@@ -120,14 +210,26 @@ def make_file_tree(
         kwargs = {
             "rowheight": rowheight,
             "indent": 0,
-            "background": "#f0f0f0",
-            "fieldbackground": "#f0f0f0",
         }
         if font is not None:
             kwargs["font"] = font
         style.configure(name, **kwargs)
     try:
-        style.layout(name, [("Treeview.treearea", {"sticky": "nswe"})])
+        style.layout(
+            f"{name}.Item",
+            [
+                (
+                    "Treeitem.padding",
+                    {
+                        "sticky": "nswe",
+                        "children": [
+                            ("Treeitem.image", {"side": "left", "sticky": ""}),
+                            ("Treeitem.text", {"side": "left", "sticky": ""}),
+                        ],
+                    },
+                )
+            ],
+        )
     except tk.TclError:
         pass
     tree = ttk.Treeview(

@@ -26,6 +26,25 @@ class TestCadMark(unittest.TestCase):
         self.assertEqual(grid[3][12], edge)
         self.assertEqual(grid[7][12], bg)
 
+    def test_gif_is_transparent_ready_mark(self) -> None:
+        from fh6parse.cadmark import CUBE_YELLOW, gif89a
+
+        bg = (0x11, 0x11, 0x11)
+        grid = cube_pixels(24, bg=bg, edge=CUBE_YELLOW, width=2)
+        data = gif89a(grid)
+        self.assertTrue(data.startswith(b"GIF89a"))
+        self.assertEqual(data[-1], 0x3B)
+        self.assertGreater(len(data), 800)
+
+    def test_empty_gif_is_window_colour(self) -> None:
+        from fh6parse.cadmark import gif89a
+
+        size = 20
+        bg = (0x11, 0x11, 0x11)
+        grid = [[bg for _ in range(size)] for _ in range(size)]
+        data = gif89a(grid)
+        self.assertTrue(data.startswith(b"GIF89a"))
+
     def test_empty_corners_stay_background(self) -> None:
         bg = (0xF0, 0xF0, 0xF0)
         grid = cube_pixels(20, bg=bg, edge=(1, 2, 3), width=2)
