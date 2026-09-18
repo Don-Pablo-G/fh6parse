@@ -248,6 +248,55 @@ class TestKioskConfig(unittest.TestCase):
                     self.assertEqual(cfg.machine_id, "vf-2")
                     self.assertEqual(cfg.active_machine().tool_change_s, 8.0)
 
+    def test_unique_machine_id_avoids_default_and_collisions(self) -> None:
+        from fh6parse.kiosk import unique_machine_id
+
+        self.assertEqual(unique_machine_id("Default mill"), "mill")
+        self.assertEqual(unique_machine_id("Haas VF-4SS"), "haas-vf-4ss")
+        self.assertEqual(
+            unique_machine_id("Haas VF-4SS", {"haas-vf-4ss"}), "haas-vf-4ss-2"
+        )
+
+    def test_parse_machine_form_converts_m_min(self) -> None:
+        from fh6parse.kiosk import parse_machine_form
+
+        mill = parse_machine_form(
+            name="Haas VF-4SS",
+            rapid_m_min="25,4",
+            rotary_deg_min="6000",
+            tool_change_s="2.8",
+        )
+        self.assertEqual(mill.id, "haas-vf-4ss")
+        self.assertEqual(mill.name, "Haas VF-4SS")
+        self.assertAlmostEqual(mill.rapid_mm_min, 25400.0)
+        self.assertEqual(mill.rotary_deg_min, 6000.0)
+        self.assertAlmostEqual(mill.tool_change_s, 2.8)
+
+    def test_parse_machine_form_requires_name(self) -> None:
+        from fh6parse.kiosk import parse_machine_form
+
+        with self.assertRaises(ValueError) as ctx:
+            parse_machine_form(name="  ")
+        self.assertEqual(str(ctx.exception), "machine_name_required")
+
+    def test_save_machine_profile_round_trips(self) -> None:
+        from fh6parse.kiosk import parse_machine_form, save_machine_profile
+
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "kiosk.ini"
+            path.write_text("[kiosk]\nmachine = default\n", encoding="utf-8")
+            mill = parse_machine_form(
+                name="Haas VF-2",
+                rapid_m_min="25.4",
+                tool_change_s="8",
+            )
+            save_machine_profile(mill, dest=path)
+            cfg = load_kiosk_config(path)
+            self.assertEqual(cfg.machine_id, "haas-vf-2")
+            self.assertEqual(cfg.active_machine().name, "Haas VF-2")
+            self.assertAlmostEqual(cfg.active_machine().rapid_mm_min, 25400.0)
+            self.assertEqual(cfg.active_machine().tool_change_s, 8.0)
+
 
     def test_reads_last_folder_and_paper(self) -> None:
         from fh6parse.kiosk import parse_gui_paper

@@ -43,7 +43,7 @@ extensions = .nc,.tap
 # Missing models never block print. CAD extra: pip install -e '.[models]'
 # model_roots = /mnt/cad/stp,/mnt/cad/archive
 
-# Mill used for programmed cycle time. Pick in settings (F2) or here.
+# Mill used for programmed cycle time. Pick in settings (F2) or Add mill…
 # [machine.default] is built in (20 m/min, 0 s tool change) if omitted.
 # machine = vf-4ss
 #

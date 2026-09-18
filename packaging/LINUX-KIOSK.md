@@ -245,7 +245,7 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | `machine` | `default` | Id of the mill used for cycle time (`[machine.<id>]` below). Change in **settings**. |
 | `fullscreen` | true | Shop display. Escape once exits fullscreen. |
 
-Add one `[machine.<id>]` section per mill. Built-in **Default mill** is 20 m/min rapids and 0 s tool change until you pick another. Keys:
+Add one `[machine.<id>]` section per mill, or use **Add mill…** on the Windows/Linux GUI and in kiosk **settings**. Built-in **Default mill** is 20 m/min rapids and 0 s tool change until you pick another. Keys:
 
 | Key | Default | Meaning |
 | --- | --- | --- |
@@ -312,7 +312,7 @@ python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 
 Without GPIO you can still use a **USB keyboard and mouse** at any time (hot-plug is fine). The kiosk keeps keyboard focus and the black screensaver wakes on a key, click, or mouse wheel.
 
-The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids and tool-change time from `[machine.<id>]` in this ini), BCM pin numbers for CLK / DT / FULL / MIN, knob reverse, and **ticks per tooth** (GPIO ticks from one rest valley to the next; the highlight changes halfway so a wiggle at rest does not skip files). Language, mill, and GPIO are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes settings first; the next **Esc** still leaves fullscreen. Encoder or a GPIO print button closes settings without printing / skipping a file.
+The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids and tool-change time from `[machine.<id>]` in this ini), **Add mill…** to create a new mill (name, rapids m/min, B/C deg/min, tool-change seconds — written to `~/.config/fh6parse/ui.ini`), BCM pin numbers for CLK / DT / FULL / MIN, knob reverse, and **ticks per tooth** (GPIO ticks from one rest valley to the next; the highlight changes halfway so a wiggle at rest does not skip files). Language, mill, and GPIO are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes the mill form first, then settings; the next **Esc** still leaves fullscreen. Encoder or a GPIO print button closes settings without printing / skipping a file.
 
 | Input | While awake | While screensaver |
 | --- | --- | --- |

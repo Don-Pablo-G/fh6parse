@@ -184,6 +184,66 @@ def _slug_machine_id(raw: str) -> str:
     return slug.strip("-.") or "default"
 
 
+def unique_machine_id(name: str, existing: set[str] | None = None) -> str:
+    """Id for a new mill. Never reuses `default` or an id already in the table."""
+    taken = set(existing or ())
+    taken.add("default")
+    base = _slug_machine_id(name)
+    if base == "default":
+        base = "mill"
+    elif base.startswith("default-"):
+        rest = base[len("default-") :]
+        base = rest or "mill"
+    slug = base
+    n = 2
+    while slug in taken:
+        slug = f"{base}-{n}"
+        n += 1
+    return slug
+
+
+def _parse_form_number(raw: str, default: float) -> float:
+    text = (raw or "").strip().replace(",", ".")
+    if not text:
+        return default
+    return float(text)
+
+
+def parse_machine_form(
+    *,
+    name: str,
+    rapid_m_min: str = "",
+    rotary_deg_min: str = "",
+    tool_change_s: str = "",
+    existing_ids: set[str] | None = None,
+) -> MachineProfile:
+    """Build a MachineProfile from the Add mill form. Raises ValueError(i18n key)."""
+    label = " ".join((name or "").split())
+    if not label:
+        raise ValueError("machine_name_required")
+    try:
+        rapid_m = _parse_form_number(rapid_m_min, RAPID_MM_PER_MIN / 1000.0)
+        rotary = _parse_form_number(rotary_deg_min, ROTARY_DEG_PER_MIN)
+        tchg = _parse_form_number(tool_change_s, 0.0)
+    except ValueError as exc:
+        raise ValueError("machine_bad_number") from exc
+    if rapid_m <= 0 or rotary <= 0 or tchg < 0:
+        raise ValueError("machine_bad_number")
+    return MachineProfile(
+        id=unique_machine_id(label, existing_ids),
+        name=label,
+        rapid_mm_min=rapid_m * 1000.0,
+        rotary_deg_min=rotary,
+        tool_change_s=tchg,
+    )
+
+
+def _ini_number(value: float) -> str:
+    if abs(value - round(value)) < 1e-9:
+        return str(int(round(value)))
+    return f"{value:g}"
+
+
 def _machine_from_section(
     section: str, src: configparser.SectionProxy
 ) -> MachineProfile | None:
@@ -277,6 +337,40 @@ def save_model_roots(roots: list[Path], dest: Path | None = None) -> Path:
     return save_kiosk_values(
         {"model_roots": ",".join(str(p) for p in roots)}, dest
     )
+
+
+def save_machine_profile(
+    mill: MachineProfile,
+    dest: Path | None = None,
+    *,
+    source: Path | None = None,
+    select: bool = True,
+) -> Path:
+    """Write [machine.<id>] (and kiosk.machine) without dropping other sections."""
+    path = dest or source or kiosk_config_write_path()
+    parser = configparser.ConfigParser()
+    read_from = None
+    if source is not None and source.is_file():
+        read_from = source
+    elif path.is_file():
+        read_from = path
+    if read_from is not None:
+        parser.read(read_from, encoding="utf-8")
+    section = f"machine.{mill.id}"
+    if not parser.has_section(section):
+        parser.add_section(section)
+    parser.set(section, "name", mill.name)
+    parser.set(section, "rapid_mm_min", _ini_number(mill.rapid_mm_min))
+    parser.set(section, "rotary_deg_min", _ini_number(mill.rotary_deg_min))
+    parser.set(section, "tool_change_s", _ini_number(mill.tool_change_s))
+    if select:
+        if not parser.has_section("kiosk"):
+            parser.add_section("kiosk")
+        parser.set("kiosk", "machine", mill.id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fh:
+        parser.write(fh)
+    return path
 
 
 def parse_gui_paper(raw: str) -> str:
@@ -456,6 +550,7 @@ class KioskApp(tk.Tk):
         self._pending_update: UpdateCheck | None = None
         self._lang = parse_language(cfg.language, default=KIOSK_DEFAULT)
         self._config_open = False
+        self._mill_open = False
         self._enc_leftover = 0
         self._preview_job: str | None = None
         self._preview_gen = 0
@@ -610,6 +705,7 @@ class KioskApp(tk.Tk):
         self.status.pack(anchor="w", pady=(6, 0))
 
         self._build_config_panel(small, update_font)
+        self._build_mill_form(small, update_font)
 
         self.saver = tk.Frame(self, bg="#000000", takefocus=True, cursor="arrow")
         self.saver.bind("<Button-1>", self._on_saver_pointer)
@@ -733,7 +829,22 @@ class KioskApp(tk.Tk):
             wraplength=self.cfg.width - 80,
             justify="left",
         )
-        self._machine_detail_lbl.pack(anchor="w", pady=(2, 12))
+        self._machine_detail_lbl.pack(anchor="w", pady=(2, 4))
+        self._btn_machine_add = tk.Button(
+            panel,
+            text=t(self._lang, "machine_add"),
+            font=small,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            activeforeground="#eeeeee",
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+            cursor="hand2",
+            command=self._show_mill_form,
+        )
+        self._btn_machine_add.pack(anchor="w", pady=(0, 12), ipady=6)
 
         self._config_gpio_lbl = tk.Label(
             panel,
@@ -865,6 +976,94 @@ class KioskApp(tk.Tk):
         self._config_keys.pack(anchor="w", pady=(10, 0))
         self._style_lang_buttons()
         self._style_swap_buttons()
+
+    def _build_mill_form(self, small, update_font) -> None:
+        panel = tk.Frame(
+            self,
+            bg="#1a1a1a",
+            highlightbackground=ACCENT,
+            highlightthickness=2,
+            padx=18,
+            pady=16,
+        )
+        self._mill = panel
+        self._mill_title = tk.Label(
+            panel,
+            text=t(self._lang, "machine_add_title"),
+            font=update_font,
+            bg="#1a1a1a",
+            fg=ACCENT,
+        )
+        self._mill_title.pack(anchor="w")
+        self._mill_field_lbls: dict[str, tk.Label] = {}
+        self._mill_entries: dict[str, tk.Entry] = {}
+        specs = (
+            ("machine_name", ""),
+            ("machine_rapid", "20"),
+            ("machine_rotary", "5400"),
+            ("machine_tchg", "0"),
+        )
+        for key, default in specs:
+            lbl = tk.Label(
+                panel,
+                text=t(self._lang, key),
+                font=small,
+                bg="#1a1a1a",
+                fg="#eeeeee",
+            )
+            lbl.pack(anchor="w", pady=(10, 2))
+            self._mill_field_lbls[key] = lbl
+            ent = tk.Entry(
+                panel,
+                font=update_font,
+                bg="#222222",
+                fg="#eeeeee",
+                insertbackground="#eeeeee",
+                relief="flat",
+                bd=8,
+            )
+            if default:
+                ent.insert(0, default)
+            ent.pack(fill=tk.X)
+            self._mill_entries[key] = ent
+        self._mill_err = tk.Label(
+            panel,
+            text="",
+            font=small,
+            bg="#1a1a1a",
+            fg=ERR,
+            wraplength=self.cfg.width - 80,
+            justify="left",
+        )
+        self._mill_err.pack(anchor="w", pady=(12, 8))
+        row = tk.Frame(panel, bg="#1a1a1a")
+        row.pack(fill=tk.X, pady=(8, 0))
+        self._btn_mill_cancel = tk.Button(
+            row,
+            text=t(self._lang, "machine_cancel"),
+            font=update_font,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            command=self._hide_mill_form,
+        )
+        self._btn_mill_cancel.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 6), ipady=10)
+        self._btn_mill_save = tk.Button(
+            row,
+            text=t(self._lang, "machine_save"),
+            font=update_font,
+            bg=ACCENT,
+            fg="#111111",
+            activebackground="#ffd54a",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            command=self._save_mill_form,
+        )
+        self._btn_mill_save.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0), ipady=10)
 
     def _add_pin_stepper(
         self,
@@ -1046,6 +1245,7 @@ class KioskApp(tk.Tk):
         self._btn_pl.config(text=self._tr("lang_pl"))
         self._btn_en.config(text=self._tr("lang_en"))
         self._config_machine_lbl.config(text=self._tr("machine"))
+        self._btn_machine_add.config(text=self._tr("machine_add"))
         self._config_gpio_lbl.config(text=self._tr("gpio_pins"))
         pin_keys = {
             "encoder_clk": "pin_clk",
@@ -1061,6 +1261,11 @@ class KioskApp(tk.Tk):
         self._config_steps_lbl.config(text=self._tr("encoder_steps"))
         self._config_steps_blurb.config(text=self._tr("encoder_steps_blurb"))
         self._config_keys.config(text=self._tr("settings_keys"))
+        self._mill_title.config(text=self._tr("machine_add_title"))
+        for key, lbl in self._mill_field_lbls.items():
+            lbl.config(text=self._tr(key))
+        self._btn_mill_cancel.config(text=self._tr("machine_cancel"))
+        self._btn_mill_save.config(text=self._tr("machine_save"))
         self._style_lang_buttons()
         self._refresh_gpio_labels()
         self._refresh_hint()
@@ -1114,6 +1319,83 @@ class KioskApp(tk.Tk):
             text=self._tr("settings_saved", path=str(saved)), fg=OK
         )
 
+    def _reload_machines(self) -> None:
+        cfg = load_kiosk_config(self.cfg.source)
+        self.cfg.machines = cfg.machines
+        if self.cfg.machine_by_id(self.cfg.machine_id) is None:
+            self.cfg.machine_id = cfg.machine_id
+
+    def _show_mill_form(self) -> None:
+        self._mill_err.config(text="")
+        defaults = {
+            "machine_name": "",
+            "machine_rapid": "20",
+            "machine_rotary": "5400",
+            "machine_tchg": "0",
+        }
+        for key, value in defaults.items():
+            ent = self._mill_entries[key]
+            ent.delete(0, tk.END)
+            if value:
+                ent.insert(0, value)
+        self._mill_open = True
+        self._mill.place(relx=0.04, rely=0.06, relwidth=0.92, relheight=0.88)
+        self._mill.lift()
+        self._mill_entries["machine_name"].focus_set()
+        self._arm_idle()
+
+    def _hide_mill_form(self) -> None:
+        if not self._mill_open:
+            return
+        self._mill_open = False
+        self._mill.place_forget()
+        self._arm_idle()
+
+    def _save_mill_form(self) -> None:
+        try:
+            mill = parse_machine_form(
+                name=self._mill_entries["machine_name"].get(),
+                rapid_m_min=self._mill_entries["machine_rapid"].get(),
+                rotary_deg_min=self._mill_entries["machine_rotary"].get(),
+                tool_change_s=self._mill_entries["machine_tchg"].get(),
+                existing_ids={m.id for m in self.cfg.machines},
+            )
+        except ValueError as exc:
+            self._mill_err.config(text=self._tr(str(exc)))
+            return
+        overlay = ui_overlay_path()
+        try:
+            save_machine_profile(mill, dest=overlay)
+        except OSError as exc:
+            self._mill_err.config(
+                text=self._tr("settings_save_fail", detail=exc)
+            )
+            return
+        if self.cfg.source is not None:
+            try:
+                save_machine_profile(
+                    mill, dest=self.cfg.source, source=self.cfg.source
+                )
+            except OSError:
+                pass
+        self.cfg.machine_id = mill.id
+        self._reload_machines()
+        self._preview_cache.clear()
+        self._hide_mill_form()
+        self._persist_ui_settings()
+        self._refresh_gpio_labels()
+        self._schedule_preview()
+        self._config_saved.config(
+            text=self._tr("machine_saved", name=mill.name), fg=OK
+        )
+
+    def _typing_in_entry(self) -> bool:
+        try:
+            widget = self.focus_get()
+        except tk.TclError:
+            return False
+        return isinstance(widget, tk.Entry)
+
     def _show_config(self) -> None:
         self._config_open = True
         self._refresh_gpio_labels()
@@ -1125,6 +1407,7 @@ class KioskApp(tk.Tk):
     def _hide_config(self) -> None:
         if not self._config_open:
             return
+        self._hide_mill_form()
         self._config_open = False
         self._config.place_forget()
         self._claim_input()
@@ -1138,19 +1421,32 @@ class KioskApp(tk.Tk):
     def _on_config_pointer(self, _event: tk.Event | None = None) -> str:
         if self._wake_hid():
             return "break"
+        if self._mill_open:
+            self._hide_mill_form()
+            self._arm_idle()
+            return "break"
         self._toggle_config()
         self._arm_idle()
         return "break"
 
-    def _on_config_key(self) -> str:
+    def _on_config_key(self) -> str | None:
         if self._wake_hid():
+            return "break"
+        if self._typing_in_entry():
+            return None
+        if self._mill_open:
+            self._hide_mill_form()
+            self._arm_idle()
             return "break"
         self._toggle_config()
         self._arm_idle()
         return "break"
 
     def _dismiss_config(self) -> bool:
-        """Close settings without changing the file list. True if it was open."""
+        """Close mill form, then settings. True if something was open."""
+        if self._mill_open:
+            self._hide_mill_form()
+            return True
         if not self._config_open:
             return False
         self._hide_config()
@@ -1206,8 +1502,13 @@ class KioskApp(tk.Tk):
             self._arm_idle()
         return None
 
-    def _on_nav(self, delta: int) -> str:
+    def _on_nav(self, delta: int) -> str | None:
         if self._wake_hid():
+            return "break"
+        if self._typing_in_entry():
+            return None
+        if self._mill_open:
+            self._arm_idle()
             return "break"
         if self._config_open:
             self._set_language("en" if self._lang == "pl" else "pl")
@@ -1227,6 +1528,9 @@ class KioskApp(tk.Tk):
             delta = 1
         if self._wake_hid():
             return "break"
+        if self._mill_open:
+            self._arm_idle()
+            return "break"
         if self._config_open:
             self._set_language("en" if self._lang == "pl" else "pl")
             self._arm_idle()
@@ -1236,6 +1540,9 @@ class KioskApp(tk.Tk):
 
     def _on_wheel_button(self, delta: int) -> str:
         if self._wake_hid():
+            return "break"
+        if self._mill_open:
+            self._arm_idle()
             return "break"
         if self._config_open:
             self._set_language("en" if self._lang == "pl" else "pl")
@@ -1667,6 +1974,8 @@ class KioskApp(tk.Tk):
     def _on_update(self, _event: tk.Event | None = None) -> str | None:
         if self._wake_hid():
             return "break"
+        if self._typing_in_entry():
+            return None
         if self._dismiss_config():
             self._arm_idle()
             return "break"
@@ -1719,6 +2028,8 @@ class KioskApp(tk.Tk):
         if self._updating:
             self._set_status(self._tr("busy_update"), error=True)
             return "break"
+        if self._typing_in_entry():
+            return None
         if self._dismiss_config():
             self._arm_idle()
             return "break"
@@ -1773,6 +2084,7 @@ class KioskApp(tk.Tk):
             self._show_saver()
 
     def _show_saver(self) -> None:
+        self._hide_mill_form()
         if self._config_open:
             self._config_open = False
             self._config.place_forget()

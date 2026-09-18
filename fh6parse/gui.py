@@ -19,7 +19,15 @@ from .cadmark import (
     step_photo,
 )
 from .i18n import GUI_DEFAULT, file_count, parse_language, t, update_button_label
-from .kiosk import load_kiosk_config, parse_gui_paper, save_kiosk_values, save_model_roots, ui_overlay_path
+from .kiosk import (
+    load_kiosk_config,
+    parse_gui_paper,
+    parse_machine_form,
+    save_kiosk_values,
+    save_machine_profile,
+    save_model_roots,
+    ui_overlay_path,
+)
 from .modelprep import ModelPrep
 from .modelrender import render_available
 from .parser import ParseResult, parse_nc_file
@@ -136,6 +144,8 @@ class ToolReportApp(tk.Tk):
         )
         self.machine_combo.pack(side=tk.LEFT, padx=(0, 12))
         self.machine_combo.bind("<<ComboboxSelected>>", self._on_machine)
+        self.btn_machine_add = ttk.Button(paper_row, command=self._add_machine)
+        self.btn_machine_add.pack(side=tk.LEFT, padx=(0, 12))
         self._sync_machine_combo()
         self.btn_print_a4 = ttk.Button(
             paper_row, command=lambda: self.print_paper(PAPER_A4)
@@ -211,6 +221,7 @@ class ToolReportApp(tk.Tk):
             self.out_label.config(text=str(self._out_dir))
         self.lbl_preview.config(text=self._tr("preview_print"))
         self.lbl_machine.config(text=self._tr("machine"))
+        self.btn_machine_add.config(text=self._tr("machine_add"))
         self.rb_80.config(text=self._tr("paper_thermal"))
         self.btn_print_a4.config(text=self._tr("print_a4"))
         self.btn_print_80.config(text=self._tr("print_80"))
@@ -315,6 +326,73 @@ class ToolReportApp(tk.Tk):
         if mid == self._machine_id:
             return
         self._machine_id = mid
+        self._persist_machine()
+        self._reparse_open()
+
+    def _add_machine(self) -> None:
+        win = tk.Toplevel(self)
+        win.title(self._tr("machine_add_title"))
+        win.transient(self)
+        win.resizable(False, False)
+        body = ttk.Frame(win, padding=12)
+        body.pack(fill=tk.BOTH, expand=True)
+        fields = (
+            ("machine_name", ""),
+            ("machine_rapid", "20"),
+            ("machine_rotary", "5400"),
+            ("machine_tchg", "0"),
+        )
+        entries: dict[str, ttk.Entry] = {}
+        for i, (key, default) in enumerate(fields):
+            ttk.Label(body, text=self._tr(key)).grid(row=i, column=0, sticky=tk.W, pady=4)
+            ent = ttk.Entry(body, width=28)
+            ent.insert(0, default)
+            ent.grid(row=i, column=1, sticky=tk.EW, padx=(8, 0), pady=4)
+            entries[key] = ent
+        err = ttk.Label(body, foreground="#a40000")
+        err.grid(row=len(fields), column=0, columnspan=2, sticky=tk.W, pady=(4, 8))
+        btns = ttk.Frame(body)
+        btns.grid(row=len(fields) + 1, column=0, columnspan=2, sticky=tk.E)
+
+        def submit() -> None:
+            try:
+                mill = parse_machine_form(
+                    name=entries["machine_name"].get(),
+                    rapid_m_min=entries["machine_rapid"].get(),
+                    rotary_deg_min=entries["machine_rotary"].get(),
+                    tool_change_s=entries["machine_tchg"].get(),
+                    existing_ids={m.id for m in self._machines},
+                )
+            except ValueError as exc:
+                err.config(text=self._tr(str(exc)))
+                return
+            try:
+                saved = save_machine_profile(mill, source=self._cfg_source)
+                self._cfg_source = saved
+                save_machine_profile(mill, dest=ui_overlay_path())
+            except OSError as exc:
+                err.config(text=str(exc))
+                return
+            self._apply_saved_machine(mill)
+            win.destroy()
+            self.status.config(text=self._tr("machine_saved", name=mill.name))
+
+        ttk.Button(btns, text=self._tr("machine_cancel"), command=win.destroy).pack(
+            side=tk.RIGHT
+        )
+        ttk.Button(btns, text=self._tr("machine_save"), command=submit).pack(
+            side=tk.RIGHT, padx=(0, 8)
+        )
+        entries["machine_name"].focus_set()
+        win.bind("<Return>", lambda _e: submit())
+        win.bind("<Escape>", lambda _e: win.destroy())
+        win.grab_set()
+
+    def _apply_saved_machine(self, mill) -> None:
+        cfg = load_kiosk_config(self._cfg_source)
+        self._machines = list(cfg.machines)
+        self._machine_id = mill.id
+        self._sync_machine_combo()
         self._persist_machine()
         self._reparse_open()
 

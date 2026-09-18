@@ -51,8 +51,10 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   Language: Polski / English radios (top right). Default English. Saved in the
   same fh6parse-kiosk.ini as STEP folders (and in %USERPROFILE%\.config\fh6parse\ui.ini).
   Last NC folder, report output folder, and A4 vs 80 mm preview are stored there too.
-  Machine: combo on the preview row. Add [machine.<id>] sections in the ini
-  (rapid_mm_min, tool_change_s). Current mill is kiosk.machine in the same files.
+  Machine: combo on the preview row. Add mill… writes a [machine.<id>]
+  section (rapids m/min, B/C deg/min, tool-change seconds). The kiosk has
+  the same form in settings (F2). You can still add [machine.<id>] by hand.
+  Current mill is kiosk.machine in the same files.
   Views are visible edges only (no shading). The longest axis is across the
   80 mm width; height is cropped to the part (a long shaft is a thin strip).
   Update: if origin (git GUI) or GitHub Releases (frozen exe) has a newer
