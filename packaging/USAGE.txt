@@ -20,8 +20,11 @@ as if you changed M97 P# in main. Each list follows M97/M99 until M30.
 Tool description: comment on the Txx M6 line, or the line above, plus the
 line immediately below. Comments containing ! are listed as programmer notes.
 G95 (feed per rev) still on at the next T or M30 prints a WARNING to set G94.
-Approx machine time is summed from G0/G1/G2/G3, F#nnn, and Haas/Fanuc canned
-cycles (G73 chip-break 0.2 mm, G83 full retract to R, G84 retract at 1.0×F).
+Approx machine time and Min Z follow the programmed path: GOTO / IF GOTO,
+WHILE/DO/END, M97/M98 L repeats, and canned-cycle L (G91 steps XY between
+holes; G90 repeats the same XY). Skipped tools show Min Z n/a. Time is summed
+from G0/G1/G2/G3, F#nnn, and Haas/Fanuc canned cycles (G73 chip-break 0.2 mm,
+G83 full retract to R, G84 retract at 1.0×F).
 Rapids and tool-change time come from the mill in fh6parse-kiosk.ini
 ([machine.<id>] plus kiosk.machine). Built-in default is 20 m/min and 0 s
 tool change. No accel. A trailing + means missing F or S.

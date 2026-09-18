@@ -5,14 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 import math
+import operator
 import re
 
 from .machtime import (
     DEFAULT_MACHINE,
-    HASH_ASSIGN_RE,
     HASH_WORD_RE,
     MachineProfile,
-    apply_hash_assigns,
     arc_xy_length,
     axis_delta,
     canned_cycle_seconds,
@@ -27,6 +26,25 @@ from .machtime import (
 COMMENT_RE = re.compile(r"\([^()]*\)")
 WORD_RE = re.compile(r"([A-Za-z])\s*([+\-]?(?:\d+\.?\d*|\.\d+))", re.IGNORECASE)
 GOTO_RE = re.compile(r"GOTO\s*(\d+)", re.IGNORECASE)
+IF_GOTO_RE = re.compile(
+    r"IF\s*\[\s*(.+?)\s*\]\s*GOTO\s*(\d+)", re.IGNORECASE
+)
+WHILE_RE = re.compile(
+    r"WHILE\s*\[\s*(.+?)\s*\]\s*DO\s*(\d+)", re.IGNORECASE
+)
+DO_RE = re.compile(r"\bDO\s*(\d+)\b", re.IGNORECASE)
+END_RE = re.compile(r"\bEND\s*(\d+)\b", re.IGNORECASE)
+HASH_SET_RE = re.compile(
+    r"#(\d+)\s*=\s*((?:#\d+|[+\-]?(?:\d+\.?\d*|\.\d+)|\s*|[+\-*/()])+)",
+    re.IGNORECASE,
+)
+HASH_NUM_RE = re.compile(r"#(\d+)")
+CMP_RE = re.compile(
+    r"^\s*([+\-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+\-]?\d+)?)\s*"
+    r"(EQ|NE|LT|LE|GT|GE)\s*"
+    r"([+\-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+\-]?\d+)?)\s*$",
+    re.IGNORECASE,
+)
 N_LABEL_RE = re.compile(r"^N(\d+)\b", re.IGNORECASE)
 O_WORD_RE = re.compile(r"\bO(\d+)\b", re.IGNORECASE)
 # Header ops: "(N10 - OP1)", "(N60 - KONTROLA OSI ...)" — N number may be any value.
@@ -65,7 +83,14 @@ class Line:
     words: list[Word]
     n_label: int | None = None
     goto_target: int | None = None
-    hash_assigns: list[tuple[int, float]] = field(default_factory=list)
+    if_cond: str | None = None
+    if_goto: int | None = None
+    while_cond: str | None = None
+    loop_id: int | None = None
+    is_while: bool = False
+    is_end: bool = False
+    end_id: int | None = None
+    hash_assigns: list[tuple[int, str]] = field(default_factory=list)
     hash_words: list[tuple[str, int]] = field(default_factory=list)
 
     def letters(self, letter: str) -> list[Word]:
@@ -188,10 +213,40 @@ def _tokenize_line(raw: str, number: int) -> Line:
     code = strip_comments(raw)
     code = code.split(";", 1)[0]
     goto_target = None
-    goto_match = GOTO_RE.search(code)
-    if goto_match:
-        goto_target = int(goto_match.group(1))
-        code = GOTO_RE.sub(" ", code)
+    if_cond = None
+    if_goto = None
+    while_cond = None
+    loop_id = None
+    is_while = False
+    is_end = False
+    end_id = None
+    if_match = IF_GOTO_RE.search(code)
+    if if_match:
+        if_cond = if_match.group(1).strip()
+        if_goto = int(if_match.group(2))
+        code = IF_GOTO_RE.sub(" ", code)
+    else:
+        goto_match = GOTO_RE.search(code)
+        if goto_match:
+            goto_target = int(goto_match.group(1))
+            code = GOTO_RE.sub(" ", code)
+    while_match = WHILE_RE.search(code)
+    if while_match:
+        while_cond = while_match.group(1).strip()
+        loop_id = int(while_match.group(2))
+        is_while = True
+        code = WHILE_RE.sub(" ", code)
+    else:
+        end_match = END_RE.search(code)
+        if end_match:
+            is_end = True
+            end_id = int(end_match.group(1))
+            code = END_RE.sub(" ", code)
+        else:
+            do_match = DO_RE.search(code)
+            if do_match:
+                loop_id = int(do_match.group(1))
+                code = DO_RE.sub(" ", code)
 
     words: list[Word] = []
     for m in WORD_RE.finditer(code):
@@ -203,12 +258,11 @@ def _tokenize_line(raw: str, number: int) -> Line:
             continue
         words.append(Word(letter=letter, value=value, raw=raw_val))
 
-    hash_assigns: list[tuple[int, float]] = []
-    for m in HASH_ASSIGN_RE.finditer(code):
-        try:
-            hash_assigns.append((int(m.group(1)), float(m.group(2))))
-        except ValueError:
-            continue
+    hash_assigns: list[tuple[int, str]] = []
+    for m in HASH_SET_RE.finditer(code):
+        expr = m.group(2).strip()
+        if expr:
+            hash_assigns.append((int(m.group(1)), expr))
     hash_words: list[tuple[str, int]] = []
     for m in HASH_WORD_RE.finditer(code):
         hash_words.append((m.group(1).upper(), int(m.group(2))))
@@ -226,6 +280,13 @@ def _tokenize_line(raw: str, number: int) -> Line:
         words=words,
         n_label=n_label,
         goto_target=goto_target,
+        if_cond=if_cond,
+        if_goto=if_goto,
+        while_cond=while_cond,
+        loop_id=loop_id,
+        is_while=is_while,
+        is_end=is_end,
+        end_id=end_id,
         hash_assigns=hash_assigns,
         hash_words=hash_words,
     )
@@ -312,66 +373,93 @@ def _build_n_index(lines: list[Line]) -> dict[int, int]:
     return index
 
 
-def _execute(
-    lines: list[Line],
-    n_index: dict[int, int],
-    *,
-    p_overrides: dict[int, int] | None = None,
-    start_at: int | None = None,
-) -> set[int]:
-    """Walk until M30/M02. M97/M98 call a sub; M99 returns. GOTO jumps.
+def _eval_numeric(expr: str, hash_vars: dict[int, float]) -> float | None:
+    filled = HASH_NUM_RE.sub(
+        lambda m: repr(float(hash_vars.get(int(m.group(1)), 0.0))), expr
+    )
+    if not re.fullmatch(r"[0-9eE.+*\-/()\s]+", filled.strip()):
+        return None
+    try:
+        value = eval(filled, {"__builtins__": {}}, {})
+    except Exception:
+        return None
+    if isinstance(value, (int, float)) and math.isfinite(float(value)):
+        return float(value)
+    return None
 
-    p_overrides maps 0-based line index -> P number for operator M97 P# selection.
-    start_at, if set, begins at that 0-based index (declared op not reached by M97).
-    """
-    executed: set[int] = set()
-    i = 0 if start_at is None else start_at
-    stack: list[int] = []
-    steps = 0
-    max_steps = 2_000_000
-    n = len(lines)
-    overrides = p_overrides or {}
 
-    while 0 <= i < n and steps < max_steps:
-        steps += 1
-        executed.add(i)
-        line = lines[i]
+def _apply_hash_exprs(hash_vars: dict[int, float], assigns: list[tuple[int, str]]) -> None:
+    for n, expr in assigns:
+        value = _eval_numeric(expr, hash_vars)
+        if value is not None:
+            hash_vars[n] = value
 
-        if line.goto_target is not None:
-            target = n_index.get(line.goto_target)
-            if target is not None:
-                i = target
-                continue
-            i += 1
-            continue
 
-        if line.has_m(30, 2):
-            break
+_CMP_OPS = {
+    "EQ": operator.eq,
+    "NE": operator.ne,
+    "LT": operator.lt,
+    "LE": operator.le,
+    "GT": operator.gt,
+    "GE": operator.ge,
+}
 
-        if line.has_m(99):
-            if stack:
-                i = stack.pop()
-                continue
-            break
 
-        if line.has_m(97, 98):
-            p_val: int | None = None
-            if i in overrides:
-                p_val = overrides[i]
+def _eval_cond(expr: str, hash_vars: dict[int, float]) -> bool:
+    filled = HASH_NUM_RE.sub(
+        lambda m: repr(float(hash_vars.get(int(m.group(1)), 0.0))), expr
+    )
+    filled = filled.replace("[", " ").replace("]", " ")
+    or_ok = False
+    for or_part in re.split(r"\s+OR\s+", filled, flags=re.IGNORECASE):
+        and_ok = True
+        for piece in re.split(r"\s+AND\s+", or_part, flags=re.IGNORECASE):
+            m = CMP_RE.match(piece.strip())
+            if not m:
+                and_ok = False
+                break
+            a, op, b = float(m.group(1)), m.group(2).upper(), float(m.group(3))
+            if op in {"EQ", "NE"}:
+                same = abs(a - b) <= 1e-9 * max(1.0, abs(a), abs(b))
+                and_ok = and_ok and (same if op == "EQ" else not same)
             else:
-                p = line.first("P")
-                if p is not None:
-                    p_val = int(round(p.value))
-            if p_val is not None:
-                target = n_index.get(p_val)
-                if target is not None:
-                    stack.append(i + 1)
-                    i = target
-                    continue
+                and_ok = and_ok and _CMP_OPS[op](a, b)
+        or_ok = or_ok or and_ok
+    return or_ok
 
-        i += 1
 
-    return executed
+def _repeat_count(line: Line, default: int = 1) -> int:
+    word = line.first("L")
+    if word is None or word.value <= 0:
+        return default
+    return max(1, min(10_000, int(round(word.value))))
+
+
+def _matching_end(lines: list[Line], start_i: int, loop_id: int) -> int:
+    depth = 1
+    for j in range(start_i + 1, len(lines)):
+        line = lines[j]
+        if line.loop_id == loop_id and not line.is_end:
+            depth += 1
+        elif line.end_id == loop_id:
+            depth -= 1
+            if depth == 0:
+                return j
+    return start_i
+
+
+@dataclass
+class _CallFrame:
+    return_i: int
+    remaining: int
+    target: int
+
+
+@dataclass
+class _LoopFrame:
+    start_i: int
+    loop_id: int
+    cond: str | None
 
 
 def _declared_ops(header_comments: list[str]) -> list[tuple[int, str]]:
@@ -499,45 +587,52 @@ def _feed_on_line(line: Line, hash_vars: dict[int, float]) -> float | None:
     return resolve_hash_letter("F", line.hash_words, hash_vars)
 
 
-def parse_nc_text(
-    text: str, path: str | Path = "", *, machine: MachineProfile | None = None
-) -> ParseResult:
-    mill = machine or DEFAULT_MACHINE
-    path_obj = Path(path) if path else Path("")
-    raw_lines = text.splitlines()
-    lines = [_tokenize_line(raw, i + 1) for i, raw in enumerate(raw_lines)]
-
-    program_number = ""
-    program_title = ""
-    header_comments: list[str] = []
-    units = "unknown"
-    first_tool_idx: int | None = None
-
-    for i, line in enumerate(lines):
-        o_match = O_WORD_RE.search(strip_comments(line.raw))
-        if o_match and not program_number:
-            program_number = f"O{o_match.group(1)}"
-            if line.comments:
-                program_title = line.comments[0]
-        if line.has_g(21):
-            units = "mm"
-        elif line.has_g(20):
-            units = "inch"
-        if line.has_m(6) and line.first("T") is not None and first_tool_idx is None:
-            first_tool_idx = i
-        if first_tool_idx is None:
-            for c in line.comments:
-                if c and c not in header_comments:
-                    if program_title and c == program_title:
-                        continue
-                    header_comments.append(c)
-
-    n_index = _build_n_index(lines)
-    executed = _execute(lines, n_index)
-
+def _collect_tool_usages(lines: list[Line]) -> list[ToolUsage]:
     usages: list[ToolUsage] = []
-    current: ToolUsage | None = None
+    for i, line in enumerate(lines):
+        t_word = line.first("T")
+        if t_word is None or not line.has_m(6):
+            continue
+        sub, sub_c = _current_n_context(lines, i)
+        usages.append(
+            ToolUsage(
+                tool=int(round(t_word.value)),
+                description=_description_for(lines, i),
+                line_start=line.number,
+                line_end=line.number,
+                subprogram=sub,
+                subprogram_comment=sub_c,
+            )
+        )
+    return usages
 
+
+def _run_program(
+    lines: list[Line],
+    n_index: dict[int, int],
+    usages: list[ToolUsage],
+    mill: MachineProfile,
+    *,
+    p_overrides: dict[int, int] | None = None,
+    start_at: int | None = None,
+    inch: bool = False,
+) -> set[int]:
+    """Execute Haas/Fanuc flow and fill time / min Z on visited Txx M6.
+
+    p_overrides maps 0-based line index -> P number for operator M97 P# selection.
+    start_at, if set, begins at that 0-based index (declared op not reached by M97).
+    """
+    by_start = {u.line_start: u for u in usages}
+    executed: set[int] = set()
+    i = 0 if start_at is None else start_at
+    calls: list[_CallFrame] = []
+    loops: list[_LoopFrame] = []
+    steps = 0
+    max_steps = 2_000_000
+    n = len(lines)
+    overrides = p_overrides or {}
+
+    current: ToolUsage | None = None
     incremental = False
     abs_x: float | None = None
     abs_y: float | None = None
@@ -563,10 +658,95 @@ def parse_nc_text(
     s_rpm: float | None = None
     motion = 0
     hash_vars: dict[int, float] = {}
-    inch = units == "inch"
+    inch_now = inch
 
-    for i, line in enumerate(lines):
-        apply_hash_assigns(hash_vars, line.hash_assigns)
+    def finish_current(end_line: int) -> None:
+        nonlocal current
+        if current is not None:
+            current.line_end = max(current.line_end, end_line)
+
+    while 0 <= i < n and steps < max_steps:
+        steps += 1
+        executed.add(i)
+        line = lines[i]
+        _apply_hash_exprs(hash_vars, line.hash_assigns)
+
+        if line.if_goto is not None and line.if_cond is not None:
+            if _eval_cond(line.if_cond, hash_vars):
+                target = n_index.get(line.if_goto)
+                i = target if target is not None else i + 1
+                continue
+            i += 1
+            continue
+
+        if line.goto_target is not None:
+            target = n_index.get(line.goto_target)
+            i = target if target is not None else i + 1
+            continue
+
+        if line.is_while and line.loop_id is not None and line.while_cond is not None:
+            if _eval_cond(line.while_cond, hash_vars):
+                if not any(fr.start_i == i for fr in loops):
+                    loops.append(_LoopFrame(i, line.loop_id, line.while_cond))
+                i += 1
+                continue
+            loops[:] = [fr for fr in loops if fr.start_i != i]
+            i = _matching_end(lines, i, line.loop_id) + 1
+            continue
+
+        if line.loop_id is not None and not line.is_while and not line.is_end:
+            if not any(fr.start_i == i for fr in loops):
+                loops.append(_LoopFrame(i, line.loop_id, None))
+            i += 1
+            continue
+
+        if line.is_end and line.end_id is not None:
+            frame = None
+            for fr in reversed(loops):
+                if fr.loop_id == line.end_id:
+                    frame = fr
+                    break
+            if frame is None:
+                i += 1
+                continue
+            if frame.cond is not None:
+                i = frame.start_i
+                continue
+            i = frame.start_i + 1
+            continue
+
+        if line.has_m(30, 2):
+            break
+
+        if line.has_m(99):
+            if calls:
+                frame = calls[-1]
+                frame.remaining -= 1
+                if frame.remaining > 0:
+                    i = frame.target
+                    continue
+                calls.pop()
+                i = frame.return_i
+                continue
+            break
+
+        if line.has_m(97, 98):
+            p_val: int | None = None
+            if i in overrides:
+                p_val = overrides[i]
+            else:
+                p = line.first("P")
+                if p is not None:
+                    p_val = int(round(p.value))
+            if p_val is not None:
+                target = n_index.get(p_val)
+                if target is not None:
+                    calls.append(
+                        _CallFrame(i + 1, _repeat_count(line), target)
+                    )
+                    i = target
+                    continue
+
         f_now = _feed_on_line(line, hash_vars)
         if f_now is not None:
             feed_val = f_now
@@ -580,9 +760,9 @@ def parse_nc_text(
         if 91 in gs:
             incremental = True
         if 20 in gs:
-            inch = True
+            inch_now = True
         if 21 in gs:
-            inch = False
+            inch_now = False
         for g in gs:
             if g == 94:
                 feed_per_rev = False
@@ -636,23 +816,23 @@ def parse_nc_text(
 
         t_word = line.first("T")
         if t_word is not None and line.has_m(6):
-            if current is not None:
-                current.line_end = line.number - 1
-            tool = int(round(t_word.value))
-            sub, sub_c = _current_n_context(lines, i)
-            desc = _description_for(lines, i)
-            current = ToolUsage(
-                tool=tool,
-                description=desc,
-                line_start=line.number,
-                line_end=line.number,
-                subprogram=sub,
-                subprogram_comment=sub_c,
-                called_from_main=i in executed,
-            )
-            if feed_per_rev:
+            finish_current(line.number - 1)
+            current = by_start.get(line.number)
+            if current is None:
+                sub, sub_c = _current_n_context(lines, i)
+                current = ToolUsage(
+                    tool=int(round(t_word.value)),
+                    description=_description_for(lines, i),
+                    line_start=line.number,
+                    line_end=line.number,
+                    subprogram=sub,
+                    subprogram_comment=sub_c,
+                )
+                usages.append(current)
+                by_start[line.number] = current
+            current.called_from_main = True
+            if feed_per_rev and G95_NEXT_WARN not in current.warnings:
                 current.warnings.append(G95_NEXT_WARN)
-            usages.append(current)
             if mill.tool_change_s > 0:
                 current.add_time(mill.tool_change_s)
             cycle_active = False
@@ -662,15 +842,12 @@ def parse_nc_text(
         x_word = line.first("X")
         y_word = line.first("Y")
         z_word = line.first("Z")
-        b_word = line.first("B")
-        c_word = line.first("C")
         x_raw = x_word.value if x_word else None
         y_raw = y_word.value if y_word else None
         z_raw = z_word.value if z_word else None
-        b_raw = b_word.value if b_word else None
-        c_raw = c_word.value if c_word else None
+        b_raw = line.first("B").value if line.first("B") else None
+        c_raw = line.first("C").value if line.first("C") else None
 
-        z_before = abs_z
         fpm = feed_per_min(feed_val, per_rev=feed_per_rev, rpm=s_rpm)
         timed: float | None = 0.0
 
@@ -680,11 +857,9 @@ def parse_nc_text(
             g53_z, dz = axis_delta(g53_z, z_raw, incremental=False)
             move = math.hypot(dx, dy, dz)
             timed = seconds_for_length(
-                move, None, rapid=True, inch=inch, profile=mill
+                move, None, rapid=True, inch=inch_now, profile=mill
             )
         else:
-            abs_x, dx = axis_delta(abs_x, x_raw, incremental=incremental)
-            abs_y, dy = axis_delta(abs_y, y_raw, incremental=incremental)
             in_cycle = cycle_active and cycle_code is not None
             cycle_line = in_cycle and (
                 starting_cycle
@@ -693,43 +868,61 @@ def parse_nc_text(
                 or z_word is not None
             )
             if cycle_line:
-                if z_raw is not None:
-                    if incremental:
-                        if z_before is not None:
-                            cycle_z = z_before + z_raw
+                repeats = _repeat_count(line, 1)
+                total = 0.0
+                missing = False
+                for hole in range(repeats):
+                    z_before = abs_z
+                    if hole == 0:
+                        abs_x, dx = axis_delta(abs_x, x_raw, incremental=incremental)
+                        abs_y, dy = axis_delta(abs_y, y_raw, incremental=incremental)
+                    elif incremental:
+                        abs_x, dx = axis_delta(abs_x, x_raw, incremental=True)
+                        abs_y, dy = axis_delta(abs_y, y_raw, incremental=True)
                     else:
-                        cycle_z = z_raw
-                xy = math.hypot(dx, dy)
-                xy_t = seconds_for_length(
-                    xy, None, rapid=True, inch=inch, profile=mill
-                )
-                z_t: float | None = 0.0
-                if cycle_r is not None and cycle_z is not None:
-                    z_t = canned_cycle_seconds(
-                        cycle_code or 81,
-                        z_initial=z_before,
-                        r=cycle_r,
-                        z=cycle_z,
-                        q=cycle_q,
-                        k=cycle_k,
-                        feed=fpm,
-                        g98=g98,
-                        inch=inch,
-                        i=cycle_i,
-                        j=cycle_j,
-                        p=cycle_p,
-                        retract_mult=cycle_retract_j,
-                        profile=mill,
+                        dx, dy = 0.0, 0.0
+                    if z_raw is not None:
+                        if incremental:
+                            if z_before is not None:
+                                cycle_z = z_before + z_raw
+                        else:
+                            cycle_z = z_raw
+                    xy = math.hypot(dx, dy)
+                    xy_t = seconds_for_length(
+                        xy, None, rapid=True, inch=inch_now, profile=mill
                     )
-                    if g98 and z_before is not None:
-                        abs_z = z_before
+                    z_t: float | None = 0.0
+                    if cycle_r is not None and cycle_z is not None:
+                        z_t = canned_cycle_seconds(
+                            cycle_code or 81,
+                            z_initial=z_before,
+                            r=cycle_r,
+                            z=cycle_z,
+                            q=cycle_q,
+                            k=cycle_k,
+                            feed=fpm,
+                            g98=g98,
+                            inch=inch_now,
+                            i=cycle_i,
+                            j=cycle_j,
+                            p=cycle_p,
+                            retract_mult=cycle_retract_j,
+                            profile=mill,
+                        )
+                        if g98 and z_before is not None:
+                            abs_z = z_before
+                        else:
+                            abs_z = cycle_r
+                    if xy_t is None or z_t is None:
+                        missing = True
                     else:
-                        abs_z = cycle_r
-                if xy_t is None or z_t is None:
-                    timed = None
-                else:
-                    timed = xy_t + z_t
+                        total += xy_t + z_t
+                    if current is not None and cycle_z is not None and not g53:
+                        current.consider_z(cycle_z, line.number)
+                timed = None if missing else total
             else:
+                abs_x, dx = axis_delta(abs_x, x_raw, incremental=incremental)
+                abs_y, dy = axis_delta(abs_y, y_raw, incremental=incremental)
                 abs_z, dz = axis_delta(abs_z, z_raw, incremental=incremental)
                 if motion in (2, 3):
                     x0 = (abs_x or 0.0) - dx
@@ -754,7 +947,7 @@ def parse_nc_text(
                 else:
                     length = math.hypot(dx, dy, dz)
                 timed = seconds_for_length(
-                    length, fpm, rapid=motion == 0, inch=inch, profile=mill
+                    length, fpm, rapid=motion == 0, inch=inch_now, profile=mill
                 )
 
         abs_b, db = axis_delta(abs_b, b_raw, incremental=incremental)
@@ -768,36 +961,91 @@ def parse_nc_text(
         if current is not None:
             current.add_time(timed)
             current.add_time(rot)
+            current.line_end = line.number
+            _apply_line_to_usage(current, line, cycle_active)
+            work_z: float | None = None
+            if not g53 and cycle_active and cycle_code is not None and (
+                starting_cycle
+                or x_word is not None
+                or y_word is not None
+                or z_word is not None
+            ):
+                work_z = cycle_z
+            elif z_word is not None and not g53:
+                work_z = abs_z
+            if work_z is not None:
+                current.consider_z(work_z, line.number)
+            elif cycle_active and cycle_z is not None and not g53:
+                if line.first("X") is not None or line.first("Y") is not None:
+                    current.consider_z(cycle_z, line.number)
 
-        if current is None:
-            continue
+        i += 1
 
-        _apply_line_to_usage(current, line, cycle_active)
+    finish_current(lines[-1].number if lines else 0)
+    if current is not None and feed_per_rev and G95_NEXT_WARN not in current.warnings:
+        current.warnings.append(G95_END_WARN)
+    return executed
 
-        work_z: float | None = None
-        if not g53 and cycle_active and cycle_code is not None and (
-            starting_cycle or x_word is not None or y_word is not None or z_word is not None
-        ):
-            work_z = cycle_z
-        elif z_word is not None and not g53:
-            work_z = abs_z
 
-        if work_z is not None:
-            current.consider_z(work_z, line.number)
-        elif cycle_active and cycle_z is not None and not g53:
-            if line.first("X") is not None or line.first("Y") is not None:
-                current.consider_z(cycle_z, line.number)
+def _simulate_path(
+    lines: list[Line],
+    n_index: dict[int, int],
+    mill: MachineProfile,
+    *,
+    inch: bool,
+    p_overrides: dict[int, int] | None = None,
+    start_at: int | None = None,
+) -> tuple[list[ToolUsage], set[int]]:
+    """Fresh Txx M6 list + one programmed-path walk (M97 L, WHILE, canned L)."""
+    usages = _collect_tool_usages(lines)
+    executed = _run_program(
+        lines,
+        n_index,
+        usages,
+        mill,
+        p_overrides=p_overrides,
+        start_at=start_at,
+        inch=inch,
+    )
+    return usages, executed
 
-    if current is not None:
-        current.line_end = lines[-1].number if lines else current.line_start
-        if feed_per_rev and G95_NEXT_WARN not in current.warnings:
-            current.warnings.append(G95_END_WARN)
 
-    # Called only if the Txx M6 line itself ran (avoids marking a skipped
-    # tool as called when GOTO later lands inside its linear line range).
-    for usage in usages:
-        start_i = usage.line_start - 1
-        usage.called_from_main = start_i in executed
+def parse_nc_text(
+    text: str, path: str | Path = "", *, machine: MachineProfile | None = None
+) -> ParseResult:
+    mill = machine or DEFAULT_MACHINE
+    path_obj = Path(path) if path else Path("")
+    raw_lines = text.splitlines()
+    lines = [_tokenize_line(raw, i + 1) for i, raw in enumerate(raw_lines)]
+
+    program_number = ""
+    program_title = ""
+    header_comments: list[str] = []
+    units = "unknown"
+    first_tool_idx: int | None = None
+
+    for i, line in enumerate(lines):
+        o_match = O_WORD_RE.search(strip_comments(line.raw))
+        if o_match and not program_number:
+            program_number = f"O{o_match.group(1)}"
+            if line.comments:
+                program_title = line.comments[0]
+        if line.has_g(21):
+            units = "mm"
+        elif line.has_g(20):
+            units = "inch"
+        if line.has_m(6) and line.first("T") is not None and first_tool_idx is None:
+            first_tool_idx = i
+        if first_tool_idx is None:
+            for c in line.comments:
+                if c and c not in header_comments:
+                    if program_title and c == program_title:
+                        continue
+                    header_comments.append(c)
+
+    n_index = _build_n_index(lines)
+    inch = units == "inch"
+    usages, executed = _simulate_path(lines, n_index, mill, inch=inch)
 
     called_summaries = _summarize(usages, called_only=True)
     all_summaries = _summarize(usages, called_only=False)
@@ -814,16 +1062,20 @@ def parse_nc_text(
     if declared and selectors:
         for n_num, title in declared:
             overrides = {idx: n_num for idx in selectors}
-            op_exec = _execute(lines, n_index, p_overrides=overrides)
+            op_usages, op_exec = _simulate_path(
+                lines, n_index, mill, inch=inch, p_overrides=overrides
+            )
             n_line = n_index.get(n_num)
             if n_line is not None and n_line not in op_exec:
-                op_exec = _execute(lines, n_index, start_at=n_line)
+                op_usages, op_exec = _simulate_path(
+                    lines, n_index, mill, inch=inch, start_at=n_line
+                )
                 call = f"start N{n_num} until M30"
             else:
                 call = f"M97 P{n_num}"
             operations.append(
                 _make_operation(
-                    usages,
+                    op_usages,
                     op_exec,
                     n=n_num,
                     title=title,
@@ -844,10 +1096,12 @@ def parse_nc_text(
             n_line = n_index.get(n_num)
             if n_line is None:
                 continue
-            op_exec = _execute(lines, n_index, start_at=n_line)
+            op_usages, op_exec = _simulate_path(
+                lines, n_index, mill, inch=inch, start_at=n_line
+            )
             operations.append(
                 _make_operation(
-                    usages,
+                    op_usages,
                     op_exec,
                     n=n_num,
                     title=title,

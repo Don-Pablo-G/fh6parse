@@ -78,7 +78,7 @@ class TestSE0241282(unittest.TestCase):
         self.assertTrue(t15[0].called_from_main)
         self.assertFalse(t15[1].called_from_main)
         self.assertTrue(t15[2].called_from_main)
-        self.assertEqual(t15[1].min_z, 26.65)
+        self.assertIsNone(t15[1].min_z)
 
     def test_probe_not_called(self) -> None:
         t20 = _by_tool(self.result.usages, 20)
@@ -227,6 +227,7 @@ M30
         self.assertTrue(r.usages[0].called_from_main)
         self.assertFalse(r.usages[1].called_from_main)
         self.assertTrue(r.usages[2].called_from_main)
+        self.assertIsNone(r.usages[1].min_z)
         self.assertNotIn(2, {s.tool for s in r.called_summaries})
 
     def test_header_ops_m97_swap_until_m30(self) -> None:
@@ -527,6 +528,117 @@ M30
         self.assertIn("G95", text)
         self.assertIn("set G94", text)
         self.assertNotIn("EACH CHANGE", text)
+
+
+class TestProgrammedPath(unittest.TestCase):
+    def test_while_incremental_z(self) -> None:
+        src = """O1
+T1 M6
+G90 G94
+G0 X0 Y0 Z0
+#100=0
+WHILE [#100 LT 4] DO1
+#100=#100+1
+G91 G1 Z-1. F100
+G90
+END1
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.min_z, -4.0)
+        self.assertAlmostEqual(u.time_s, 2.4, places=3)
+
+    def test_if_goto_skips_tool_min_z(self) -> None:
+        src = """O1
+T1 M6
+G90 G1 Z-1. F100
+#100=1
+IF [#100 EQ 1] GOTO 20
+T2 M6
+G1 Z-99. F100
+N20
+T3 M6
+G1 Z-4. F100
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertTrue(r.usages[0].called_from_main)
+        self.assertFalse(r.usages[1].called_from_main)
+        self.assertTrue(r.usages[2].called_from_main)
+        self.assertIsNone(r.usages[1].min_z)
+        self.assertEqual(r.usages[2].min_z, -4.0)
+
+    def test_m97_l_repeats_sub(self) -> None:
+        src = """O1
+T1 M6
+G90 G94 G0 X0 Y0 Z0
+M97 P100 L3
+M30
+N100
+G91 G1 Z-1. F60
+G90
+M99
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.min_z, -3.0)
+        self.assertAlmostEqual(u.time_s, 3.0, places=3)
+
+    def test_g81_l_g90_repeats_same_xy(self) -> None:
+        one = """O1
+T1 M6
+G90 G94 G0 X0 Y0 Z50
+G98 G81 X0 Y0 Z26 R33 F40
+G80
+M30
+"""
+        eight = """O1
+T1 M6
+G90 G94 G0 X0 Y0 Z50
+G98 G81 X0 Y0 Z26 R33 L8 F40
+G80
+M30
+"""
+        t1 = parse_nc_text(one, "t.nc").usages[0]
+        t8 = parse_nc_text(eight, "t.nc").usages[0]
+        self.assertEqual(t1.min_z, 26.0)
+        self.assertEqual(t8.min_z, 26.0)
+        self.assertAlmostEqual(t8.time_s / t1.time_s, 8.0, delta=0.35)
+
+    def test_g81_l_g91_steps_xy(self) -> None:
+        src = """O1
+T1 M6
+G90 G94 G0 X0 Y0 Z10
+G91 G98 G81 X10. Y0. Z-12. R-8. L8 F300
+G80
+M30
+"""
+        listed = """O1
+T1 M6
+G90 G94 G0 X0 Y0 Z10
+G91 G98 G81 X10. Y0. Z-12. R-8. F300
+X10.
+X10.
+X10.
+X10.
+X10.
+X10.
+X10.
+G80
+M30
+"""
+        one = """O1
+T1 M6
+G90 G94 G0 X0 Y0 Z10
+G91 G98 G81 X10. Y0. Z-12. R-8. F300
+G80
+M30
+"""
+        u_l = parse_nc_text(src, "t.nc").usages[0]
+        u_xy = parse_nc_text(listed, "t.nc").usages[0]
+        u_one = parse_nc_text(one, "t.nc").usages[0]
+        self.assertAlmostEqual(u_l.min_z, u_xy.min_z)
+        self.assertAlmostEqual(u_l.time_s, u_xy.time_s, places=2)
+        self.assertGreater(u_l.time_s, u_one.time_s)
 
 
 if __name__ == "__main__":

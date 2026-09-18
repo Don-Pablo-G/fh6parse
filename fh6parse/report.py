@@ -318,7 +318,7 @@ def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
         "+ means missing F or S."
     )
     w("Cycle = that op until M30. The chart under Cycle is each T as a share.")
-    w("Each operation is simulated until M30. M97 calls a sub; M99 returns.")
+    w("Each operation is simulated until M30 (GOTO, IF, WHILE/DO, M97 L, canned L).")
     w("Select a header op by changing M97 P# in main.")
     w("[ ] = loaded")
     ops = result.operations or []
@@ -406,7 +406,7 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
     w(dash)
     w("MinZ=work Z")
     w(f"Time≈moves {_time_assumptions(result, compact=True)}")
-    w("Until M30; M99 returns")
+    w("Until M30; loops/L/M99")
     w("Op = change M97 P#")
     for op in result.operations or []:
         w(dash)
@@ -737,7 +737,7 @@ Time is programmed motion and canned cycles (approx;
 {escape(_time_assumptions(result))}). Cycle is the sum for
 that operation until M30. The chart under Cycle is each T as a share of that
 cycle. Each Txx M6 also shows its own %. A trailing + means missing F or S.
-Each operation is simulated until M30 (M97 calls a sub, M99 returns).
+Each operation is simulated until M30 (GOTO, IF, WHILE/DO, M97 L, canned L).
 Select a header op by changing M97 P# in main.</p>
 {"".join(op_html)}
 <div class="sign">
@@ -825,7 +825,7 @@ pre.chart {
     a("<div>Min Z = work Z</div>")
     a(f"<div>Time ≈ moves {escape(_time_assumptions(result, compact=True))}</div>")
     if not short:
-        a("<div>Until M30; M99 returns</div>")
+        a("<div>Until M30; loops/L/M99</div>")
         a("<div>Op = change M97 P#</div>")
     if not result.operations:
         a("<div>(no operations)</div>")
