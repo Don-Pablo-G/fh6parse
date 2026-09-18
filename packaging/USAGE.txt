@@ -57,8 +57,10 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   80 mm width; height is cropped to the part (a long shaft is a thin strip).
   Update: if origin (git GUI) or GitHub Releases (frozen exe) has a newer
   build, a yellow UPDATE button appears after launch. One click installs and
-  restarts. Never automatic. Frozen exe: packaging\build_windows.bat then
-  packaging\publish_windows.ps1 (needs gh). Keep the ini next to the exe.
+  restarts. Never automatic. Frozen exe: bump version, git tag vX.Y.Z, push the
+  tag — GitHub Actions builds and attaches fh6parse-X.Y.Z-windows-x64.exe.
+  Local fallback: packaging\build_windows.bat then packaging\publish_windows.ps1
+  (needs gh). Keep the ini next to the exe.
 
 Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
   Full wiring + OS + printer + update: packaging/LINUX-KIOSK.md

@@ -16,6 +16,7 @@ from fh6parse.update import (
     parse_windows_release,
     perform_frozen_exe_update,
     perform_update,
+    release_tag_version,
     version_from_text,
     version_key,
 )
@@ -346,6 +347,19 @@ class TestWindowsExeRelease(unittest.TestCase):
     def test_version_key_orders_dots(self) -> None:
         self.assertLess(version_key("1.3.4"), version_key("1.3.10"))
         self.assertEqual(version_key("v1.3.4"), version_key("1.3.4"))
+
+    def test_release_tag_strips_v_prefix(self) -> None:
+        self.assertEqual(release_tag_version("v1.4.0"), "1.4.0")
+        self.assertEqual(release_tag_version("1.4.0"), "1.4.0")
+        self.assertEqual(release_tag_version(" V1.4.1 "), "1.4.1")
+
+    def test_workflow_builds_named_windows_exe(self) -> None:
+        path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "windows-exe.yml"
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("windows-latest", text)
+        self.assertIn('tags: ["v*"]', text)
+        self.assertIn("fh6parse-$Ver-windows-x64.exe", text)
+        self.assertIn("gh release create", text)
 
     def test_newer_asset_is_available(self) -> None:
         payload = {

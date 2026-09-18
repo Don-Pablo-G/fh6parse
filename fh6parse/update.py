@@ -46,6 +46,14 @@ def version_key(text: str) -> tuple[int, ...]:
     return tuple(nums) if nums else (0,)
 
 
+def release_tag_version(tag: str) -> str:
+    """v1.4.0 or 1.4.0 → 1.4.0. CI refuses a tag that does not match the package."""
+    text = (tag or "").strip()
+    if len(text) >= 2 and text[0] in "vV" and text[1].isdigit():
+        return text[1:]
+    return text
+
+
 def find_git_root(start: Path) -> Path | None:
     """Nearest directory that contains `.git`, walking up from start."""
     path = start.resolve()

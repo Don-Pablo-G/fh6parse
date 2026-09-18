@@ -1,4 +1,6 @@
 # Publish the Windows one-file exe as a GitHub Release so office PCs can UPDATE.
+# Prefer: bump version, git tag vX.Y.Z, push the tag — GitHub Actions builds and
+# publishes. This script is the local fallback (needs PyInstaller + gh).
 # Build first: packaging\build_windows.bat
 # Then: gh auth login   (once)
 #       powershell -File packaging\publish_windows.ps1
