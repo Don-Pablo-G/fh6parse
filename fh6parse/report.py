@@ -9,7 +9,7 @@ import base64
 import textwrap
 import webbrowser
 
-from .parser import BangNote, Operation, ParseResult, ToolUsage
+from .parser import BangNote, Operation, ParseResult, ToolSummary, ToolUsage
 from .machtime import DEFAULT_MACHINE, format_machine_time
 
 
@@ -181,6 +181,33 @@ def _fmt_h(h: int | None) -> str:
 
 def _fmt_d(d: int | None) -> str:
     return f"D{d}" if d is not None else ""
+
+
+def _summary_hds(s: ToolSummary) -> str:
+    """H/D/S to load for this T (unique values across its Txx M6 uses)."""
+    hs: list[str] = []
+    ds: list[str] = []
+    speeds: list[str] = []
+    for u in s.usages:
+        h = _fmt_h(u.h_offset)
+        if h and h not in hs:
+            hs.append(h)
+        d = _fmt_d(u.d_offset)
+        if d and d not in ds:
+            ds.append(d)
+        sp = _fmt_s(u.s_rpm)
+        if sp and sp not in speeds:
+            speeds.append(sp)
+    return "  ".join(hs + ds + speeds)
+
+
+def _summary_warnings(s: ToolSummary) -> list[str]:
+    seen: list[str] = []
+    for u in s.usages:
+        for warn in u.warnings:
+            if warn not in seen:
+                seen.append(warn)
+    return seen
 
 
 def _units_label(units: str) -> str:
@@ -425,7 +452,7 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
 
 
 def _format_text_80mm_min(result: ParseResult, *, generated: datetime | None) -> str:
-    """48-column ticket: per operation T, description, min Z, warnings."""
+    """48-column ticket: per operation T, H/D/S to load, min Z, mismatch flags."""
     now = generated or datetime.now()
     n = THERMAL_WIDTH
     bar = "=" * n
@@ -466,10 +493,12 @@ def _format_text_80mm_min(result: ParseResult, *, generated: datetime | None) ->
             desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
             w(f"T{s.tool}")
             block(desc)
+            load = _summary_hds(s)
+            if load:
+                block(load)
             w(f"MinZ {_fmt_z(s.min_z)}")
-            for u in s.usages:
-                for warn in u.warnings:
-                    block(f"! {warn}")
+            for warn in _summary_warnings(s):
+                block(f"! {warn}")
             w(dash)
 
     w("Op: ________")
@@ -819,12 +848,15 @@ pre.chart {
             else:
                 a(f'<div class="tline"><span class="box"></span>T{s.tool}</div>')
             a(f'<div class="d">{escape(desc)}</div>')
+            if short:
+                load = _summary_hds(s)
+                if load:
+                    a(f'<div class="d">{escape(load)}</div>')
             a(f'<div class="kv"><span>Min Z</span><span>{escape(_fmt_z(s.min_z))}</span></div>')
             if not short:
                 a(f'<div class="kv"><span>Time</span><span>{escape(_time_of(s))}</span></div>')
-            for u in s.usages:
-                for warn in u.warnings:
-                    a(f'<div class="warn">! {escape(warn)}</div>')
+            for warn in _summary_warnings(s):
+                a(f'<div class="warn">! {escape(warn)}</div>')
             a("</div>")
         if short:
             continue

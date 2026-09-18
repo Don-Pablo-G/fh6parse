@@ -495,6 +495,39 @@ class TestReport(unittest.TestCase):
                 msg=f"line too wide for 80mm-min ({len(line)}): {line!r}",
             )
 
+    def test_80mm_min_shows_hds_and_mismatch_flags(self) -> None:
+        src = """O1
+T1 M6
+G43 Z10. H1 D99
+S1200
+G1 Z-1. F100
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        text = format_report(r, paper=PAPER_80MM_MIN)
+        self.assertIn("T1", text)
+        self.assertIn("H1", text)
+        self.assertIn("D99", text)
+        self.assertIn("S1200", text)
+        self.assertIn("! D99 does not match T1", text)
+        self.assertNotIn("EACH CHANGE", text)
+        html = format_print_html(r, paper=PAPER_80MM_MIN)
+        self.assertIn("H1", html)
+        self.assertIn("D99", html)
+        self.assertIn("S1200", html)
+        self.assertIn("D99 does not match T1", html)
+
+    def test_80mm_min_flags_g95_left_on(self) -> None:
+        src = """O1
+T1 M6
+G95 G1 Z-5. F0.2
+M30
+"""
+        text = format_report(parse_nc_text(src, "t.nc"), paper=PAPER_80MM_MIN)
+        self.assertIn("G95", text)
+        self.assertIn("set G94", text)
+        self.assertNotIn("EACH CHANGE", text)
+
 
 if __name__ == "__main__":
     unittest.main()

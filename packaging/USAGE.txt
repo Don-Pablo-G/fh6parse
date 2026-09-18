@@ -26,7 +26,8 @@ Rapids and tool-change time come from the mill in fh6parse-kiosk.ini
 ([machine.<id>] plus kiosk.machine). Built-in default is 20 m/min and 0 s
 tool change. No accel. A trailing + means missing F or S.
 Each operation shows Cycle (that path until M30) and a share chart of each T.
-FULL also prints % of cycle on each Txx M6. Text/80 mm uses a solid block bar
+FULL also prints % of cycle on each Txx M6. MIN adds H/D/S to load and
+H/D/G95 mismatch flags on that short slip. Text/80 mm uses a solid block bar
 (CP852); A4 HTML uses a black CSS track.
 
 Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
@@ -88,7 +89,7 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
   Escape closes settings first, then leaves fullscreen, then closes.
 
   Encoder highlights a file. FULL prints the current 80 mm ticket; MIN prints
-  the short ticket (T, description, min Z, warnings per operation).
+  the short ticket (T, H/D/S to load, description, min Z, mismatch flags).
   After 60 seconds idle the screen goes black. Rotary encoder, USB insert,
   keyboard, or mouse wakes it. GPIO print buttons while asleep are ignored.
 
