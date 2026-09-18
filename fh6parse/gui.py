@@ -16,6 +16,7 @@ from .cadmark import (
     insert_file_row,
     make_file_tree,
     row_is_ready,
+    step_photo,
 )
 from .i18n import GUI_DEFAULT, file_count, parse_language, t, update_button_label
 from .kiosk import load_kiosk_config, parse_gui_paper, save_kiosk_values, save_model_roots, ui_overlay_path
@@ -60,6 +61,8 @@ class ToolReportApp(tk.Tk):
         self._model_job: str | None = None
         self._pending_update: UpdateCheck | None = None
         self._updating = False
+        self._iso_photo = None
+        self._iso_path: Path | None = None
 
         self._build()
         self._apply_language()
@@ -171,6 +174,7 @@ class ToolReportApp(tk.Tk):
         body.add(left, weight=1)
 
         right = ttk.Frame(body)
+        self.iso_label = ttk.Label(right)
         self.lbl_report = ttk.Label(right)
         self.lbl_report.pack(anchor=tk.W)
         text_frame = ttk.Frame(right)
@@ -338,6 +342,35 @@ class ToolReportApp(tk.Tk):
             return []
         return self._models.ready_images(path)
 
+    def _hide_iso(self) -> None:
+        self._iso_photo = None
+        self._iso_path = None
+        self.iso_label.configure(image="")
+        self.iso_label.pack_forget()
+
+    def _refresh_iso(self) -> None:
+        selected = self._selected_result()
+        if selected is None:
+            self._hide_iso()
+            return
+        path, _ = selected
+        images = self._images_for(path)
+        if not images:
+            self._hide_iso()
+            return
+        png = images[0]
+        if self._iso_path == png and self._iso_photo is not None:
+            return
+        photo = step_photo(self, png, max_width=480, max_height=360)
+        if photo is None:
+            self._hide_iso()
+            return
+        self._iso_photo = photo
+        self._iso_path = png
+        self.iso_label.configure(image=photo)
+        if not self.iso_label.winfo_ismapped():
+            self.iso_label.pack(anchor=tk.N, pady=(0, 8), before=self.lbl_report)
+
     def _start_models(self) -> None:
         if self._models is not None:
             self._models.close()
@@ -383,6 +416,7 @@ class ToolReportApp(tk.Tk):
             elif not self._model_roots:
                 extra = f"  ·  {self._tr('step_hint')}"
             self._status_loaded(extra)
+            self._refresh_iso()
 
     def choose_model_roots(self) -> None:
         chosen = filedialog.askdirectory(title=self._tr("choose_step"))
@@ -481,6 +515,7 @@ class ToolReportApp(tk.Tk):
         self.preview.delete("1.0", tk.END)
         selected = self._selected_result()
         if selected is None:
+            self._refresh_iso()
             return
         _path, result = selected
         paper = self._paper.get()
@@ -490,6 +525,7 @@ class ToolReportApp(tk.Tk):
             self.preview.configure(width=50, font=("Consolas", 11), wrap=tk.NONE)
         else:
             self.preview.configure(width=82, font=("Consolas", 10), wrap=tk.WORD)
+        self._refresh_iso()
 
     def choose_out_dir(self) -> None:
         kwargs: dict[str, str] = {}

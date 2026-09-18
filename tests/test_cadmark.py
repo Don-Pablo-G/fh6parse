@@ -52,3 +52,26 @@ class TestCadMark(unittest.TestCase):
         self.assertEqual(grid[-1][0], bg)
         self.assertEqual(grid[0][-1], bg)
         self.assertEqual(grid[-1][-1], bg)
+
+
+class TestStepZoom(unittest.TestCase):
+    def test_ticket_png_fits_kiosk_pane(self) -> None:
+        from fh6parse.cadmark import step_zoom_factor
+
+        # Stacked ticket bitmap: 512 × (240 + 8 + 240).
+        factor = step_zoom_factor(512, 488, 552, 200)
+        self.assertGreaterEqual(factor, 3)
+        self.assertLessEqual(512 // factor, 552)
+        self.assertLessEqual(488 // factor, 200)
+
+    def test_small_png_stays_1x(self) -> None:
+        from fh6parse.cadmark import step_zoom_factor
+
+        self.assertEqual(step_zoom_factor(100, 80, 400, 300), 1)
+
+    def test_wide_png_shrinks_to_width(self) -> None:
+        from fh6parse.cadmark import step_zoom_factor
+
+        factor = step_zoom_factor(960, 120, 480, 360)
+        self.assertEqual(factor, 2)
+        self.assertLessEqual(960 // factor, 480)

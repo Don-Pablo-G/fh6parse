@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -79,6 +80,57 @@ def cube_photo(
         trans=trans,
     )
     return ready, empty
+
+
+def step_zoom_factor(
+    width: int, height: int, max_width: int, max_height: int
+) -> int:
+    """Integer subsample so the ticket PNG fits a screen pane."""
+    max_width = max(1, int(max_width))
+    max_height = max(1, int(max_height))
+    width = max(1, int(width))
+    height = max(1, int(height))
+    factor = 1
+    while (width // factor > max_width or height // factor > max_height) and factor < 16:
+        factor += 1
+    return factor
+
+
+def step_photo(
+    master: tk.Misc,
+    path: Path,
+    *,
+    max_width: int,
+    max_height: int,
+) -> tk.PhotoImage | None:
+    """Load a stacked isometric PNG and shrink it to the preview pane."""
+    import tkinter as tk
+
+    max_width = max(1, int(max_width))
+    max_height = max(1, int(max_height))
+    try:
+        from PIL import Image, ImageTk
+
+        img = Image.open(path)
+        try:
+            resample = Image.Resampling.LANCZOS
+        except AttributeError:
+            resample = Image.LANCZOS
+        img.thumbnail((max_width, max_height), resample)
+        return ImageTk.PhotoImage(img, master=master)
+    except Exception:
+        pass
+    try:
+        photo = tk.PhotoImage(file=str(path), master=master)
+    except (tk.TclError, OSError):
+        return None
+    w, h = photo.width(), photo.height()
+    if w < 1 or h < 1:
+        return None
+    factor = step_zoom_factor(w, h, max_width, max_height)
+    if factor > 1:
+        photo = photo.subsample(factor, factor)
+    return photo
 
 
 def _photo_gif(

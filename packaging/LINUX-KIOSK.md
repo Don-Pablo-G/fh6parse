@@ -389,7 +389,7 @@ If the program **has** a revision, only a STEP file with the **same** rev is use
 | `SE0241282.nc` | `O01282 (SE0241282-0 …)` | `SE0241282-0.stp` (or `_Rev0`) |
 | `000814086.nc` | title `000814086 OP1/OP2` | `000814086_Rev02.stp` if that is latest |
 
-**5. On the screen**, a small **wireframe 3D cube** appears next to the file when the bitmap is rendered and ready (same icon as the legend under the title — the same visible-edge isometric language as the ticket). The walk and render run in the background for every USB file in the list. Cache: `/tmp/fh6parse-models`.
+**5. On the screen**, a small **wireframe 3D cube** appears next to the file when the bitmap is rendered and ready (same icon as the legend under the title — the same visible-edge isometric language as the ticket). The **stacked isometric** itself is shown under the highlight preview (and above the Windows GUI report) so a wrong STEP can be caught before print. The walk and render run in the background for every USB file in the list. Cache: `/tmp/fh6parse-models`.
 
 On **Windows**, the GUI also searches next to the opened NC file. **STEP folders…** is the NAS fallback. Paths are saved as `model_roots` in `fh6parse-kiosk.ini` next to the exe. The Windows one-file build bundles the CAD stack; print still works if a model is missing.
 
@@ -430,7 +430,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 
 1. Power on. Screen shows **Włóż pendrive** / **Insert USB** (or the last stick if it was already plugged in). The kiosk is Polish unless settings were changed.
 2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear.
-3. Turn the encoder to highlight a file. The panel under the list shows each operation’s tool count and cycle time, and whether the STEP views are ready. A **3D cube** next to the name also means the STEP views are ready. Check OP1 vs OP2 here before printing.
+3. Turn the encoder to highlight a file. The panel under the list shows each operation’s tool count and cycle time, and whether the STEP views are ready. A **3D cube** next to the name also means the STEP views are ready; the stacked isometric appears under the preview when it is. Check OP1 vs OP2 here before printing.
 4. **FULL** — 80 mm ticket: stacked line-art isometrics when ready, then operations, cycle time, a share chart of each T, tool list, each tool change (time and % of cycle), warnings, min Z.
 5. **MIN** — short ticket: stacked line-art isometrics when ready, then per operation cycle time, share chart of each T, then T, H/D/S to load, description, min Z, and H/D/G95 mismatch flags.
 6. If there is no cube, print anyway. The slip is text only.
@@ -635,6 +635,7 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | --- | --- |
 | Stick has `Program.nc` + matching `.stp` (root or subfolder) | |
 | **3D cube** appears when the model is ready (no NAS needed) | |
+| Stacked isometric on the kiosk preview / Windows GUI (not paper only) | |
 | Two stacked views, part not a flat 45° slab (true isometric) | |
 | Black lines on white — no grey shading | |
 | Through-holes as ellipses, not filled blobs | |
@@ -643,5 +644,5 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Settings (**F2** / **PL** chip): language, BCM pins, ticks per tooth; survives restart | |
 | Clicky encoder: rest is stable; highlight changes halfway to the next tooth | |
 
-Windows office PC: double-click the exe (or `python -m fh6parse --gui` from a git clone). **Polski / English** radios at the top right (default English). Set **STEP folders…**. A wireframe cube means the STEP bitmap is ready. Windows print is still the browser dialog, not `/dev/usb/lp0`. If GitHub (frozen exe) or origin (git) has a newer build, a yellow **UPDATE** button appears after launch — one click, then the window restarts. Publish a new exe with `packaging\build_windows.bat` then `packaging\publish_windows.ps1`. Do not overwrite `fh6parse-kiosk.ini` next to the exe.
+Windows office PC: double-click the exe (or `python -m fh6parse --gui` from a git clone). **Polski / English** radios at the top right (default English). Set **STEP folders…**. A wireframe cube means the STEP bitmap is ready; the stacked isometric also appears above the report preview. Windows print is still the browser dialog, not `/dev/usb/lp0`. If GitHub (frozen exe) or origin (git) has a newer build, a yellow **UPDATE** button appears after launch — one click, then the window restarts. Publish a new exe with `packaging\build_windows.bat` then `packaging\publish_windows.ps1`. Do not overwrite `fh6parse-kiosk.ini` next to the exe.
 

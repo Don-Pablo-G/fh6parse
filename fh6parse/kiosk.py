@@ -22,6 +22,7 @@ from .cadmark import (
     insert_file_row,
     make_file_tree,
     row_is_ready,
+    step_photo,
 )
 from .i18n import (
     KIOSK_DEFAULT,
@@ -459,6 +460,8 @@ class KioskApp(tk.Tk):
         self._preview_job: str | None = None
         self._preview_gen = 0
         self._preview_cache: dict[str, tuple[float, str, ParseResult]] = {}
+        self._iso_photo = None
+        self._iso_path: Path | None = None
 
         self.title(t(self._lang, "app_title_kiosk", version=__version__))
         self.configure(bg=BG)
@@ -559,6 +562,13 @@ class KioskApp(tk.Tk):
             anchor="w",
         )
         self.preview.pack(fill=tk.X, pady=(10, 0))
+        self.iso_label = tk.Label(
+            mid,
+            bg=BG,
+            bd=0,
+            highlightthickness=0,
+            anchor="w",
+        )
 
         foot = tk.Frame(self, bg=BG)
         foot.pack(fill=tk.X, padx=16, pady=(4, 16))
@@ -1475,12 +1485,45 @@ class KioskApp(tk.Tk):
         self._store_result(path, result)
         return result
 
+    def _hide_iso(self) -> None:
+        self._iso_photo = None
+        self._iso_path = None
+        self.iso_label.config(image="")
+        self.iso_label.pack_forget()
+
+    def _refresh_iso(self, path: Path | None) -> None:
+        if path is None or self._models is None:
+            self._hide_iso()
+            return
+        images = self._models.ready_images(path)
+        if not images:
+            self._hide_iso()
+            return
+        png = images[0]
+        if self._iso_path == png and self._iso_photo is not None:
+            return
+        photo = step_photo(
+            self,
+            png,
+            max_width=max(80, self.cfg.width - 48),
+            max_height=200,
+        )
+        if photo is None:
+            self._hide_iso()
+            return
+        self._iso_photo = photo
+        self._iso_path = png
+        self.iso_label.config(image=photo)
+        if not self.iso_label.winfo_ismapped():
+            self.iso_label.pack(anchor="w", pady=(8, 0))
+
     def _clear_preview(self) -> None:
         self._preview_gen += 1
         if self._preview_job:
             self.after_cancel(self._preview_job)
             self._preview_job = None
         self.preview.config(text="", fg=ACCENT)
+        self._hide_iso()
 
     def _show_preview(self, result: ParseResult, path: Path) -> None:
         self.preview.config(
@@ -1489,6 +1532,7 @@ class KioskApp(tk.Tk):
             ),
             fg=ACCENT,
         )
+        self._refresh_iso(path)
 
     def _schedule_preview(self) -> None:
         self._preview_gen += 1
@@ -1498,7 +1542,9 @@ class KioskApp(tk.Tk):
         path = self._selected()
         if path is None:
             self.preview.config(text="", fg=ACCENT)
+            self._hide_iso()
             return
+        self._refresh_iso(path)
         hit = self._cached_result(path)
         if hit is not None:
             self._show_preview(hit, path)
@@ -1549,6 +1595,7 @@ class KioskApp(tk.Tk):
             self.preview.config(
                 text=self._tr("preview_fail", name=path.name), fg=ERR
             )
+            self._refresh_iso(path)
             return
         self._store_result(path, result)
         self._show_preview(result, path)
