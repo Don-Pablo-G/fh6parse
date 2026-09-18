@@ -16,6 +16,9 @@ Output folder
 
 Header comments like (N10 - OP1) / (N20 - OP2) get a separate tool list each,
 as if you changed M97 P# in main. Each list follows M97/M99 until M30.
+Tool description: comment on the Txx M6 line, or the line above, plus the
+line immediately below. Comments containing ! are listed as programmer notes.
+G95 (feed per rev) still on at the next T or M30 prints a WARNING to set G94.
 
 Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   A4:     A4 paper, 100%, headers/footers off

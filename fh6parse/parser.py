@@ -16,6 +16,8 @@ O_WORD_RE = re.compile(r"\bO(\d+)\b", re.IGNORECASE)
 HEADER_OP_RE = re.compile(r"N(\d+)\s*[-–]\s*(.*)$", re.IGNORECASE)
 
 CYCLE_START = {73, 74, 76, 81, 82, 83, 84, 85, 86, 87, 88, 89}
+G95_NEXT_WARN = "G95 still active (feed per rev); set G94"
+G95_END_WARN = "G95 still active at M30; set G94"
 
 
 def _parse_number(raw: str) -> float:
@@ -127,12 +129,21 @@ class Operation:
 
 
 @dataclass
+class BangNote:
+    """Parenthesis comment that contains '!' — programmer → operator."""
+
+    line: int
+    text: str
+
+
+@dataclass
 class ParseResult:
     path: str
     filename: str
     program_number: str
     program_title: str
     header_comments: list[str]
+    bang_notes: list[BangNote]
     units: str
     usages: list[ToolUsage]
     called_summaries: list[ToolSummary]
@@ -178,22 +189,69 @@ def _tokenize_line(raw: str, number: int) -> Line:
     )
 
 
+def _is_pad_line(line: Line) -> bool:
+    if not line.raw.strip() or line.raw.strip() == "%":
+        return True
+    if (
+        set(line.m_ints()) <= {0, 1}
+        and not ({w.letter for w in line.words} - {"M"})
+        and not line.comments
+    ):
+        return True
+    return False
+
+
+def _is_tool_change(line: Line) -> bool:
+    return bool(line.has_m(6) and line.first("T"))
+
+
+def _last_comment(line: Line) -> str:
+    for c in reversed(line.comments):
+        if c:
+            return c
+    return ""
+
+
 def _description_for(lines: list[Line], idx: int) -> str:
+    parts: list[str] = []
     same = [c for c in lines[idx].comments if c]
     if same:
-        return same[-1]
-    for j in range(idx - 1, -1, -1):
-        prev = lines[j]
-        if not prev.raw.strip() or prev.raw.strip() == "%":
+        parts.extend(same)
+    else:
+        for j in range(idx - 1, -1, -1):
+            prev = lines[j]
+            if _is_pad_line(prev):
+                continue
+            if prev.comments and not _is_tool_change(prev):
+                comment = _last_comment(prev)
+                if comment:
+                    parts.append(comment)
+            break
+    for j in range(idx + 1, len(lines)):
+        nxt = lines[j]
+        if _is_pad_line(nxt):
             continue
-        if set(prev.m_ints()) <= {0, 1} and not (
-            {w.letter for w in prev.words} - {"M"}
-        ) and not prev.comments:
-            continue
-        if prev.comments and not (prev.has_m(6) and prev.first("T")):
-            return prev.comments[-1]
+        if nxt.comments and not _is_tool_change(nxt):
+            comment = _last_comment(nxt)
+            if comment and comment not in parts:
+                parts.append(comment)
         break
-    return ""
+    return " / ".join(parts)
+
+
+def _collect_bang_notes(lines: list[Line]) -> list[BangNote]:
+    notes: list[BangNote] = []
+    seen: set[tuple[int, str]] = set()
+    for line in lines:
+        for c in line.comments:
+            if "!" not in c:
+                continue
+            key = (line.number, c)
+            if key in seen:
+                continue
+            seen.add(key)
+            notes.append(BangNote(line=line.number, text=c))
+    return notes
 
 
 def _int_or_none(word: Word | None) -> int | None:
@@ -432,6 +490,7 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
     abs_z: float | None = None
     cycle_active = False
     cycle_z: float | None = None
+    feed_per_rev = False
 
     for i, line in enumerate(lines):
         gs = line.g_ints()
@@ -439,6 +498,11 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
             incremental = False
         if 91 in gs:
             incremental = True
+        for g in gs:
+            if g == 94:
+                feed_per_rev = False
+            elif g == 95:
+                feed_per_rev = True
 
         machine = line.has_g(53, 28)
         if 80 in gs:
@@ -464,6 +528,8 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
                 subprogram_comment=sub_c,
                 called_from_main=i in executed,
             )
+            if feed_per_rev:
+                current.warnings.append(G95_NEXT_WARN)
             usages.append(current)
             # Tool change does not by itself reset Z modal position, but
             # a new usage should not inherit the previous tool's min Z.
@@ -505,6 +571,8 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
 
     if current is not None:
         current.line_end = lines[-1].number if lines else current.line_start
+        if feed_per_rev and G95_NEXT_WARN not in current.warnings:
+            current.warnings.append(G95_END_WARN)
 
     # Called only if the Txx M6 line itself ran (avoids marking a skipped
     # tool as called when GOTO later lands inside its linear line range).
@@ -574,6 +642,7 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
         program_number=program_number,
         program_title=program_title,
         header_comments=header_comments,
+        bang_notes=_collect_bang_notes(lines),
         units=units,
         usages=usages,
         called_summaries=called_summaries,

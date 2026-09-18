@@ -411,7 +411,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 5. **MIN** — short ticket: stacked line-art isometrics when ready, then per operation only T, description, min Z, warnings.
 6. If there is no cube, print anyway. The slip is text only.
 7. Status after a good print: **`device:/dev/usb/lp0`**. If it says `lp:…`, CUPS took the job — **§3.5**.
-8. **WARNING:** lines: `H{n} does not match T{tool}` on G43, and `D{n} does not match T{tool}` on any D (G43 or G41/G42). Matching H/D stay quiet.
+8. **WARNING:** lines: `H{n} does not match T{tool}` on G43, `D{n} does not match T{tool}` on any D, and `G95 still active…` if feed-per-rev was not cancelled with G94 before the next tool (or M30). Matching H/D stay quiet. Comments with `!` print as **Programmer notes**.
 9. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
 10. Wake: encoder, inserting a USB stick, or a **keyboard / mouse**. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored.
 11. Language: **F2** / **C** or the **PL**/**EN** chip (mouse) — **§3.6**. Encoder does not open settings.
@@ -453,6 +453,7 @@ Parse happens at print time, not when the list is shown. STEP matching and rende
 | Pictures vanished after `--update` | `--update` runs `pip install -e .` **without** `[models]` when `pyproject.toml` changes. Re-run `sudo pip3 install -e '.[models]' --break-system-packages`. |
 | Pictures still shaded / grey mush | Old cache. `rm -rf /tmp/fh6parse-models` and wait for the cube again. The current renderer is black edges on white only. |
 | No `WARNING:` for a wrong D | Clone is older than this pull. `git log -1 --oneline` must mention D vs T. D is checked on G43 and on G41/G42. |
+| No `WARNING:` after tapping / G95 | Next `Txx M6` (or M30) must still be in G95. A `G94` on the next tool’s line cancels it. |
 
 CLI without the kiosk (reports next to the NC file):
 
@@ -601,6 +602,8 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Wrong D on G43 → `WARNING: D… does not match T…` | |
 | Wrong D on G41/G42 → same D warning, once | |
 | Matching D (= T) → no D warning | |
+| G95 then next T without G94 → `WARNING: G95 still active…` | |
+| `(…!…)` comments listed as programmer notes | |
 
 **4. STEP views** (`.stp` on the USB stick, or `model_roots`; CAD extra required)
 

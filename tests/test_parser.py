@@ -341,6 +341,97 @@ M30
         self.assertIn("WARNING: D99 does not match T1", text)
 
 
+class TestCommentsAndG95(unittest.TestCase):
+    def test_comment_below_t_m6_joins_description(self) -> None:
+        src = """O1
+T1 M6 (WIERTO)
+(FI 8.5 x 30)
+G43 Z10. H1
+G1 Z-1.
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.description, "WIERTO / FI 8.5 x 30")
+
+    def test_comment_below_skipped_if_code_in_between(self) -> None:
+        src = """O1
+T1 M6
+G0 X0.
+(TOO LATE)
+G43 Z10. H1
+G1 Z-1.
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.description, "")
+
+    def test_bang_notes_collected_and_printed(self) -> None:
+        src = """O1
+(REV 1)
+T1 M6
+G0 X0. (! CHECK CLAMP)
+G1 Z-1. (normal)
+( ! OIL HOLE )
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        texts = [n.text for n in r.bang_notes]
+        self.assertEqual(texts, ["! CHECK CLAMP", "! OIL HOLE"])
+        self.assertEqual(r.bang_notes[0].line, 4)
+        a4 = format_report(r)
+        self.assertIn("Programmer notes (!):", a4)
+        self.assertIn("! CHECK CLAMP", a4)
+        mm = format_report(r, paper=PAPER_80MM_MIN)
+        self.assertIn("! NOTES", mm)
+        self.assertIn("! OIL HOLE", mm)
+
+    def test_g95_warns_on_next_tool_until_g94(self) -> None:
+        src = """O1
+T1 M6
+G95 G1 Z-5. F0.2
+T2 M6
+G43 Z10. H2
+G1 Z-1.
+G94
+T3 M6
+G43 Z10. H3
+G1 Z-2.
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        from fh6parse.parser import G95_NEXT_WARN, G95_END_WARN
+
+        self.assertEqual(r.usages[0].warnings, [])
+        self.assertIn(G95_NEXT_WARN, r.usages[1].warnings)
+        self.assertNotIn(G95_END_WARN, r.usages[1].warnings)
+        self.assertEqual(r.usages[2].warnings, [])
+
+    def test_g95_on_same_line_as_next_t_does_not_warn_if_g94(self) -> None:
+        src = """O1
+T1 M6
+G95
+T2 M6 G94
+G1 Z-1.
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        from fh6parse.parser import G95_NEXT_WARN
+
+        self.assertNotIn(G95_NEXT_WARN, r.usages[1].warnings)
+
+    def test_g95_left_on_at_m30(self) -> None:
+        src = """O1
+T1 M6
+G95 G1 Z-5. F0.2
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        from fh6parse.parser import G95_END_WARN
+
+        self.assertIn(G95_END_WARN, r.usages[0].warnings)
+        self.assertIn("WARNING: G95 still active at M30", format_report(r))
+
+
 class TestReport(unittest.TestCase):
     def test_report_contains_operator_sections(self) -> None:
         r = parse_nc_file(SAMPLES / "D0134078.nc")

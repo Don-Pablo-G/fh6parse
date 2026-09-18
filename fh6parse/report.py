@@ -9,7 +9,11 @@ import base64
 import textwrap
 import webbrowser
 
-from .parser import Operation, ParseResult, ToolUsage
+from .parser import BangNote, Operation, ParseResult, ToolUsage
+
+
+def _bang_label(note: BangNote) -> str:
+    return f"L{note.line}  ({note.text})"
 
 # A4 portrait ~78 cols at 10 pt Courier with 12 mm margins.
 A4_WIDTH = 78
@@ -145,6 +149,12 @@ def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
         for c in result.header_comments:
             for part in _wrap(f"({c})", w78 - 2):
                 w(f"  {part}")
+    if result.bang_notes:
+        w("")
+        w("Programmer notes (!):")
+        for note in result.bang_notes:
+            for part in _wrap(_bang_label(note), w78 - 2):
+                w(f"  {part}")
 
     w("")
     w("Min Z = lowest work Z (G53/G28 ignored).")
@@ -223,6 +233,10 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
     w(now.strftime("%Y-%m-%d %H:%M"))
     for c in result.header_comments[:8]:
         block(f"({c})")
+    if result.bang_notes:
+        w("! NOTES")
+        for note in result.bang_notes:
+            block(f"! {_bang_label(note)}")
     w(dash)
     w("MinZ=work Z")
     w("Until M30; M99 returns")
@@ -283,6 +297,10 @@ def _format_text_80mm_min(result: ParseResult, *, generated: datetime | None) ->
     block(_program_line(result))
     w(_units_label(result.units))
     w(now.strftime("%Y-%m-%d %H:%M"))
+    if result.bang_notes:
+        w("! NOTES")
+        for note in result.bang_notes:
+            block(f"! {_bang_label(note)}")
     w(dash)
     for op in result.operations or []:
         w(dash)
@@ -439,6 +457,11 @@ td.c, th.c { text-align: center; width: 9mm; }
     if result.header_comments:
         items = "".join(f"<li>({escape(c)})</li>" for c in result.header_comments)
         notes = f'<ul class="notes">{items}</ul>'
+    if result.bang_notes:
+        items = "".join(
+            f"<li>{escape(_bang_label(note))}</li>" for note in result.bang_notes
+        )
+        notes += f'<h2>Programmer notes (!)</h2><ul class="notes">{items}</ul>'
 
     op_html: list[str] = []
     if not result.operations:
@@ -585,6 +608,10 @@ h1 { font-size: 13pt; margin: 0 0 4pt; text-align: center; letter-spacing: 0.04e
     a(f"<div>{escape(_units_label(result.units))} · {escape(now.strftime('%Y-%m-%d %H:%M'))}</div>")
     for c in result.header_comments[:8]:
         a(f'<div class="d">({escape(c)})</div>')
+    if result.bang_notes:
+        a('<div class="warn">! NOTES</div>')
+        for note in result.bang_notes:
+            a(f'<div class="warn d">! {escape(_bang_label(note))}</div>')
     a('<hr class="rule">')
     a("<div>Min Z = work Z</div>")
     a("<div>Until M30; M99 returns</div>")
