@@ -43,6 +43,56 @@ MUTED = "#888888"
 ERR = "#ff6b6b"
 OK = "#8fd19e"
 
+BCM_MIN = 0
+BCM_MAX = 27
+ENCODER_STEPS_MAX = 16
+UI_OVERLAY_KEYS = (
+    "language",
+    "encoder_clk",
+    "encoder_dt",
+    "encoder_swap",
+    "encoder_steps",
+    "button_full",
+    "button_min",
+)
+
+
+def next_unused_bcm(current: int, used: set[int], delta: int) -> int:
+    """Walk BCM numbers, skipping pins already assigned to another function."""
+    span = BCM_MAX - BCM_MIN + 1
+    step = 1 if delta >= 0 else -1
+    p = current
+    for _ in range(span):
+        p = BCM_MIN + (p - BCM_MIN + step) % span
+        if p not in used:
+            return p
+    return current
+
+
+def encoder_file_delta(delta: int, leftover: int, steps: int) -> tuple[int, int]:
+    """Map GPIO ticks to files with a stable rest valley.
+
+    ``steps`` is ticks from one detent rest (tooth valley) to the next.
+    The highlight changes at half a tooth — e.g. 10° to the next rest,
+    ~5° to change the file — so a wiggle at rest does not skip files.
+    ``leftover`` is position relative to the current rest (0 = valley).
+    """
+    n = max(1, int(steps))
+    acc = leftover + int(delta)
+    if n == 1:
+        return acc, 0
+    half = n // 2
+    moved = 0
+    if delta > 0:
+        while acc >= half:
+            moved += 1
+            acc -= n
+    elif delta < 0:
+        while acc <= -half:
+            moved -= 1
+            acc += n
+    return moved, acc
+
 
 @dataclass
 class KioskConfig:
@@ -53,6 +103,7 @@ class KioskConfig:
     encoder_clk: int = 17
     encoder_dt: int = 27
     encoder_swap: bool = False
+    encoder_steps: int = 1
     button_full: int = 22
     button_min: int = 23
     printer_queue: str = ""
@@ -96,7 +147,7 @@ def kiosk_config_write_path() -> Path:
 
 
 def ui_overlay_path() -> Path:
-    """Writable per-user file for language (kiosk cannot write /etc)."""
+    """Writable per-user file for language and GPIO (kiosk cannot write /etc)."""
     return Path.home() / ".config" / "fh6parse" / "ui.ini"
 
 
@@ -132,6 +183,31 @@ def save_model_roots(roots: list[Path], dest: Path | None = None) -> Path:
     )
 
 
+def _clamp_bcm(value: int) -> int:
+    return max(BCM_MIN, min(BCM_MAX, int(value)))
+
+
+def _clamp_encoder_steps(value: int) -> int:
+    return max(1, min(ENCODER_STEPS_MAX, int(value)))
+
+
+def _apply_gpio_section(cfg: KioskConfig, src: configparser.SectionProxy) -> None:
+    if "encoder_clk" in src:
+        cfg.encoder_clk = _clamp_bcm(src.getint("encoder_clk", fallback=cfg.encoder_clk))
+    if "encoder_dt" in src:
+        cfg.encoder_dt = _clamp_bcm(src.getint("encoder_dt", fallback=cfg.encoder_dt))
+    if "encoder_swap" in src:
+        cfg.encoder_swap = src.getboolean("encoder_swap", fallback=cfg.encoder_swap)
+    if "encoder_steps" in src:
+        cfg.encoder_steps = _clamp_encoder_steps(
+            src.getint("encoder_steps", fallback=cfg.encoder_steps)
+        )
+    if "button_full" in src:
+        cfg.button_full = _clamp_bcm(src.getint("button_full", fallback=cfg.button_full))
+    if "button_min" in src:
+        cfg.button_min = _clamp_bcm(src.getint("button_min", fallback=cfg.button_min))
+
+
 def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
     cfg = KioskConfig()
     if explicit is not None:
@@ -152,11 +228,7 @@ def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
     cfg.height = src.getint("height", fallback=cfg.height)
     cfg.fullscreen = src.getboolean("fullscreen", fallback=cfg.fullscreen)
     cfg.idle_seconds = src.getfloat("idle_seconds", fallback=cfg.idle_seconds)
-    cfg.encoder_clk = src.getint("encoder_clk", fallback=cfg.encoder_clk)
-    cfg.encoder_dt = src.getint("encoder_dt", fallback=cfg.encoder_dt)
-    cfg.encoder_swap = src.getboolean("encoder_swap", fallback=cfg.encoder_swap)
-    cfg.button_full = src.getint("button_full", fallback=cfg.button_full)
-    cfg.button_min = src.getint("button_min", fallback=cfg.button_min)
+    _apply_gpio_section(cfg, src)
     cfg.printer_queue = src.get("printer_queue", fallback=cfg.printer_queue).strip()
     cfg.printer_device = src.get("printer_device", fallback=cfg.printer_device)
     cfg.usb_poll_ms = src.getint("usb_poll_ms", fallback=cfg.usb_poll_ms)
@@ -178,9 +250,11 @@ def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
         extra = configparser.ConfigParser()
         extra.read(overlay, encoding="utf-8")
         if extra.has_section("kiosk"):
-            over = extra["kiosk"].get("language", "").strip()
+            over_sec = extra["kiosk"]
+            over = over_sec.get("language", "").strip()
             if over:
                 cfg.language = parse_language(over, default=KIOSK_DEFAULT)
+            _apply_gpio_section(cfg, over_sec)
     return cfg
 
 
@@ -256,6 +330,7 @@ class KioskApp(tk.Tk):
         self._pending_update: UpdateCheck | None = None
         self._lang = parse_language(cfg.language, default=KIOSK_DEFAULT)
         self._config_open = False
+        self._enc_leftover = 0
 
         self.title(t(self._lang, "app_title_kiosk", version=__version__))
         self.configure(bg=BG)
@@ -454,6 +529,115 @@ class KioskApp(tk.Tk):
             command=lambda: self._set_language("en"),
         )
         self._btn_en.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0), ipady=10)
+
+        self._config_gpio_lbl = tk.Label(
+            panel,
+            text=t(self._lang, "gpio_pins"),
+            font=small,
+            bg="#1a1a1a",
+            fg="#eeeeee",
+        )
+        self._config_gpio_lbl.pack(anchor="w", pady=(4, 4))
+        self._pin_captions: dict[str, tk.Label] = {}
+        self._pin_value_lbls: dict[str, tk.Label] = {}
+        pins = tk.Frame(panel, bg="#1a1a1a")
+        pins.pack(fill=tk.X, pady=(0, 8))
+        pins.columnconfigure(0, weight=1)
+        pins.columnconfigure(1, weight=1)
+        self._add_pin_stepper(pins, 0, 0, "encoder_clk", "pin_clk", small, update_font)
+        self._add_pin_stepper(pins, 0, 1, "encoder_dt", "pin_dt", small, update_font)
+        self._add_pin_stepper(pins, 1, 0, "button_full", "pin_full", small, update_font)
+        self._add_pin_stepper(pins, 1, 1, "button_min", "pin_min", small, update_font)
+
+        self._config_knob_lbl = tk.Label(
+            panel,
+            text=t(self._lang, "encoder_knob"),
+            font=small,
+            bg="#1a1a1a",
+            fg="#eeeeee",
+        )
+        self._config_knob_lbl.pack(anchor="w", pady=(4, 4))
+        swap_row = tk.Frame(panel, bg="#1a1a1a")
+        swap_row.pack(fill=tk.X, pady=(0, 8))
+        self._btn_swap_off = tk.Button(
+            swap_row,
+            text=t(self._lang, "encoder_swap_off"),
+            font=small,
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+            cursor="hand2",
+            command=lambda: self._set_encoder_swap(False),
+        )
+        self._btn_swap_off.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 6), ipady=8)
+        self._btn_swap_on = tk.Button(
+            swap_row,
+            text=t(self._lang, "encoder_swap_on"),
+            font=small,
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+            cursor="hand2",
+            command=lambda: self._set_encoder_swap(True),
+        )
+        self._btn_swap_on.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0), ipady=8)
+
+        self._config_steps_lbl = tk.Label(
+            panel,
+            text=t(self._lang, "encoder_steps"),
+            font=small,
+            bg="#1a1a1a",
+            fg="#eeeeee",
+        )
+        self._config_steps_lbl.pack(anchor="w")
+        steps_row = tk.Frame(panel, bg="#1a1a1a")
+        steps_row.pack(fill=tk.X, pady=(4, 0))
+        tk.Button(
+            steps_row,
+            text="−",
+            font=update_font,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            relief="flat",
+            bd=0,
+            width=3,
+            cursor="hand2",
+            command=lambda: self._bump_encoder_steps(-1),
+        ).pack(side=tk.LEFT)
+        self._steps_value_lbl = tk.Label(
+            steps_row,
+            text=str(self.cfg.encoder_steps),
+            font=update_font,
+            bg="#1a1a1a",
+            fg=ACCENT,
+            width=3,
+        )
+        self._steps_value_lbl.pack(side=tk.LEFT, padx=8)
+        tk.Button(
+            steps_row,
+            text="+",
+            font=update_font,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            relief="flat",
+            bd=0,
+            width=3,
+            cursor="hand2",
+            command=lambda: self._bump_encoder_steps(1),
+        ).pack(side=tk.LEFT)
+        self._config_steps_blurb = tk.Label(
+            panel,
+            text=t(self._lang, "encoder_steps_blurb"),
+            font=small,
+            bg="#1a1a1a",
+            fg=MUTED,
+            wraplength=self.cfg.width - 80,
+            justify="left",
+        )
+        self._config_steps_blurb.pack(anchor="w", pady=(4, 8))
+
         self._config_saved = tk.Label(
             panel,
             text="",
@@ -475,6 +659,67 @@ class KioskApp(tk.Tk):
         )
         self._config_keys.pack(anchor="w", pady=(10, 0))
         self._style_lang_buttons()
+        self._style_swap_buttons()
+
+    def _add_pin_stepper(
+        self,
+        parent: tk.Frame,
+        row: int,
+        col: int,
+        attr: str,
+        label_key: str,
+        small,
+        update_font,
+    ) -> None:
+        cell = tk.Frame(parent, bg="#1a1a1a")
+        cell.grid(row=row, column=col, sticky="ew", padx=4, pady=3)
+        caption = tk.Label(
+            cell,
+            text=t(self._lang, label_key),
+            font=small,
+            bg="#1a1a1a",
+            fg=MUTED,
+        )
+        caption.pack(anchor="w")
+        self._pin_captions[attr] = caption
+        controls = tk.Frame(cell, bg="#1a1a1a")
+        controls.pack(fill=tk.X)
+        tk.Button(
+            controls,
+            text="−",
+            font=update_font,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            relief="flat",
+            bd=0,
+            width=3,
+            cursor="hand2",
+            command=lambda a=attr: self._bump_pin(a, -1),
+        ).pack(side=tk.LEFT)
+        value = tk.Label(
+            controls,
+            text=str(getattr(self.cfg, attr)),
+            font=update_font,
+            bg="#1a1a1a",
+            fg=ACCENT,
+            width=3,
+        )
+        value.pack(side=tk.LEFT, padx=6)
+        self._pin_value_lbls[attr] = value
+        tk.Button(
+            controls,
+            text="+",
+            font=update_font,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            relief="flat",
+            bd=0,
+            width=3,
+            cursor="hand2",
+            command=lambda a=attr: self._bump_pin(a, 1),
+        ).pack(side=tk.LEFT)
 
     def _tr(self, key: str, **kwargs) -> str:
         return t(self._lang, key, **kwargs)
@@ -485,6 +730,75 @@ class KioskApp(tk.Tk):
                 btn.config(bg=ACCENT, fg="#111111", activebackground="#ffd54a")
             else:
                 btn.config(bg="#333333", fg="#eeeeee", activebackground="#444444")
+
+    def _style_swap_buttons(self) -> None:
+        on = self.cfg.encoder_swap
+        pair = (
+            (self._btn_swap_off, not on),
+            (self._btn_swap_on, on),
+        )
+        for btn, active in pair:
+            if active:
+                btn.config(bg=ACCENT, fg="#111111", activebackground="#ffd54a")
+            else:
+                btn.config(bg="#333333", fg="#eeeeee", activebackground="#444444")
+
+    def _refresh_gpio_labels(self) -> None:
+        for attr, lbl in self._pin_value_lbls.items():
+            lbl.config(text=str(getattr(self.cfg, attr)))
+        self._steps_value_lbl.config(text=str(self.cfg.encoder_steps))
+        self._style_swap_buttons()
+
+    def _ui_settings_values(self) -> dict[str, str]:
+        return {
+            "language": self._lang,
+            "encoder_clk": str(self.cfg.encoder_clk),
+            "encoder_dt": str(self.cfg.encoder_dt),
+            "encoder_swap": "true" if self.cfg.encoder_swap else "false",
+            "encoder_steps": str(self.cfg.encoder_steps),
+            "button_full": str(self.cfg.button_full),
+            "button_min": str(self.cfg.button_min),
+        }
+
+    def _assigned_pins(self, *, except_attr: str = "") -> set[int]:
+        mapping = {
+            "encoder_clk": self.cfg.encoder_clk,
+            "encoder_dt": self.cfg.encoder_dt,
+            "button_full": self.cfg.button_full,
+            "button_min": self.cfg.button_min,
+        }
+        return {pin for attr, pin in mapping.items() if attr != except_attr}
+
+    def _bump_pin(self, attr: str, delta: int) -> None:
+        used = self._assigned_pins(except_attr=attr)
+        current = int(getattr(self.cfg, attr))
+        nxt = next_unused_bcm(current, used, delta)
+        if nxt == current:
+            return
+        setattr(self.cfg, attr, nxt)
+        self._refresh_gpio_labels()
+        self._persist_ui_settings()
+        self._reload_gpio()
+        self._arm_idle()
+
+    def _bump_encoder_steps(self, delta: int) -> None:
+        nxt = _clamp_encoder_steps(self.cfg.encoder_steps + delta)
+        if nxt == self.cfg.encoder_steps:
+            return
+        self.cfg.encoder_steps = nxt
+        self._enc_leftover = 0
+        self._refresh_gpio_labels()
+        self._persist_ui_settings()
+        self._arm_idle()
+
+    def _set_encoder_swap(self, swap: bool) -> None:
+        if self.cfg.encoder_swap == swap:
+            return
+        self.cfg.encoder_swap = swap
+        self._enc_leftover = 0
+        self._refresh_gpio_labels()
+        self._persist_ui_settings()
+        self._arm_idle()
 
     def _apply_language(self) -> None:
         self.title(self._tr("app_title_kiosk", version=__version__))
@@ -497,8 +811,23 @@ class KioskApp(tk.Tk):
         self._config_lang_lbl.config(text=self._tr("language"))
         self._btn_pl.config(text=self._tr("lang_pl"))
         self._btn_en.config(text=self._tr("lang_en"))
+        self._config_gpio_lbl.config(text=self._tr("gpio_pins"))
+        pin_keys = {
+            "encoder_clk": "pin_clk",
+            "encoder_dt": "pin_dt",
+            "button_full": "pin_full",
+            "button_min": "pin_min",
+        }
+        for attr, key in pin_keys.items():
+            self._pin_captions[attr].config(text=self._tr(key))
+        self._config_knob_lbl.config(text=self._tr("encoder_knob"))
+        self._btn_swap_off.config(text=self._tr("encoder_swap_off"))
+        self._btn_swap_on.config(text=self._tr("encoder_swap_on"))
+        self._config_steps_lbl.config(text=self._tr("encoder_steps"))
+        self._config_steps_blurb.config(text=self._tr("encoder_steps_blurb"))
         self._config_keys.config(text=self._tr("settings_keys"))
         self._style_lang_buttons()
+        self._refresh_gpio_labels()
         self._refresh_hint()
         if self._update_available and self._pending_update is not None and not self._updating:
             self.update_btn.config(text=update_button_label(self._lang, self._pending_update))
@@ -524,12 +853,13 @@ class KioskApp(tk.Tk):
         self._lang = parse_language(lang, default=KIOSK_DEFAULT)
         self.cfg.language = self._lang
         self._apply_language()
-        self._persist_language()
+        self._persist_ui_settings()
 
-    def _persist_language(self) -> None:
+    def _persist_ui_settings(self) -> None:
         overlay = ui_overlay_path()
+        updates = self._ui_settings_values()
         try:
-            saved = save_kiosk_values({"language": self._lang}, dest=overlay)
+            saved = save_kiosk_values(updates, dest=overlay)
         except OSError as exc:
             self._config_saved.config(
                 text=self._tr("settings_save_fail", detail=exc), fg=ERR
@@ -538,7 +868,7 @@ class KioskApp(tk.Tk):
         if self.cfg.source is not None:
             try:
                 save_kiosk_values(
-                    {"language": self._lang},
+                    updates,
                     dest=self.cfg.source,
                     source=self.cfg.source,
                 )
@@ -550,7 +880,8 @@ class KioskApp(tk.Tk):
 
     def _show_config(self) -> None:
         self._config_open = True
-        self._config.place(relx=0.05, rely=0.18, relwidth=0.90, relheight=0.52)
+        self._refresh_gpio_labels()
+        self._config.place(relx=0.04, rely=0.06, relwidth=0.92, relheight=0.88)
         self._config.lift()
         self._style_lang_buttons()
         self._arm_idle()
@@ -697,6 +1028,21 @@ class KioskApp(tk.Tk):
         except tk.TclError:
             pass
 
+    def _close_gpio(self) -> None:
+        for obj in self._gpio:
+            close = getattr(obj, "close", None)
+            if close:
+                try:
+                    close()
+                except Exception:
+                    pass
+        self._gpio.clear()
+
+    def _reload_gpio(self) -> None:
+        self._close_gpio()
+        self._enc_leftover = 0
+        self._setup_gpio()
+
     def _setup_gpio(self) -> None:
         try:
             from gpiozero import Button, RotaryEncoder
@@ -712,12 +1058,11 @@ class KioskApp(tk.Tk):
                 )
             except TypeError:
                 enc = RotaryEncoder(self.cfg.encoder_clk, self.cfg.encoder_dt)
-            step = -1 if self.cfg.encoder_swap else 1
             enc.when_rotated_clockwise = lambda: self._queue(
-                lambda: self._on_encoder(step)
+                lambda: self._on_encoder_gpio(1)
             )
             enc.when_rotated_counter_clockwise = lambda: self._queue(
-                lambda: self._on_encoder(-step)
+                lambda: self._on_encoder_gpio(-1)
             )
             full = Button(self.cfg.button_full, pull_up=True, bounce_time=0.08)
             mini = Button(self.cfg.button_min, pull_up=True, bounce_time=0.08)
@@ -730,6 +1075,28 @@ class KioskApp(tk.Tk):
             self._gpio.extend([enc, full, mini])
         except Exception as exc:  # GPIO missing or pin busy
             self._set_status(self._tr("gpio_off", detail=_gpio_fail_hint(exc)), error=True)
+
+    def _on_encoder_gpio(self, delta: int) -> None:
+        if self.cfg.encoder_swap:
+            delta = -delta
+        action = self.gate.encoder()
+        if action == "wake":
+            self._enc_leftover = 0
+            self._hide_saver()
+            self._arm_idle()
+            self._claim_input()
+            return
+        if self._dismiss_config():
+            self._enc_leftover = 0
+            self._arm_idle()
+            return
+        moved, self._enc_leftover = encoder_file_delta(
+            delta, self._enc_leftover, self.cfg.encoder_steps
+        )
+        if moved:
+            self._on_encoder(moved)
+        else:
+            self._arm_idle()
 
     def _roots(self) -> list[Path]:
         return list(self._mounts) + list(self.cfg.extra_roots)
@@ -1044,13 +1411,7 @@ class KioskApp(tk.Tk):
                 self.after_cancel(self._poll_job)
             except tk.TclError:
                 pass
-        for obj in self._gpio:
-            close = getattr(obj, "close", None)
-            if close:
-                try:
-                    close()
-                except Exception:
-                    pass
+        self._close_gpio()
         if self._models is not None:
             try:
                 self._models.close()

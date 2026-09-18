@@ -148,8 +148,108 @@ class TestKioskConfig(unittest.TestCase):
             self.assertEqual(cfg.idle_seconds, 60.0)
             self.assertEqual(cfg.encoder_clk, 5)
             self.assertEqual(cfg.button_full, 6)
+            self.assertEqual(cfg.encoder_steps, 1)
             self.assertEqual(cfg.printer_queue, "")
             self.assertEqual(str(cfg.printer_device), "/dev/usb/lp0")
+
+    def test_reads_encoder_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "kiosk.ini"
+            path.write_text("[kiosk]\nencoder_steps = 4\n", encoding="utf-8")
+            cfg = load_kiosk_config(path)
+            self.assertEqual(cfg.encoder_steps, 4)
+
+    def test_encoder_steps_clamped(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "kiosk.ini"
+            path.write_text("[kiosk]\nencoder_steps = 99\n", encoding="utf-8")
+            self.assertEqual(load_kiosk_config(path).encoder_steps, 16)
+            path.write_text("[kiosk]\nencoder_steps = 0\n", encoding="utf-8")
+            self.assertEqual(load_kiosk_config(path).encoder_steps, 1)
+
+    def test_overlay_overrides_pins_and_steps(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        from fh6parse.kiosk import save_kiosk_values, ui_overlay_path
+
+        with tempfile.TemporaryDirectory() as home:
+            with patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
+                with tempfile.TemporaryDirectory() as raw:
+                    main = Path(raw) / "kiosk.ini"
+                    main.write_text(
+                        "[kiosk]\nencoder_clk = 17\nencoder_steps = 1\n",
+                        encoding="utf-8",
+                    )
+                    save_kiosk_values(
+                        {
+                            "encoder_clk": "5",
+                            "encoder_steps": "2",
+                            "encoder_swap": "true",
+                        },
+                        ui_overlay_path(),
+                    )
+                    cfg = load_kiosk_config(main)
+                    self.assertEqual(cfg.encoder_clk, 5)
+                    self.assertEqual(cfg.encoder_steps, 2)
+                    self.assertTrue(cfg.encoder_swap)
+
+
+class TestEncoderClicks(unittest.TestCase):
+    def test_one_tick_is_one_file_by_default(self) -> None:
+        from fh6parse.kiosk import encoder_file_delta
+
+        moved, left = encoder_file_delta(1, 0, 1)
+        self.assertEqual((moved, left), (1, 0))
+        moved, left = encoder_file_delta(-1, 0, 1)
+        self.assertEqual((moved, left), (-1, 0))
+
+    def test_rest_wiggle_does_not_change_file(self) -> None:
+        from fh6parse.kiosk import encoder_file_delta
+
+        moved, leftover = encoder_file_delta(1, 0, 4)
+        self.assertEqual((moved, leftover), (0, 1))
+        moved, leftover = encoder_file_delta(-1, leftover, 4)
+        self.assertEqual((moved, leftover), (0, 0))
+
+    def test_highlight_changes_at_half_tooth(self) -> None:
+        from fh6parse.kiosk import encoder_file_delta
+
+        leftover = 0
+        moved, leftover = encoder_file_delta(1, leftover, 4)
+        self.assertEqual((moved, leftover), (0, 1))
+        moved, leftover = encoder_file_delta(1, leftover, 4)
+        self.assertEqual(moved, 1)
+        self.assertEqual(leftover, -2)
+
+    def test_full_tooth_lands_on_next_rest(self) -> None:
+        from fh6parse.kiosk import encoder_file_delta
+
+        leftover = 0
+        moved_total = 0
+        for _ in range(4):
+            moved, leftover = encoder_file_delta(1, leftover, 4)
+            moved_total += moved
+        self.assertEqual(moved_total, 1)
+        self.assertEqual(leftover, 0)
+
+    def test_two_teeth_are_two_files(self) -> None:
+        from fh6parse.kiosk import encoder_file_delta
+
+        leftover = 0
+        moved_total = 0
+        for _ in range(8):
+            moved, leftover = encoder_file_delta(1, leftover, 4)
+            moved_total += moved
+        self.assertEqual(moved_total, 2)
+        self.assertEqual(leftover, 0)
+
+    def test_next_unused_bcm_skips_taken_pins(self) -> None:
+        from fh6parse.kiosk import next_unused_bcm
+
+        self.assertEqual(next_unused_bcm(17, {18, 19}, 1), 20)
+        self.assertEqual(next_unused_bcm(17, {16}, -1), 15)
+        self.assertEqual(next_unused_bcm(27, {0}, 1), 1)
 
 
 class TestPi5GpioFactory(unittest.TestCase):

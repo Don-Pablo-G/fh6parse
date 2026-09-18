@@ -103,3 +103,10 @@ class TestLanguageIni(unittest.TestCase):
             save_kiosk_values({"language": "pl"}, ui_overlay_path())
             cfg = load_kiosk_config(main)
             self.assertEqual(cfg.language, "pl")
+
+    def test_overlay_keys_include_gpio(self) -> None:
+        from fh6parse.kiosk import UI_OVERLAY_KEYS
+
+        self.assertIn("encoder_clk", UI_OVERLAY_KEYS)
+        self.assertIn("encoder_steps", UI_OVERLAY_KEYS)
+        self.assertIn("button_min", UI_OVERLAY_KEYS)

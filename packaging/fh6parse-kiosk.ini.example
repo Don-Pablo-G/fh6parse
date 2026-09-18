@@ -15,6 +15,10 @@ idle_seconds = 60
 encoder_clk = 17
 encoder_dt = 27
 encoder_swap = false
+# gpiozero ticks from one tooth valley (rest) to the next. Highlight
+# changes at half a tooth so a wiggle at rest does not skip files.
+# 1 = every tick (no dead zone). Typical KY-040 is 2 or 4.
+encoder_steps = 1
 button_full = 22
 button_min = 23
 

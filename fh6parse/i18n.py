@@ -53,15 +53,34 @@ STRINGS: dict[str, dict[str, str]] = {
         "gpio_off": "GPIO off: {detail}",
         "settings": "Settings",
         "settings_blurb": (
-            "Language for this screen. Encoder and print buttons keep working "
-            "as on the shop floor."
+            "Language, BCM pins, and ticks from one tooth valley to the next. "
+            "Rest is the file; the highlight changes halfway to the next tooth."
         ),
         "language": "Language",
         "lang_pl": "Polski",
         "lang_en": "English",
-        "settings_keys": "F2 / C / Esc  close     arrows change language",
+        "gpio_pins": "GPIO (BCM numbers, not header pins)",
+        "pin_clk": "Encoder CLK",
+        "pin_dt": "Encoder DT",
+        "pin_full": "FULL button",
+        "pin_min": "MIN button",
+        "encoder_knob": "Knob",
+        "encoder_swap_off": "Normal direction",
+        "encoder_swap_on": "Reverse",
+        "encoder_steps": "Ticks per tooth",
+        "encoder_steps_blurb": (
+            "GPIO ticks from one rest (the valley) to the next. A 36-tooth "
+            "knob is 10° per file; the list changes at about 5°, so a small "
+            "wiggle at rest does not move the highlight. Raise this until "
+            "rest is stable and one tooth is one file. Keyboard arrows stay "
+            "one file per key."
+        ),
+        "settings_keys": (
+            "F2 / C / Esc  close     arrows change language     "
+            "+ / −  pins and ticks"
+        ),
         "settings_saved": "Saved {path}",
-        "settings_save_fail": "Could not save language ({detail})",
+        "settings_save_fail": "Could not save settings ({detail})",
         "lang_chip": "EN",
         "open_nc": "Open NC files…",
         "save_formats": "Save all formats",
@@ -140,14 +159,35 @@ STRINGS: dict[str, dict[str, str]] = {
         "gpio_off": "GPIO wyłączone: {detail}",
         "settings": "Ustawienia",
         "settings_blurb": (
-            "Język tego ekranu. Pokrętło i przyciski druku działają jak na hali."
+            "Język, piny BCM i impulsy od jednej doliny zęba do następnej. "
+            "Spoczynek to plik; podświetlenie zmienia się w połowie drogi "
+            "do następnego zęba."
         ),
         "language": "Język",
         "lang_pl": "Polski",
         "lang_en": "English",
-        "settings_keys": "F2 / C / Esc  zamknij     strzałki zmieniają język",
+        "gpio_pins": "GPIO (numery BCM, nie piny złącza)",
+        "pin_clk": "Enkoder CLK",
+        "pin_dt": "Enkoder DT",
+        "pin_full": "Przycisk FULL",
+        "pin_min": "Przycisk MIN",
+        "encoder_knob": "Pokrętło",
+        "encoder_swap_off": "Kierunek normalny",
+        "encoder_swap_on": "Odwróć",
+        "encoder_steps": "Impulsy na ząb",
+        "encoder_steps_blurb": (
+            "Impulsy GPIO od spoczynku (dolina) do następnego. Pokrętło "
+            "36-zębne to 10° na plik; lista zmienia się przy ok. 5°, więc "
+            "lekkie drgnięcie w dolinie nie zmienia podświetlenia. Podnieś, "
+            "aż spoczynek będzie stabilny i jeden ząb to jeden plik. "
+            "Strzałki klawiatury nadal to jeden plik na klawisz."
+        ),
+        "settings_keys": (
+            "F2 / C / Esc  zamknij     strzałki zmieniają język     "
+            "+ / −  piny i impulsy"
+        ),
         "settings_saved": "Zapisano {path}",
-        "settings_save_fail": "Nie udało się zapisać języka ({detail})",
+        "settings_save_fail": "Nie udało się zapisać ustawień ({detail})",
         "lang_chip": "PL",
         "open_nc": "Otwórz pliki NC…",
         "save_formats": "Zapisz wszystkie formaty",

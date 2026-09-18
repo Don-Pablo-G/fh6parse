@@ -31,7 +31,7 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 | MUNBYN P047 (ITPP047) | USB, 80 mm ESC/POS, auto-cutter. Own mains PSU. |
 | Company STEP folder (optional) | NAS of `.stp` / `.step` if the stick has none. See **§3.7**. Stick copy is enough. |
 | Network (optional) | Only for git install and later **UPDATE**. Printing works offline. |
-| Keyboard / mouse | First-time setup, **settings** (language), SSH, or tap **UPDATE**. Not required for encoder + GPIO print. |
+| Keyboard / mouse | First-time setup, **settings** (language, GPIO pins, encoder ticks), SSH, or tap **UPDATE**. Not required for encoder + GPIO print. |
 
 Default GPIO (**BCM** numbers, not header pin numbers):
 
@@ -44,7 +44,7 @@ Default GPIO (**BCM** numbers, not header pin numbers):
 | 3.3 V for encoder VCC | — | 1 or 17 |
 | GND | — | 6, 9, or 14 |
 
-Change pins in `/etc/fh6parse-kiosk.ini` if you wire them differently.
+Change pins in **settings** (**F2** / **C** / **PL**·**EN**) or in `/etc/fh6parse-kiosk.ini`. Settings write `~/.config/fh6parse/ui.ini` (and the main ini if it is writable).
 
 ---
 
@@ -97,7 +97,7 @@ Each print button:
 GPIO ── button ── GND
 ```
 
-If turning the knob moves the highlight the wrong way, set `encoder_swap = true` in the ini (or swap CLK and DT).
+If turning the knob moves the highlight the wrong way, use **Reverse** in settings (or `encoder_swap = true`, or swap CLK and DT). **Ticks per tooth** is GPIO ticks from one rest valley to the next. The list changes halfway (a 36-tooth knob is 10° per file, ~5° to change the highlight), so a small wiggle at rest does not skip files.
 
 ### 2.4 Screen orientation
 
@@ -231,16 +231,17 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `idle_seconds` | 60 | Black screen after this many seconds. `0` disables. |
-| `encoder_clk` / `encoder_dt` | 17 / 27 | BCM pins |
-| `button_full` / `button_min` | 22 / 23 | BCM pins |
+| `encoder_clk` / `encoder_dt` | 17 / 27 | BCM pins. Change in **settings** or here. |
+| `button_full` / `button_min` | 22 / 23 | BCM pins for FULL / MIN. Change in **settings** or here. |
 | `encoder_swap` | false | Reverse knob direction |
+| `encoder_steps` | 1 | GPIO ticks from one tooth valley to the next. Highlight changes at half a tooth so rest is stable. |
 | `printer_device` | /dev/usb/lp0 | USB printer node (**tried first**) |
 | `printer_queue` | (empty) | Optional CUPS name; used only if the USB node fails. Empty = never call `lp`. |
 | `scan_depth` | 1 | USB root only. Raise to search subfolders. |
 | `extensions` | `.nc,.tap` | File types (case-insensitive) |
 | `extra_roots` | (empty) | Extra folders to list, comma-separated (for testing) |
 | `model_roots` | (empty) | Optional company `.stp` folders. USB stick is searched first. See **§3.7**. |
-| `language` | `pl` | Screen language: `pl` (default) or `en`. Change on the kiosk in **settings** (**F2** / **C**, or click **PL** / **EN**). Stored in `~/.config/fh6parse/ui.ini` (and in this ini if it is writable). |
+| `language` | `pl` | Screen language: `pl` (default) or `en`. Change on the kiosk in **settings** (**F2** / **C**, or click **PL** / **EN**). GPIO pins and encoder ticks are on the same panel. Stored in `~/.config/fh6parse/ui.ini` (and in this ini if it is writable). |
 | `fullscreen` | true | Shop display. Escape once exits fullscreen. |
 
 ### 3.4 Groups and devices
@@ -289,7 +290,7 @@ python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 
 Without GPIO you can still use a **USB keyboard and mouse** at any time (hot-plug is fine). The kiosk keeps keyboard focus and the black screensaver wakes on a key, click, or mouse wheel.
 
-The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**. The choice is written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini as `language = pl` or `en`. **Esc** closes settings first; the next **Esc** still leaves fullscreen. Encoder or a GPIO print button closes settings without printing / skipping a file.
+The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, BCM pin numbers for CLK / DT / FULL / MIN, knob reverse, and **ticks per tooth** (GPIO ticks from one rest valley to the next; the highlight changes halfway so a wiggle at rest does not skip files). Values are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes settings first; the next **Esc** still leaves fullscreen. Encoder or a GPIO print button closes settings without printing / skipping a file.
 
 | Input | While awake | While screensaver |
 | --- | --- | --- |
@@ -297,8 +298,9 @@ The shop screen is **Polish** unless `language = en` is set. Open **settings** w
 | **F** / **M** | Print full / min | Ignored (no ticket); another key or click wakes |
 | GPIO FULL / MIN | Print | Ignored (no ticket, stays black) |
 | Yellow **UPDATE to …** / **U** | One tap: pull, then restart kiosk | Wake first, then tap |
-| **F2** / **C** / click **PL**·**EN** | Open or close settings (language) | Wake first |
+| **F2** / **C** / click **PL**·**EN** | Open or close settings (language, pins, encoder ticks) | Wake first |
 | In settings: arrows / wheel / **Polski**·**English** | Switch language | — |
+| In settings: **+** / **−** | BCM pins and ticks per tooth | — |
 | **Esc** | Close settings, else leave fullscreen, then close | Wake, then Esc again leaves fullscreen |
 
 Plug in a USB stick with `.nc` files; the list should fill by itself.
@@ -414,7 +416,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 8. **WARNING:** lines: `H{n} does not match T{tool}` on G43, `D{n} does not match T{tool}` on any D, and `G95 still active…` if feed-per-rev was not cancelled with G94 before the next tool (or M30). Matching H/D stay quiet. Comments with `!` print as **Programmer notes**.
 9. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
 10. Wake: encoder, inserting a USB stick, or a **keyboard / mouse**. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored.
-11. Language: **F2** / **C** or the **PL**/**EN** chip (mouse) — **§3.6**. Encoder does not open settings.
+11. Settings: **F2** / **C** or the **PL**/**EN** chip (mouse) — **§3.6**. Encoder does not open settings. Pins and ticks per tooth are on that panel.
 12. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
 13. Current version is **v…** at the top right. If the Pi is on the network and origin is ahead, a yellow **UPDATE to x.y.z** button appears **after this boot’s check**. It does **not** update by itself. One tap installs and **restarts** the kiosk (sudoers in **§3.2**). Print still works until you tap it.
 
@@ -427,8 +429,8 @@ Parse happens at print time, not when the list is shown. STEP matching and rende
 | Symptom | What to check |
 | --- | --- |
 | `GPIO off: …` on the status line | `python3-gpiozero` and `python3-lgpio` installed (not `python3-rpi.gpio` on Pi 5); user in group `gpio`; pins not already claimed. |
-| Knob does nothing | CLK/DT on 17/27; common GND; 3.3 V VCC. Try `encoder_swap = true`. |
-| Knob skips or jitters | Shorter wires; module decoupling. The kiosk sets a short encoder `bounce_time` for Pi 5. |
+| Knob does nothing | CLK/DT on the BCM numbers shown in settings (defaults 17/27); common GND; 3.3 V VCC. Try **Reverse**. |
+| Knob skips or jitters at rest | Raise **Ticks per tooth** so the valley is several GPIO ticks wide; highlight only changes halfway to the next tooth. Shorter wires; module decoupling. The kiosk also sets a short encoder `bounce_time` for Pi 5. |
 | Buttons print on press and release | Use momentary NO to GND, not a latching switch. |
 | List stays on Insert USB / Włóż pendrive | Stick mounted? `ls /media` / `ls /run/media`. Format FAT32. Files ending `.nc` or `.tap`. |
 | `printer failed` | `ls -l /dev/usb/lp0`; user `kiosk` in group `lp`; test the Python write in **§3.5**. *Permission denied* → log out after `usermod`. *Busy* → CUPS still owns the printer (`sudo systemctl disable --now cups`). |
@@ -436,7 +438,7 @@ Parse happens at print time, not when the list is shown. STEP matching and rende
 | Ticket does not cut | Cutter empty/jammed. App already sends ESC/POS cut (`GS V`). |
 | Screen never sleeps | `idle_seconds = 0`, or encoder bouncing. Still on Wayland? Switch to X11 so `xset` works. |
 | Keyboard/mouse do nothing | Plug into the Pi USB-A; X11 picks them up. Click or press a key — the kiosk claims focus. **F2** / **C** opens settings. **Esc** closes settings, then leaves fullscreen. GPIO print buttons still do not wake the screensaver. |
-| Language resets to Polish after you picked English | Stored in `/home/kiosk/.config/fh6parse/ui.ini`. Pick **English** again in settings. **UPDATE** does not delete that file. |
+| Language resets to Polish after you picked English | Stored in `/home/kiosk/.config/fh6parse/ui.ini`. Pick **English** again in settings. **UPDATE** does not delete that file. Pins and ticks live in the same overlay. |
 | Screen stays in English and **F2** does nothing | Wake first if the screen is black. Click the **EN** chip next to **v…**. Encoder never opens settings. |
 | Black screen immediately | Desktop blanking plus app DPMS. Disable LXDE idle blank; keep kiosk `idle_seconds = 60`. |
 | Wrong aspect / sideways UI | Rotate until `xdpyinfo` (or Screen Configuration) shows 600×800. App geometry is 600×800 fullscreen. Pi 5 output is often `HDMI-A-1`. |
@@ -470,7 +472,7 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 | --- | --- |
 | `/home/kiosk/fh6parse` | Source checkout (shop update path) |
 | `/etc/fh6parse-kiosk.ini` | Pins, printer, idle, `model_roots` (never overwritten by **UPDATE**) |
-| `/home/kiosk/.config/fh6parse/ui.ini` | Screen language (`pl` / `en`). Written by settings. Survives **UPDATE**. |
+| `/home/kiosk/.config/fh6parse/ui.ini` | Screen language, GPIO pins, encoder ticks. Written by settings. Survives **UPDATE**. |
 | `/etc/systemd/system/fh6parse-kiosk.service` | Autostart |
 | `/etc/sudoers.d/fh6parse-kiosk` | NOPASSWD restart for on-screen **UPDATE** |
 | `packaging/fh6parse-kiosk.ini.example` | Template |
@@ -616,7 +618,8 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Through-holes as ellipses, not filled blobs | |
 | Long shaft is a thin strip across 80 mm | |
 | Print without a cube is still text-only, no wait | |
-| Settings (**F2** / **PL** chip): Polish default, switch to English, survives restart | |
+| Settings (**F2** / **PL** chip): language, BCM pins, ticks per tooth; survives restart | |
+| Clicky encoder: rest is stable; highlight changes halfway to the next tooth | |
 
 Windows office PC: replace the exe with `fh6parse-1.3.4-windows-x64.exe` from this same tree (same `--version`). **Polski / English** radios at the top right (default English). Set **STEP folders…**. A wireframe cube means the STEP bitmap is ready. Windows print is still the browser dialog, not `/dev/usb/lp0`.
 
