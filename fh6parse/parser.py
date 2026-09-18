@@ -4,7 +4,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import math
 import re
+
+from .machtime import (
+    HASH_ASSIGN_RE,
+    HASH_WORD_RE,
+    apply_hash_assigns,
+    arc_xy_length,
+    axis_delta,
+    canned_cycle_seconds,
+    feed_per_min,
+    helical_length,
+    resolve_hash_letter,
+    seconds_for_length,
+    seconds_for_rotary,
+)
 
 
 COMMENT_RE = re.compile(r"\([^()]*\)")
@@ -15,7 +30,7 @@ O_WORD_RE = re.compile(r"\bO(\d+)\b", re.IGNORECASE)
 # Header ops: "(N10 - OP1)", "(N60 - KONTROLA OSI ...)" — N number may be any value.
 HEADER_OP_RE = re.compile(r"N(\d+)\s*[-–]\s*(.*)$", re.IGNORECASE)
 
-CYCLE_START = {73, 74, 76, 81, 82, 83, 84, 85, 86, 87, 88, 89}
+CYCLE_START = {73, 74, 76, 77, 81, 82, 83, 84, 85, 86, 87, 88, 89}
 G95_NEXT_WARN = "G95 still active (feed per rev); set G94"
 G95_END_WARN = "G95 still active at M30; set G94"
 
@@ -48,6 +63,8 @@ class Line:
     words: list[Word]
     n_label: int | None = None
     goto_target: int | None = None
+    hash_assigns: list[tuple[int, float]] = field(default_factory=list)
+    hash_words: list[tuple[str, int]] = field(default_factory=list)
 
     def letters(self, letter: str) -> list[Word]:
         L = letter.upper()
@@ -99,11 +116,19 @@ class ToolUsage:
     cycle_r: float | None = None
     called_from_main: bool = False
     warnings: list[str] = field(default_factory=list)
+    time_s: float = 0.0
+    time_incomplete: bool = False
 
     def consider_z(self, z: float, line_no: int) -> None:
         if self.min_z is None or z < self.min_z:
             self.min_z = z
             self.min_z_line = line_no
+
+    def add_time(self, seconds: float | None) -> None:
+        if seconds is None:
+            self.time_incomplete = True
+            return
+        self.time_s += seconds
 
 
 @dataclass
@@ -114,6 +139,8 @@ class ToolSummary:
     min_z_line: int | None
     called: bool
     usages: list[ToolUsage]
+    time_s: float = 0.0
+    time_incomplete: bool = False
 
 
 @dataclass
@@ -173,6 +200,16 @@ def _tokenize_line(raw: str, number: int) -> Line:
             continue
         words.append(Word(letter=letter, value=value, raw=raw_val))
 
+    hash_assigns: list[tuple[int, float]] = []
+    for m in HASH_ASSIGN_RE.finditer(code):
+        try:
+            hash_assigns.append((int(m.group(1)), float(m.group(2))))
+        except ValueError:
+            continue
+    hash_words: list[tuple[str, int]] = []
+    for m in HASH_WORD_RE.finditer(code):
+        hash_words.append((m.group(1).upper(), int(m.group(2))))
+
     n_label = None
     n_match = N_LABEL_RE.search(code.strip())
     if n_match:
@@ -186,6 +223,8 @@ def _tokenize_line(raw: str, number: int) -> Line:
         words=words,
         n_label=n_label,
         goto_target=goto_target,
+        hash_assigns=hash_assigns,
+        hash_words=hash_words,
     )
 
 
@@ -450,6 +489,13 @@ def _apply_line_to_usage(usage: ToolUsage, line: Line, cycle_active: bool) -> No
         usage.cycle_r = r_word.value
 
 
+def _feed_on_line(line: Line, hash_vars: dict[int, float]) -> float | None:
+    w = line.first("F")
+    if w is not None:
+        return w.value
+    return resolve_hash_letter("F", line.hash_words, hash_vars)
+
+
 def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
     path_obj = Path(path) if path else Path("")
     raw_lines = text.splitlines()
@@ -487,30 +533,100 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
     current: ToolUsage | None = None
 
     incremental = False
+    abs_x: float | None = None
+    abs_y: float | None = None
     abs_z: float | None = None
+    g53_x: float | None = None
+    g53_y: float | None = None
+    g53_z: float | None = None
+    abs_b: float | None = None
+    abs_c: float | None = None
     cycle_active = False
     cycle_z: float | None = None
+    cycle_r: float | None = None
+    cycle_q: float | None = None
+    cycle_k: float | None = None
+    cycle_i: float | None = None
+    cycle_j: float | None = None
+    cycle_p: float | None = None
+    cycle_retract_j: float = 1.0
+    cycle_code: int | None = None
+    g98 = True
     feed_per_rev = False
+    feed_val: float | None = None
+    s_rpm: float | None = None
+    motion = 0
+    hash_vars: dict[int, float] = {}
+    inch = units == "inch"
 
     for i, line in enumerate(lines):
+        apply_hash_assigns(hash_vars, line.hash_assigns)
+        f_now = _feed_on_line(line, hash_vars)
+        if f_now is not None:
+            feed_val = f_now
+        s_now = line.first("S")
+        if s_now is not None:
+            s_rpm = s_now.value
+
         gs = line.g_ints()
         if 90 in gs:
             incremental = False
         if 91 in gs:
             incremental = True
+        if 20 in gs:
+            inch = True
+        if 21 in gs:
+            inch = False
         for g in gs:
             if g == 94:
                 feed_per_rev = False
             elif g == 95:
                 feed_per_rev = True
+            elif g in (0, 1, 2, 3):
+                motion = g
+            elif g == 98:
+                g98 = True
+            elif g == 99:
+                g98 = False
 
         machine = line.has_g(53, 28)
         if 80 in gs:
             cycle_active = False
             cycle_z = None
+            cycle_code = None
         starting_cycle = any(g in CYCLE_START for g in gs)
         if starting_cycle:
             cycle_active = True
+            cycle_i = None
+            cycle_j = None
+            cycle_k = None
+            cycle_q = None
+            cycle_p = None
+            cycle_retract_j = 1.0
+            for g in gs:
+                if g in CYCLE_START:
+                    cycle_code = g
+            r_word = line.first("R")
+            if r_word is not None:
+                cycle_r = r_word.value
+            q_word = line.first("Q")
+            if q_word is not None:
+                cycle_q = q_word.value
+            k_word = line.first("K")
+            if k_word is not None:
+                cycle_k = k_word.value
+            i_word = line.first("I")
+            if i_word is not None:
+                cycle_i = i_word.value
+            j_word = line.first("J")
+            if j_word is not None:
+                if cycle_code in {74, 84}:
+                    cycle_retract_j = j_word.value
+                else:
+                    cycle_j = j_word.value
+            p_word = line.first("P")
+            if p_word is not None:
+                cycle_p = p_word.value
 
         t_word = line.first("T")
         if t_word is not None and line.has_m(6):
@@ -531,41 +647,128 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
             if feed_per_rev:
                 current.warnings.append(G95_NEXT_WARN)
             usages.append(current)
-            # Tool change does not by itself reset Z modal position, but
-            # a new usage should not inherit the previous tool's min Z.
             cycle_active = False
             cycle_z = None
+            cycle_code = None
+
+        x_word = line.first("X")
+        y_word = line.first("Y")
+        z_word = line.first("Z")
+        b_word = line.first("B")
+        c_word = line.first("C")
+        x_raw = x_word.value if x_word else None
+        y_raw = y_word.value if y_word else None
+        z_raw = z_word.value if z_word else None
+        b_raw = b_word.value if b_word else None
+        c_raw = c_word.value if c_word else None
+
+        z_before = abs_z
+        fpm = feed_per_min(feed_val, per_rev=feed_per_rev, rpm=s_rpm)
+        timed: float | None = 0.0
+
+        if machine:
+            g53_x, dx = axis_delta(g53_x, x_raw, incremental=False)
+            g53_y, dy = axis_delta(g53_y, y_raw, incremental=False)
+            g53_z, dz = axis_delta(g53_z, z_raw, incremental=False)
+            move = math.hypot(dx, dy, dz)
+            timed = seconds_for_length(move, None, rapid=True, inch=inch)
+        else:
+            abs_x, dx = axis_delta(abs_x, x_raw, incremental=incremental)
+            abs_y, dy = axis_delta(abs_y, y_raw, incremental=incremental)
+            in_cycle = cycle_active and cycle_code is not None
+            cycle_line = in_cycle and (
+                starting_cycle
+                or x_word is not None
+                or y_word is not None
+                or z_word is not None
+            )
+            if cycle_line:
+                if z_raw is not None:
+                    if incremental:
+                        if z_before is not None:
+                            cycle_z = z_before + z_raw
+                    else:
+                        cycle_z = z_raw
+                xy = math.hypot(dx, dy)
+                xy_t = seconds_for_length(xy, None, rapid=True, inch=inch)
+                z_t: float | None = 0.0
+                if cycle_r is not None and cycle_z is not None:
+                    z_t = canned_cycle_seconds(
+                        cycle_code or 81,
+                        z_initial=z_before,
+                        r=cycle_r,
+                        z=cycle_z,
+                        q=cycle_q,
+                        k=cycle_k,
+                        feed=fpm,
+                        g98=g98,
+                        inch=inch,
+                        i=cycle_i,
+                        j=cycle_j,
+                        p=cycle_p,
+                        retract_mult=cycle_retract_j,
+                    )
+                    if g98 and z_before is not None:
+                        abs_z = z_before
+                    else:
+                        abs_z = cycle_r
+                if xy_t is None or z_t is None:
+                    timed = None
+                else:
+                    timed = xy_t + z_t
+            else:
+                abs_z, dz = axis_delta(abs_z, z_raw, incremental=incremental)
+                if motion in (2, 3):
+                    x0 = (abs_x or 0.0) - dx
+                    y0 = (abs_y or 0.0) - dy
+                    x1 = abs_x if abs_x is not None else x0
+                    y1 = abs_y if abs_y is not None else y0
+                    r_arc = line.first("R")
+                    i_word = line.first("I")
+                    j_word = line.first("J")
+                    r_val = r_arc.value if r_arc is not None and not in_cycle else None
+                    xy_len = arc_xy_length(
+                        x0,
+                        y0,
+                        x1,
+                        y1,
+                        r=r_val,
+                        i=i_word.value if i_word else None,
+                        j=j_word.value if j_word else None,
+                        clockwise=motion == 2,
+                    )
+                    length = helical_length(xy_len, dz)
+                else:
+                    length = math.hypot(dx, dy, dz)
+                timed = seconds_for_length(
+                    length, fpm, rapid=motion == 0, inch=inch
+                )
+
+        abs_b, db = axis_delta(abs_b, b_raw, incremental=incremental)
+        abs_c, dc = axis_delta(abs_c, c_raw, incremental=incremental)
+        rot = seconds_for_rotary(
+            math.hypot(db, dc), rapid=motion == 0 or machine, feed=fpm
+        )
+        if current is not None:
+            current.add_time(timed)
+            current.add_time(rot)
 
         if current is None:
-            z_word = line.first("Z")
-            if z_word is not None and not machine:
-                if incremental:
-                    if abs_z is not None:
-                        abs_z = abs_z + z_word.value
-                else:
-                    abs_z = z_word.value
             continue
 
         _apply_line_to_usage(current, line, cycle_active)
 
-        z_word = line.first("Z")
         work_z: float | None = None
-        if z_word is not None and not machine:
-            if incremental:
-                if abs_z is not None:
-                    abs_z = abs_z + z_word.value
-                    work_z = abs_z
-            else:
-                abs_z = z_word.value
-                work_z = abs_z
-
-        if starting_cycle and work_z is not None:
-            cycle_z = work_z
+        if not machine and cycle_active and cycle_code is not None and (
+            starting_cycle or x_word is not None or y_word is not None or z_word is not None
+        ):
+            work_z = cycle_z
+        elif z_word is not None and not machine:
+            work_z = abs_z
 
         if work_z is not None:
             current.consider_z(work_z, line.number)
         elif cycle_active and cycle_z is not None and not machine:
-            # Repeated hole: XY (or just a cycle continuation) uses stored Z.
             if line.first("X") is not None or line.first("Y") is not None:
                 current.consider_z(cycle_z, line.number)
 
@@ -672,7 +875,11 @@ def _summarize(usages: list[ToolUsage], called_only: bool) -> list[ToolSummary]:
             if u.description and u.description not in descriptions:
                 descriptions.append(u.description)
         min_u = None
+        time_s = 0.0
+        time_incomplete = False
         for u in group:
+            time_s += u.time_s
+            time_incomplete = time_incomplete or u.time_incomplete
             if u.min_z is None:
                 continue
             if min_u is None or u.min_z < min_u.min_z:  # type: ignore[operator]
@@ -685,6 +892,8 @@ def _summarize(usages: list[ToolUsage], called_only: bool) -> list[ToolSummary]:
                 min_z_line=min_u.min_z_line if min_u else None,
                 called=any(u.called_from_main for u in group),
                 usages=group,
+                time_s=time_s,
+                time_incomplete=time_incomplete,
             )
         )
     return summaries

@@ -10,6 +10,7 @@ import textwrap
 import webbrowser
 
 from .parser import BangNote, Operation, ParseResult, ToolUsage
+from .machtime import RAPID_MM_PER_MIN, format_machine_time
 
 
 def _bang_label(note: BangNote) -> str:
@@ -23,6 +24,17 @@ THERMAL_WIDTH = 48
 PAPER_A4 = "a4"
 PAPER_80MM = "80mm"
 PAPER_80MM_MIN = "80mm-min"
+
+
+def _fmt_time(seconds: float, *, incomplete: bool = False) -> str:
+    return format_machine_time(seconds, incomplete=incomplete)
+
+
+def _time_of(obj: object) -> str:
+    return _fmt_time(
+        float(getattr(obj, "time_s", 0.0) or 0.0),
+        incomplete=bool(getattr(obj, "time_incomplete", False)),
+    )
 
 
 def _fmt_z(z: float | None) -> str:
@@ -158,6 +170,10 @@ def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
 
     w("")
     w("Min Z = lowest work Z (G53/G28 ignored).")
+    w(
+        f"Time ≈ programmed moves + cycles (rapids {RAPID_MM_PER_MIN/1000:.0f} m/min, "
+        "no accel). + means missing F or S."
+    )
     w("Each operation is simulated until M30. M97 calls a sub; M99 returns.")
     w("Select a header op by changing M97 P# in main.")
     w("[ ] = loaded")
@@ -178,7 +194,7 @@ def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
         w("-" * w78)
         for s in op.summaries:
             desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
-            w(f"[ ] T{s.tool:<4}  Min Z {_fmt_z(s.min_z):>9}")
+            w(f"[ ] T{s.tool:<4}  Min Z {_fmt_z(s.min_z):>9}  Time {_time_of(s):>7}")
             for part in _wrap(desc, w78 - 4):
                 w(f"    {part}")
             for u in s.usages:
@@ -197,6 +213,7 @@ def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
             bits = f"Min Z {_fmt_z(u.min_z)}"
             if u.min_z_line:
                 bits += f"  L{u.min_z_line}"
+            bits += f"  Time {_time_of(u)}"
             for part in _wrap(bits, w78 - 4):
                 w(f"    {part}")
             for warn in u.warnings:
@@ -239,6 +256,7 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
             block(f"! {_bang_label(note)}")
     w(dash)
     w("MinZ=work Z")
+    w(f"Time≈moves {RAPID_MM_PER_MIN/1000:.0f}m/min")
     w("Until M30; M99 returns")
     w("Op = change M97 P#")
     for op in result.operations or []:
@@ -252,7 +270,7 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
             desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
             w(f"[ ] T{s.tool}")
             block(desc)
-            w(f"MinZ {_fmt_z(s.min_z)}")
+            w(f"MinZ {_fmt_z(s.min_z)}  Time {_time_of(s)}")
             for u in s.usages:
                 for warn in u.warnings:
                     block(f"! {warn}")
@@ -263,7 +281,7 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
             w(f"[ ] T{u.tool}")
             block(u.description or "(no comment)")
             block(_usage_meta(u, include_lines=False))
-            w(f"MinZ {_fmt_z(u.min_z)}" + (f" L{u.min_z_line}" if u.min_z_line else ""))
+            w(f"MinZ {_fmt_z(u.min_z)}" + (f" L{u.min_z_line}" if u.min_z_line else "") + f"  Time {_time_of(u)}")
             for warn in u.warnings:
                 block(f"! {warn}")
             w(dash)
@@ -313,7 +331,7 @@ def _format_text_80mm_min(result: ParseResult, *, generated: datetime | None) ->
             desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
             w(f"T{s.tool}")
             block(desc)
-            w(f"MinZ {_fmt_z(s.min_z)}")
+            w(f"MinZ {_fmt_z(s.min_z)}  Time {_time_of(s)}")
             for u in s.usages:
                 for warn in u.warnings:
                     block(f"! {warn}")
@@ -469,7 +487,7 @@ td.c, th.c { text-align: center; width: 9mm; }
     for op in result.operations:
         setup_rows = []
         if not op.summaries:
-            setup_rows.append('<tr><td colspan="5">(no tool changes until M30)</td></tr>')
+            setup_rows.append('<tr><td colspan="6">(no tool changes until M30)</td></tr>')
         for s in op.summaries:
             desc = escape(" / ".join(s.descriptions) if s.descriptions else "(no comment)")
             warns = "".join(
@@ -483,12 +501,13 @@ td.c, th.c { text-align: center; width: 9mm; }
                 f"<td>T{s.tool}</td>"
                 f"<td>{desc}{warns}</td>"
                 f'<td class="n">{escape(_fmt_z(s.min_z))}</td>'
+                f'<td class="n">{escape(_time_of(s))}</td>'
                 f'<td class="c"><span class="box"></span></td>'
                 "</tr>"
             )
         change_rows = []
         if not op.usages:
-            change_rows.append('<tr><td colspan="7">(no Txx M6)</td></tr>')
+            change_rows.append('<tr><td colspan="8">(no Txx M6)</td></tr>')
         for u in op.usages:
             extra = "".join(
                 f'<div class="warn">WARNING: {escape(warn)}</div>' for warn in u.warnings
@@ -503,13 +522,14 @@ td.c, th.c { text-align: center; width: 9mm; }
                 f"<td>{escape(bc)}</td>"
                 f"<td>{escape(' '.join(p for p in (_fmt_h(u.h_offset), _fmt_d(u.d_offset), _fmt_s(u.s_rpm)) if p) or '—')}</td>"
                 f'<td class="n">{escape(_fmt_z(u.min_z))}</td>'
+                f'<td class="n">{escape(_time_of(u))}</td>'
                 "</tr>"
             )
         op_html.append(f"<h2>{escape(_op_heading(op))}</h2>")
         op_html.append(
             "<table><thead><tr>"
             '<th class="c">Load</th><th>T</th><th>Description</th>'
-            '<th class="n">Min Z</th><th class="c">OK</th>'
+            '<th class="n">Min Z</th><th class="n">Time</th><th class="c">OK</th>'
             "</tr></thead><tbody>"
             + "".join(setup_rows)
             + "</tbody></table>"
@@ -518,7 +538,7 @@ td.c, th.c { text-align: center; width: 9mm; }
         op_html.append(
             "<table><thead><tr>"
             '<th class="c">Load</th><th>T</th><th>Description</th><th>Sub</th>'
-            '<th>B/C</th><th>H / D / S</th><th class="n">Min Z</th>'
+            '<th>B/C</th><th>H / D / S</th><th class="n">Min Z</th><th class="n">Time</th>'
             "</tr></thead><tbody>"
             + "".join(change_rows)
             + "</tbody></table>"
@@ -535,7 +555,9 @@ td.c, th.c { text-align: center; width: 9mm; }
 </div>
 {notes}
 <p class="fine">Min Z is lowest work-coordinate Z (G53/G28 ignored).
-Each operation is simulated until M30 (M97 calls a sub, M99 returns).
+Time is programmed motion and canned cycles (approx; rapids
+{escape(f"{RAPID_MM_PER_MIN/1000:.0f}")} m/min; no accel). A trailing + means
+missing F or S. Each operation is simulated until M30 (M97 calls a sub, M99 returns).
 Select a header op by changing M97 P# in main.</p>
 {"".join(op_html)}
 <div class="sign">
@@ -614,6 +636,7 @@ h1 { font-size: 13pt; margin: 0 0 4pt; text-align: center; letter-spacing: 0.04e
             a(f'<div class="warn d">! {escape(_bang_label(note))}</div>')
     a('<hr class="rule">')
     a("<div>Min Z = work Z</div>")
+    a(f"<div>Time ≈ moves {RAPID_MM_PER_MIN/1000:.0f} m/min</div>")
     a("<div>Until M30; M99 returns</div>")
     a("<div>Op = change M97 P#</div>")
     if not result.operations:
@@ -630,6 +653,7 @@ h1 { font-size: 13pt; margin: 0 0 4pt; text-align: center; letter-spacing: 0.04e
             a(f'<div class="tline"><span class="box"></span>T{s.tool}</div>')
             a(f'<div class="d">{escape(desc)}</div>')
             a(f'<div class="kv"><span>Min Z</span><span>{escape(_fmt_z(s.min_z))}</span></div>')
+            a(f'<div class="kv"><span>Time</span><span>{escape(_time_of(s))}</span></div>')
             for u in s.usages:
                 for warn in u.warnings:
                     a(f'<div class="warn">! {escape(warn)}</div>')
@@ -641,6 +665,7 @@ h1 { font-size: 13pt; margin: 0 0 4pt; text-align: center; letter-spacing: 0.04e
             a(f'<div class="d">{escape(u.description or "(no comment)")}</div>')
             a(f'<div class="d">{escape(_usage_meta(u, include_lines=False))}</div>')
             a(f'<div class="kv"><span>Min Z</span><span>{escape(_fmt_z(u.min_z))}</span></div>')
+            a(f'<div class="kv"><span>Time</span><span>{escape(_time_of(u))}</span></div>')
             for warn in u.warnings:
                 a(f'<div class="warn">! {escape(warn)}</div>')
             a("</div>")

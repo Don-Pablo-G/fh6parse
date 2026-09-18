@@ -409,7 +409,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 1. Power on. Screen shows **Włóż pendrive** / **Insert USB** (or the last stick if it was already plugged in). The kiosk is Polish unless settings were changed.
 2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear.
 3. Turn the encoder to highlight a file. A **3D cube** next to the name means the STEP views are ready for that program.
-4. **FULL** — 80 mm ticket: stacked line-art isometrics when ready, then operations, tool list, each tool change, warnings, min Z.
+4. **FULL** — 80 mm ticket: stacked line-art isometrics when ready, then operations, tool list, each tool change, warnings, min Z, approx machine time.
 5. **MIN** — short ticket: stacked line-art isometrics when ready, then per operation only T, description, min Z, warnings.
 6. If there is no cube, print anyway. The slip is text only.
 7. Status after a good print: **`device:/dev/usb/lp0`**. If it says `lp:…`, CUPS took the job — **§3.5**.
