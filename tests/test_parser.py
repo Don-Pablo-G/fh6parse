@@ -641,5 +641,84 @@ M30
         self.assertGreater(u_l.time_s, u_one.time_s)
 
 
+class TestParametricTools(unittest.TestCase):
+    def test_t_hash_resolves_and_uses_assign_comment(self) -> None:
+        src = """O1 (TEST)
+G90 G21
+#100=1 (Frez fi12)
+#101=2 (Wierlo 8.5)
+T#100 M6
+G43 Z10. H#100 D#100
+G1 Z-1. F100
+T#101 M6
+G43 Z10. H#101 D#101
+G1 Z-5. F100
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertEqual([u.tool for u in r.usages], [1, 2])
+        self.assertEqual(r.usages[0].tool_hash, 100)
+        self.assertEqual(r.usages[0].description, "Frez fi12")
+        self.assertEqual(r.usages[0].h_offset, 1)
+        self.assertEqual(r.usages[0].h_hash, 100)
+        self.assertEqual(r.usages[0].d_offset, 1)
+        self.assertEqual(r.usages[0].d_hash, 100)
+        self.assertEqual(r.usages[1].tool_hash, 101)
+        self.assertEqual(r.usages[1].description, "Wierlo 8.5")
+        self.assertEqual(r.usages[1].min_z, -5.0)
+        text = format_report(r)
+        self.assertIn("T1 (#100)", text)
+        self.assertIn("Frez fi12", text)
+        self.assertIn("H1 (#100)", text)
+        self.assertIn("D1 (#100)", text)
+        self.assertNotIn("does not match", text)
+        mini = format_report(r, paper=PAPER_80MM_MIN)
+        self.assertIn("T1 (#100)", mini)
+        self.assertIn("Frez fi12", mini)
+        self.assertIn("H1 (#100)", mini)
+        for line in mini.splitlines():
+            self.assertLessEqual(len(line), THERMAL_WIDTH, msg=repr(line))
+
+    def test_h_d_hash_must_match_t_hash(self) -> None:
+        src = """O1
+#100=1 (Frez fi12)
+#101=1 (same pocket)
+T#100 M6
+G43 Z10. H#101 D#100
+G1 Z-1. F100
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.tool, 1)
+        self.assertEqual(u.h_offset, 1)
+        self.assertIn("H#101 does not match T#100", u.warnings)
+        self.assertFalse(any("D#" in w for w in u.warnings))
+
+    def test_h_literal_mismatch_vs_t_hash(self) -> None:
+        src = """O1
+#100=1 (Frez fi12)
+T#100 M6
+G43 Z10. H25 D#100
+G1 Z-1. F100
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertIn("H25 does not match T1", u.warnings)
+        self.assertFalse(any("D" in w and "match" in w for w in u.warnings))
+
+    def test_unassigned_t_hash_warns(self) -> None:
+        src = """O1
+T#100 M6
+G43 Z10. H#100
+G1 Z-1. F100
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.tool_hash, 100)
+        self.assertEqual(u.tool, 0)
+        self.assertIn("T#100 not assigned", u.warnings)
+        self.assertIn("T#100", format_report(parse_nc_text(src, "t.nc")))
+
+
 if __name__ == "__main__":
     unittest.main()

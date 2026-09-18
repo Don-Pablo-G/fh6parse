@@ -18,7 +18,10 @@ Output folder
 Header comments like (N10 - OP1) / (N20 - OP2) get a separate tool list each,
 as if you changed M97 P# in main. Each list follows M97/M99 until M30.
 Tool description: comment on the Txx M6 line, or the line above, plus the
-line immediately below. Comments containing ! are listed as programmer notes.
+line immediately below. T#n / H#n / D#n use the #n= value (and the comment
+on that assign, e.g. #100=1 (Frez fi12) then T#100 prints T1 (#100)). H# / D#
+must use the same # as T# or a literal that equals that tool; otherwise WARNING.
+Comments containing ! are listed as programmer notes.
 G95 (feed per rev) still on at the next T or M30 prints a WARNING to set G94.
 Approx machine time and Min Z follow the programmed path: GOTO / IF GOTO,
 WHILE/DO/END, M97/M98 L repeats, and canned-cycle L (G91 steps XY between

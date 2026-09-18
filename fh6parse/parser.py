@@ -132,6 +132,9 @@ class ToolUsage:
     line_end: int = 0
     h_offset: int | None = None
     d_offset: int | None = None
+    tool_hash: int | None = None
+    h_hash: int | None = None
+    d_hash: int | None = None
     s_rpm: float | None = None
     b: float | None = None
     c: float | None = None
@@ -304,8 +307,66 @@ def _is_pad_line(line: Line) -> bool:
     return False
 
 
+def _letter_hash(line: Line, letter: str) -> int | None:
+    want = letter.upper()
+    for name, n in line.hash_words:
+        if name == want:
+            return n
+    return None
+
+
 def _is_tool_change(line: Line) -> bool:
-    return bool(line.has_m(6) and line.first("T"))
+    return bool(
+        line.has_m(6)
+        and (line.first("T") is not None or _letter_hash(line, "T") is not None)
+    )
+
+
+def _join_desc(*parts: str) -> str:
+    out: list[str] = []
+    for part in parts:
+        for bit in (part or "").split(" / "):
+            bit = bit.strip()
+            if bit and bit not in out:
+                out.append(bit)
+    return " / ".join(out)
+
+
+def _note_hash_descs(descs: dict[int, str], line: Line) -> None:
+    comment = _last_comment(line)
+    if not comment:
+        return
+    for n, _expr in line.hash_assigns:
+        descs[n] = comment
+
+
+def _resolve_letter_int(
+    line: Line, letter: str, hash_vars: dict[int, float]
+) -> tuple[int | None, int | None]:
+    param = _letter_hash(line, letter)
+    word = line.first(letter)
+    if word is not None:
+        return _int_or_none(word), param
+    if param is None:
+        return None, None
+    if param not in hash_vars:
+        return None, param
+    return int(round(hash_vars[param])), param
+
+
+def _offset_mismatch(
+    usage: ToolUsage, letter: str, value: int | None, param: int | None
+) -> None:
+    if value is None and param is None:
+        return
+    if usage.tool_hash is not None and param is not None and param != usage.tool_hash:
+        msg = f"{letter}#{param} does not match T#{usage.tool_hash}"
+    elif value is not None and usage.tool and value != usage.tool:
+        msg = f"{letter}{value} does not match T{usage.tool}"
+    else:
+        return
+    if msg not in usage.warnings:
+        usage.warnings.append(msg)
 
 
 def _last_comment(line: Line) -> str:
@@ -340,6 +401,30 @@ def _description_for(lines: list[Line], idx: int) -> str:
                 parts.append(comment)
         break
     return " / ".join(parts)
+
+
+def _tool_description(
+    lines: list[Line],
+    idx: int,
+    *,
+    t_hash: int | None,
+    hash_descs: dict[int, str],
+) -> str:
+    """Prefer the #n= (comment) for T#n; do not use the previous hash-table line."""
+    if t_hash is not None and t_hash in hash_descs:
+        parts = [hash_descs[t_hash]]
+        parts.extend(c for c in lines[idx].comments if c)
+        for j in range(idx + 1, len(lines)):
+            nxt = lines[j]
+            if _is_pad_line(nxt):
+                continue
+            if nxt.comments and not _is_tool_change(nxt) and not nxt.hash_assigns:
+                comment = _last_comment(nxt)
+                if comment and comment not in parts:
+                    parts.append(comment)
+            break
+        return _join_desc(*parts)
+    return _description_for(lines, idx)
 
 
 def _collect_bang_notes(lines: list[Line]) -> list[BangNote]:
@@ -541,7 +626,13 @@ def _current_n_context(lines: list[Line], idx: int) -> tuple[str, str]:
     return "main", ""
 
 
-def _apply_line_to_usage(usage: ToolUsage, line: Line, cycle_active: bool) -> None:
+def _apply_line_to_usage(
+    usage: ToolUsage,
+    line: Line,
+    cycle_active: bool,
+    hash_vars: dict[int, float] | None = None,
+) -> None:
+    vars_ = hash_vars or {}
     s_word = line.first("S")
     if s_word is not None and usage.s_rpm is None:
         usage.s_rpm = s_word.value
@@ -554,26 +645,27 @@ def _apply_line_to_usage(usage: ToolUsage, line: Line, cycle_active: bool) -> No
         usage.c = c_word.value
 
     if line.has_g(43):
-        h_word = line.first("H")
-        h = _int_or_none(h_word)
+        h, h_hash = _resolve_letter_int(line, "H", vars_)
+        if h_hash is not None:
+            usage.h_hash = h_hash
         if h is not None:
             usage.h_offset = h
-            if h != usage.tool:
-                msg = f"H{h} does not match T{usage.tool}"
-                if msg not in usage.warnings:
-                    usage.warnings.append(msg)
+        _offset_mismatch(usage, "H", h, h_hash)
         z_word = line.first("Z")
         if z_word is not None:
             usage.g43_z = z_word.value
+        elif _letter_hash(line, "Z") is not None:
+            z_val, _ = _resolve_letter_int(line, "Z", vars_)
+            if z_val is not None:
+                usage.g43_z = float(z_val)
 
-    d_word = line.first("D")
-    d = _int_or_none(d_word)
-    if d is not None:
-        usage.d_offset = d
-        if d != usage.tool:
-            msg = f"D{d} does not match T{usage.tool}"
-            if msg not in usage.warnings:
-                usage.warnings.append(msg)
+    d, d_hash = _resolve_letter_int(line, "D", vars_)
+    if d_hash is not None or d is not None:
+        if d_hash is not None:
+            usage.d_hash = d_hash
+        if d is not None:
+            usage.d_offset = d
+        _offset_mismatch(usage, "D", d, d_hash)
 
     r_word = line.first("R")
     if r_word is not None and (cycle_active or any(g in CYCLE_START for g in line.g_ints())):
@@ -589,19 +681,27 @@ def _feed_on_line(line: Line, hash_vars: dict[int, float]) -> float | None:
 
 def _collect_tool_usages(lines: list[Line]) -> list[ToolUsage]:
     usages: list[ToolUsage] = []
+    hash_vals: dict[int, float] = {}
+    hash_descs: dict[int, str] = {}
     for i, line in enumerate(lines):
-        t_word = line.first("T")
-        if t_word is None or not line.has_m(6):
+        _apply_hash_exprs(hash_vals, line.hash_assigns)
+        _note_hash_descs(hash_descs, line)
+        if not _is_tool_change(line):
             continue
+        t_val, t_hash = _resolve_letter_int(line, "T", hash_vals)
         sub, sub_c = _current_n_context(lines, i)
+        desc = _tool_description(
+            lines, i, t_hash=t_hash, hash_descs=hash_descs
+        )
         usages.append(
             ToolUsage(
-                tool=int(round(t_word.value)),
-                description=_description_for(lines, i),
+                tool=t_val if t_val is not None else 0,
+                description=desc,
                 line_start=line.number,
                 line_end=line.number,
                 subprogram=sub,
                 subprogram_comment=sub_c,
+                tool_hash=t_hash,
             )
         )
     return usages
@@ -658,6 +758,7 @@ def _run_program(
     s_rpm: float | None = None
     motion = 0
     hash_vars: dict[int, float] = {}
+    hash_descs: dict[int, str] = {}
     inch_now = inch
 
     def finish_current(end_line: int) -> None:
@@ -670,6 +771,7 @@ def _run_program(
         executed.add(i)
         line = lines[i]
         _apply_hash_exprs(hash_vars, line.hash_assigns)
+        _note_hash_descs(hash_descs, line)
 
         if line.if_goto is not None and line.if_cond is not None:
             if _eval_cond(line.if_cond, hash_vars):
@@ -814,22 +916,35 @@ def _run_program(
             if p_word is not None:
                 cycle_p = p_word.value
 
-        t_word = line.first("T")
-        if t_word is not None and line.has_m(6):
+        if _is_tool_change(line):
             finish_current(line.number - 1)
+            t_val, t_hash = _resolve_letter_int(line, "T", hash_vars)
+            desc = _tool_description(
+                lines, i, t_hash=t_hash, hash_descs=hash_descs
+            )
             current = by_start.get(line.number)
             if current is None:
                 sub, sub_c = _current_n_context(lines, i)
                 current = ToolUsage(
-                    tool=int(round(t_word.value)),
-                    description=_description_for(lines, i),
+                    tool=t_val if t_val is not None else 0,
+                    description=desc,
                     line_start=line.number,
                     line_end=line.number,
                     subprogram=sub,
                     subprogram_comment=sub_c,
+                    tool_hash=t_hash,
                 )
                 usages.append(current)
                 by_start[line.number] = current
+            if t_val is not None:
+                current.tool = t_val
+            current.tool_hash = t_hash
+            if desc:
+                current.description = desc
+            if t_hash is not None and t_val is None:
+                msg = f"T#{t_hash} not assigned"
+                if msg not in current.warnings:
+                    current.warnings.append(msg)
             current.called_from_main = True
             if feed_per_rev and G95_NEXT_WARN not in current.warnings:
                 current.warnings.append(G95_NEXT_WARN)
@@ -962,7 +1077,7 @@ def _run_program(
             current.add_time(timed)
             current.add_time(rot)
             current.line_end = line.number
-            _apply_line_to_usage(current, line, cycle_active)
+            _apply_line_to_usage(current, line, cycle_active, hash_vars)
             work_z: float | None = None
             if not g53 and cycle_active and cycle_code is not None and (
                 starting_cycle
@@ -1034,7 +1149,7 @@ def parse_nc_text(
             units = "mm"
         elif line.has_g(20):
             units = "inch"
-        if line.has_m(6) and line.first("T") is not None and first_tool_idx is None:
+        if _is_tool_change(line) and first_tool_idx is None:
             first_tool_idx = i
         if first_tool_idx is None:
             for c in line.comments:
@@ -1051,8 +1166,13 @@ def parse_nc_text(
     all_summaries = _summarize(usages, called_only=False)
 
     if usages and header_comments:
-        first_desc = usages[0].description
-        header_comments = [c for c in header_comments if c != first_desc]
+        used: set[str] = set()
+        for u in usages:
+            for part in (u.description or "").split(" / "):
+                part = part.strip()
+                if part:
+                    used.add(part)
+        header_comments = [c for c in header_comments if c not in used]
 
     declared = _declared_ops(header_comments)
     declared_ns = {n for n, _ in declared}

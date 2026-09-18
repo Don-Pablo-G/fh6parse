@@ -175,12 +175,41 @@ def _fmt_s(s: float | None) -> str:
     return f"S{s:g}"
 
 
-def _fmt_h(h: int | None) -> str:
-    return f"H{h}" if h is not None else ""
+def _fmt_t(tool: int, tool_hash: int | None = None) -> str:
+    if tool_hash is not None:
+        if tool:
+            return f"T{tool} (#{tool_hash})"
+        return f"T#{tool_hash}"
+    return f"T{tool}"
 
 
-def _fmt_d(d: int | None) -> str:
-    return f"D{d}" if d is not None else ""
+def _t_of_usage(u: ToolUsage) -> str:
+    return _fmt_t(u.tool, u.tool_hash)
+
+
+def _t_of_summary(s: ToolSummary) -> str:
+    hashes: list[int] = []
+    for u in s.usages:
+        if u.tool_hash is not None and u.tool_hash not in hashes:
+            hashes.append(u.tool_hash)
+    if len(hashes) == 1:
+        return _fmt_t(s.tool, hashes[0])
+    if hashes:
+        extra = ", ".join(f"#{n}" for n in hashes)
+        if s.tool:
+            return f"T{s.tool} ({extra})"
+        return " ".join(f"T#{n}" for n in hashes)
+    return _fmt_t(s.tool)
+
+
+def _fmt_hd(letter: str, offset: int | None, param: int | None) -> str:
+    if offset is None and param is None:
+        return ""
+    if param is not None and offset is not None:
+        return f"{letter}{offset} (#{param})"
+    if param is not None:
+        return f"{letter}#{param}"
+    return f"{letter}{offset}"
 
 
 def _summary_hds(s: ToolSummary) -> str:
@@ -189,10 +218,10 @@ def _summary_hds(s: ToolSummary) -> str:
     ds: list[str] = []
     speeds: list[str] = []
     for u in s.usages:
-        h = _fmt_h(u.h_offset)
+        h = _fmt_hd("H", u.h_offset, u.h_hash)
         if h and h not in hs:
             hs.append(h)
-        d = _fmt_d(u.d_offset)
+        d = _fmt_hd("D", u.d_offset, u.d_hash)
         if d and d not in ds:
             ds.append(d)
         sp = _fmt_s(u.s_rpm)
@@ -254,10 +283,10 @@ def _usage_meta(u: ToolUsage, *, include_lines: bool = True) -> str:
     )
     if bc:
         parts.append(bc)
-    h = _fmt_h(u.h_offset)
+    h = _fmt_hd("H", u.h_offset, u.h_hash)
     if h:
         parts.append(h)
-    d = _fmt_d(u.d_offset)
+    d = _fmt_hd("D", u.d_offset, u.d_hash)
     if d:
         parts.append(d)
     s = _fmt_s(u.s_rpm)
@@ -342,7 +371,7 @@ def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
         w("-" * w78)
         for s in op.summaries:
             desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
-            w(f"[ ] T{s.tool:<4}  Min Z {_fmt_z(s.min_z):>9}  Time {_time_of(s):>7}")
+            w(f"[ ] {_t_of_summary(s):<12}  Min Z {_fmt_z(s.min_z):>9}  Time {_time_of(s):>7}")
             for part in _wrap(desc, w78 - 4):
                 w(f"    {part}")
             for u in s.usages:
@@ -355,7 +384,7 @@ def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
         for u in op.usages:
             w("")
             share = _pct_of(u, cycle_s)
-            for part in _wrap(f"[ ] T{u.tool}  {u.description or '(no comment)'}", w78):
+            for part in _wrap(f"[ ] {_t_of_usage(u)}  {u.description or '(no comment)'}", w78):
                 w(part)
             for part in _wrap(_usage_meta(u), w78 - 4):
                 w(f"    {part}")
@@ -421,7 +450,7 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
             continue
         for s in op.summaries:
             desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
-            w(f"[ ] T{s.tool}")
+            w(f"[ ] {_t_of_summary(s)}")
             block(desc)
             w(f"MinZ {_fmt_z(s.min_z)}  Time {_time_of(s)}")
             for u in s.usages:
@@ -432,7 +461,7 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
         w(dash)
         for u in op.usages:
             share = _pct_of(u, cycle_s)
-            w(f"[ ] T{u.tool}")
+            w(f"[ ] {_t_of_usage(u)}")
             block(u.description or "(no comment)")
             block(_usage_meta(u, include_lines=False))
             minz = f"MinZ {_fmt_z(u.min_z)}"
@@ -491,7 +520,7 @@ def _format_text_80mm_min(result: ParseResult, *, generated: datetime | None) ->
             continue
         for s in op.summaries:
             desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
-            w(f"T{s.tool}")
+            w(f"{_t_of_summary(s)}")
             block(desc)
             load = _summary_hds(s)
             if load:
@@ -672,7 +701,7 @@ table.chart td.bar { padding-right: 0; }
             setup_rows.append(
                 "<tr>"
                 f'<td class="c"><span class="box"></span></td>'
-                f"<td>T{s.tool}</td>"
+                f"<td>{escape(_t_of_summary(s))}</td>"
                 f"<td>{desc}{warns}</td>"
                 f'<td class="n">{escape(_fmt_z(s.min_z))}</td>'
                 f'<td class="n">{escape(_time_of(s))}</td>'
@@ -691,11 +720,11 @@ table.chart td.bar { padding-right: 0; }
             change_rows.append(
                 "<tr>"
                 f'<td class="c"><span class="box"></span></td>'
-                f"<td>T{u.tool}</td>"
+                f"<td>{escape(_t_of_usage(u))}</td>"
                 f"<td>{escape(u.description or '(no comment)')}{extra}</td>"
                 f"<td>{escape(u.subprogram)}</td>"
                 f"<td>{escape(bc)}</td>"
-                f"<td>{escape(' '.join(p for p in (_fmt_h(u.h_offset), _fmt_d(u.d_offset), _fmt_s(u.s_rpm)) if p) or '—')}</td>"
+                f"<td>{escape(' '.join(p for p in (_fmt_hd('H', u.h_offset, u.h_hash), _fmt_hd('D', u.d_offset, u.d_hash), _fmt_s(u.s_rpm)) if p) or '—')}</td>"
                 f'<td class="n">{escape(_fmt_z(u.min_z))}</td>'
                 f'<td class="n">{escape(_time_of(u))}  {share}%</td>'
                 "</tr>"
@@ -844,9 +873,9 @@ pre.chart {
             desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
             a('<div class="tool">')
             if short:
-                a(f'<div class="tline">T{s.tool}</div>')
+                a(f'<div class="tline">{escape(_t_of_summary(s))}</div>')
             else:
-                a(f'<div class="tline"><span class="box"></span>T{s.tool}</div>')
+                a(f'<div class="tline"><span class="box"></span>{escape(_t_of_summary(s))}</div>')
             a(f'<div class="d">{escape(desc)}</div>')
             if short:
                 load = _summary_hds(s)
@@ -864,7 +893,7 @@ pre.chart {
         for u in op.usages:
             share = _pct_of(u, cycle_s)
             a('<div class="tool">')
-            a(f'<div class="tline"><span class="box"></span>T{u.tool}</div>')
+            a(f'<div class="tline"><span class="box"></span>{escape(_t_of_usage(u))}</div>')
             a(f'<div class="d">{escape(u.description or "(no comment)")}</div>')
             a(f'<div class="d">{escape(_usage_meta(u, include_lines=False))}</div>')
             a(f'<div class="kv"><span>Min Z</span><span>{escape(_fmt_z(u.min_z))}</span></div>')
