@@ -14,7 +14,15 @@ from fh6parse.machtime import (
     seconds_for_length,
 )
 from fh6parse.parser import parse_nc_text
-from fh6parse.report import format_report
+from fh6parse.report import (
+    BAR_FILL,
+    PAPER_80MM,
+    PAPER_80MM_MIN,
+    PAPER_A4,
+    THERMAL_WIDTH,
+    format_print_html,
+    format_report,
+)
 
 
 class TestMachtimeHelpers(unittest.TestCase):
@@ -195,6 +203,82 @@ M30
         mill = [u for u in r.usages if u.tool == 26][0]
         self.assertGreater(mill.time_s, 30.0)
         self.assertFalse(mill.time_incomplete)
+
+
+class TestReportCycleShare(unittest.TestCase):
+    def _equal_tools(self):
+        src = """O1
+T1 M6
+G90 G94
+G0 X0 Y0 Z0
+G1 X100 F500
+T2 M6
+G0 X100 Y0 Z0
+G1 X200 F500
+M30
+"""
+        return parse_nc_text(src, "t.nc")
+
+    def test_cycle_on_short_and_full(self) -> None:
+        r = self._equal_tools()
+        for paper in (PAPER_A4, PAPER_80MM, PAPER_80MM_MIN):
+            text = format_report(r, paper=paper)
+            self.assertIn("Cycle 0:24", text, msg=paper)
+            self.assertIn(" 50%", text, msg=paper)
+            self.assertIn(BAR_FILL, text, msg=paper)
+            self.assertTrue("SHARE" in text or "Share of cycle" in text, msg=paper)
+
+    def test_full_each_change_has_share_not_a_second_chart(self) -> None:
+        r = self._equal_tools()
+        a4 = format_report(r, paper=PAPER_A4)
+        head, _, tail = a4.partition("EACH TOOL CHANGE")
+        self.assertIn(BAR_FILL, head)
+        self.assertNotIn(BAR_FILL, tail)
+        self.assertEqual(tail.count(" 50%"), 2)
+        mm = format_report(r, paper=PAPER_80MM)
+        head_mm, _, tail_mm = mm.partition("EACH CHANGE")
+        self.assertIn(BAR_FILL, head_mm)
+        self.assertNotIn(BAR_FILL, tail_mm)
+        self.assertEqual(tail_mm.count(" 50%"), 2)
+        for paper in (PAPER_80MM, PAPER_80MM_MIN):
+            for line in format_report(r, paper=paper).splitlines():
+                self.assertLessEqual(len(line), THERMAL_WIDTH, msg=repr(line))
+
+    def test_html_cycle_and_chart(self) -> None:
+        r = self._equal_tools()
+        a4 = format_print_html(r, paper=PAPER_A4)
+        self.assertIn("Cycle 0:24", a4)
+        self.assertIn("Share of cycle", a4)
+        self.assertIn('class="chart"', a4)
+        self.assertIn("width:50%", a4)
+        self.assertIn("Each tool change", a4)
+        mm = format_print_html(r, paper=PAPER_80MM)
+        self.assertIn("Cycle 0:24", mm)
+        self.assertIn("SHARE", mm)
+        self.assertIn(BAR_FILL, mm)
+        self.assertIn("EACH CHANGE", mm)
+        mini = format_print_html(r, paper=PAPER_80MM_MIN)
+        self.assertIn("CNC TOOLS MIN", mini)
+        self.assertIn("Cycle 0:24", mini)
+        self.assertIn("SHARE", mini)
+        self.assertIn(BAR_FILL, mini)
+        self.assertNotIn("EACH CHANGE", mini)
+
+    def test_single_tool_is_100_percent(self) -> None:
+        src = """O1
+T1 M6
+G90 G94
+G0 X0 Y0 Z0
+G1 X100 F500
+M30
+"""
+        text = format_report(parse_nc_text(src, "t.nc"))
+        self.assertIn("Cycle 0:12", text)
+        self.assertIn("100%", text)
+        self.assertIn(BAR_FILL, text)
+
+    def test_block_is_cp852(self) -> None:
+        self.assertEqual(BAR_FILL.encode("cp852"), b"\xdb")
 
 
 if __name__ == "__main__":

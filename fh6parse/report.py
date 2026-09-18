@@ -20,6 +20,12 @@ def _bang_label(note: BangNote) -> str:
 A4_WIDTH = 78
 # ESC/POS 80 mm Font A is 48 columns on 72 mm printable width.
 THERMAL_WIDTH = 48
+# Solid block (CP852 0xDB) — prints as a black bar on Font A / Courier / Consolas.
+BAR_FILL = "\u2588"
+# "T15     0:24  50% " — bars start on the same column so they read as a chart.
+CHART_PREFIX = 19
+A4_BAR_WIDTH = 40
+THERMAL_BAR_WIDTH = THERMAL_WIDTH - CHART_PREFIX
 
 PAPER_A4 = "a4"
 PAPER_80MM = "80mm"
@@ -34,6 +40,95 @@ def _time_of(obj: object) -> str:
     return _fmt_time(
         float(getattr(obj, "time_s", 0.0) or 0.0),
         incomplete=bool(getattr(obj, "time_incomplete", False)),
+    )
+
+
+def _seconds_of(obj: object) -> float:
+    return float(getattr(obj, "time_s", 0.0) or 0.0)
+
+
+def _op_cycle(op: Operation) -> tuple[float, bool]:
+    total = sum(u.time_s for u in op.usages)
+    incomplete = any(u.time_incomplete for u in op.usages)
+    return total, incomplete
+
+
+def _cycle_label(op: Operation) -> str:
+    seconds, incomplete = _op_cycle(op)
+    return f"Cycle {_fmt_time(seconds, incomplete=incomplete)}"
+
+
+def _pct(part: float, total: float) -> int:
+    if total <= 0 or part <= 0:
+        return 0
+    return max(0, min(100, int(round(100.0 * part / total))))
+
+
+def _pct_of(obj: object, total: float) -> int:
+    return _pct(_seconds_of(obj), total)
+
+
+def _bar_fill(pct: int, width: int) -> str:
+    """Left-aligned solid marks. No trailing pad — thermal printers drop it."""
+    pct = max(0, min(100, int(pct)))
+    filled = int(round(width * pct / 100.0))
+    if pct > 0:
+        filled = max(1, filled)
+    return BAR_FILL * max(0, min(width, filled))
+
+
+def _chart_line(tool: int, obj: object, total: float, bar_width: int) -> str:
+    share = _pct_of(obj, total)
+    prefix = f"T{tool:<3} {_time_of(obj):>8} {share:3d}% "
+    room = max(0, CHART_PREFIX + bar_width - len(prefix))
+    return prefix + _bar_fill(share, room)
+
+
+def _share_chart_text(
+    op: Operation, bar_width: int, *, heading: str = "SHARE"
+) -> list[str]:
+    if not op.summaries:
+        return []
+    total, _ = _op_cycle(op)
+    rows = [_chart_line(s.tool, s, total, bar_width) for s in op.summaries]
+    return [heading, *rows]
+
+
+def _share_chart_html(op: Operation) -> str:
+    """A4: aligned CSS tracks. Same order as the tool list."""
+    if not op.summaries:
+        return ""
+    total, _ = _op_cycle(op)
+    rows: list[str] = []
+    for s in op.summaries:
+        share = _pct_of(s, total)
+        rows.append(
+            "<tr>"
+            f'<td class="t">T{s.tool}</td>'
+            f'<td class="n">{escape(_time_of(s))}</td>'
+            f'<td class="n">{share}%</td>'
+            '<td class="bar"><div class="track">'
+            f'<span style="width:{share}%"></span></div></td>'
+            "</tr>"
+        )
+    return (
+        '<p class="cycle-sub">Share of cycle</p>'
+        '<table class="chart"><tbody>'
+        + "".join(rows)
+        + "</tbody></table>"
+    )
+
+
+def _share_chart_pre(op: Operation, bar_width: int) -> str:
+    """80 mm HTML: same block chart as the kiosk ticket."""
+    lines = _share_chart_text(op, bar_width)
+    if not lines:
+        return ""
+    head, *rows = lines
+    body = "\n".join(escape(p) for p in rows)
+    return (
+        f'<div class="tline">{escape(head)}</div>'
+        f'<pre class="chart">{body}</pre>'
     )
 
 
@@ -174,6 +269,7 @@ def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
         f"Time ≈ programmed moves + cycles (rapids {RAPID_MM_PER_MIN/1000:.0f} m/min, "
         "no accel). + means missing F or S."
     )
+    w("Cycle = that op until M30. The chart under Cycle is each T as a share.")
     w("Each operation is simulated until M30. M97 calls a sub; M99 returns.")
     w("Select a header op by changing M97 P# in main.")
     w("[ ] = loaded")
@@ -187,6 +283,10 @@ def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
         for part in _wrap(_op_heading(op), w78):
             w(part)
         w("=" * w78)
+        cycle_s, _ = _op_cycle(op)
+        w(_cycle_label(op))
+        for line in _share_chart_text(op, A4_BAR_WIDTH, heading="Share of cycle"):
+            w(line)
         if not op.summaries:
             w("(no tool changes until M30)")
             continue
@@ -206,6 +306,7 @@ def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
         w("-" * w78)
         for u in op.usages:
             w("")
+            share = _pct_of(u, cycle_s)
             for part in _wrap(f"[ ] T{u.tool}  {u.description or '(no comment)'}", w78):
                 w(part)
             for part in _wrap(_usage_meta(u), w78 - 4):
@@ -213,7 +314,7 @@ def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
             bits = f"Min Z {_fmt_z(u.min_z)}"
             if u.min_z_line:
                 bits += f"  L{u.min_z_line}"
-            bits += f"  Time {_time_of(u)}"
+            bits += f"  Time {_time_of(u)}  {share:3d}%"
             for part in _wrap(bits, w78 - 4):
                 w(f"    {part}")
             for warn in u.warnings:
@@ -263,6 +364,10 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
         w(dash)
         block(_op_heading(op))
         w(dash)
+        cycle_s, _ = _op_cycle(op)
+        w(_cycle_label(op))
+        for line in _share_chart_text(op, THERMAL_BAR_WIDTH):
+            w(line)
         if not op.summaries:
             w("(no tools)")
             continue
@@ -278,10 +383,14 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
         w("EACH CHANGE")
         w(dash)
         for u in op.usages:
+            share = _pct_of(u, cycle_s)
             w(f"[ ] T{u.tool}")
             block(u.description or "(no comment)")
             block(_usage_meta(u, include_lines=False))
-            w(f"MinZ {_fmt_z(u.min_z)}" + (f" L{u.min_z_line}" if u.min_z_line else "") + f"  Time {_time_of(u)}")
+            minz = f"MinZ {_fmt_z(u.min_z)}"
+            if u.min_z_line:
+                minz += f" L{u.min_z_line}"
+            w(f"{minz}  Time {_time_of(u)}  {share:3d}%")
             for warn in u.warnings:
                 block(f"! {warn}")
             w(dash)
@@ -324,6 +433,9 @@ def _format_text_80mm_min(result: ParseResult, *, generated: datetime | None) ->
         w(dash)
         block(_op_heading(op))
         w(dash)
+        w(_cycle_label(op))
+        for line in _share_chart_text(op, THERMAL_BAR_WIDTH):
+            w(line)
         if not op.summaries:
             w("(no tools)")
             continue
@@ -331,7 +443,7 @@ def _format_text_80mm_min(result: ParseResult, *, generated: datetime | None) ->
             desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
             w(f"T{s.tool}")
             block(desc)
-            w(f"MinZ {_fmt_z(s.min_z)}  Time {_time_of(s)}")
+            w(f"MinZ {_fmt_z(s.min_z)}")
             for u in s.usages:
                 for warn in u.warnings:
                     block(f"! {warn}")
@@ -354,12 +466,13 @@ def format_print_html(
     image_paths: list[Path] | None = None,
 ) -> str:
     paper = paper.lower()
-    if paper == PAPER_80MM:
+    if paper in (PAPER_80MM, PAPER_80MM_MIN):
         return _html_80mm(
             result,
             generated=generated,
             auto_print=auto_print,
             image_paths=image_paths,
+            short=paper == PAPER_80MM_MIN,
         )
     return _html_a4(
         result,
@@ -440,8 +553,9 @@ body {
   font: 10.5pt/1.3 "Segoe UI", Arial, sans-serif;
 }
 h1 { font-size: 16pt; margin: 0 0 6pt; }
-h2 { font-size: 11pt; margin: 14pt 0 6pt; border-bottom: 1.5pt solid #000; padding-bottom: 2pt; }
+h2 { font-size: 11pt; margin: 14pt 0 4pt; border-bottom: 1.5pt solid #000; padding-bottom: 2pt; }
 h3 { font-size: 10pt; margin: 10pt 0 6pt; }
+.cycle-sub { font-size: 9pt; font-weight: 600; margin: 0 0 4pt; }
 .meta { display: grid; grid-template-columns: 18mm 1fr 22mm 1fr; gap: 2pt 8pt; margin-bottom: 8pt; }
 .meta b { font-weight: 600; }
 .notes { font-size: 9pt; margin: 0 0 8pt; }
@@ -450,6 +564,13 @@ th, td { border: 1pt solid #000; padding: 3pt 5pt; vertical-align: top; }
 th { background: #eee; font-size: 9pt; text-align: left; }
 td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; font-family: Consolas, "Courier New", monospace; white-space: nowrap; }
 td.c, th.c { text-align: center; width: 9mm; }
+table.chart { margin: 0 0 10pt; border: 0; }
+table.chart td { border: 0; border-bottom: 0.4pt solid #ccc; padding: 2pt 4pt; vertical-align: middle; }
+table.chart td.t { width: 14mm; font-weight: 700; }
+table.chart td.n { width: 16mm; }
+table.chart td.bar { padding-right: 0; }
+.track { height: 8pt; border: 1pt solid #000; background: #fff; }
+.track > span { display: block; height: 100%; background: #000; }
 .box { display: inline-block; width: 11pt; height: 11pt; border: 1.2pt solid #000; vertical-align: middle; }
 .warn { font-size: 8.5pt; }
 .sign { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16pt; margin-top: 16pt; }
@@ -485,6 +606,7 @@ td.c, th.c { text-align: center; width: 9mm; }
     if not result.operations:
         op_html.append("<p>(no operations found)</p>")
     for op in result.operations:
+        cycle_s, _ = _op_cycle(op)
         setup_rows = []
         if not op.summaries:
             setup_rows.append('<tr><td colspan="6">(no tool changes until M30)</td></tr>')
@@ -513,6 +635,7 @@ td.c, th.c { text-align: center; width: 9mm; }
                 f'<div class="warn">WARNING: {escape(warn)}</div>' for warn in u.warnings
             )
             bc = " ".join(p for p in (_fmt_axis("B", u.b), _fmt_axis("C", u.c)) if p) or "—"
+            share = _pct_of(u, cycle_s)
             change_rows.append(
                 "<tr>"
                 f'<td class="c"><span class="box"></span></td>'
@@ -522,10 +645,12 @@ td.c, th.c { text-align: center; width: 9mm; }
                 f"<td>{escape(bc)}</td>"
                 f"<td>{escape(' '.join(p for p in (_fmt_h(u.h_offset), _fmt_d(u.d_offset), _fmt_s(u.s_rpm)) if p) or '—')}</td>"
                 f'<td class="n">{escape(_fmt_z(u.min_z))}</td>'
-                f'<td class="n">{escape(_time_of(u))}</td>'
+                f'<td class="n">{escape(_time_of(u))}  {share}%</td>'
                 "</tr>"
             )
         op_html.append(f"<h2>{escape(_op_heading(op))}</h2>")
+        op_html.append(f'<p class="cycle">{escape(_cycle_label(op))}</p>')
+        op_html.append(_share_chart_html(op))
         op_html.append(
             "<table><thead><tr>"
             '<th class="c">Load</th><th>T</th><th>Description</th>'
@@ -538,7 +663,8 @@ td.c, th.c { text-align: center; width: 9mm; }
         op_html.append(
             "<table><thead><tr>"
             '<th class="c">Load</th><th>T</th><th>Description</th><th>Sub</th>'
-            '<th>B/C</th><th>H / D / S</th><th class="n">Min Z</th><th class="n">Time</th>'
+            '<th>B/C</th><th>H / D / S</th><th class="n">Min Z</th>'
+            '<th class="n">Time</th>'
             "</tr></thead><tbody>"
             + "".join(change_rows)
             + "</tbody></table>"
@@ -556,8 +682,10 @@ td.c, th.c { text-align: center; width: 9mm; }
 {notes}
 <p class="fine">Min Z is lowest work-coordinate Z (G53/G28 ignored).
 Time is programmed motion and canned cycles (approx; rapids
-{escape(f"{RAPID_MM_PER_MIN/1000:.0f}")} m/min; no accel). A trailing + means
-missing F or S. Each operation is simulated until M30 (M97 calls a sub, M99 returns).
+{escape(f"{RAPID_MM_PER_MIN/1000:.0f}")} m/min; no accel). Cycle is the sum for
+that operation until M30. The chart under Cycle is each T as a share of that
+cycle. Each Txx M6 also shows its own %. A trailing + means missing F or S.
+Each operation is simulated until M30 (M97 calls a sub, M99 returns).
 Select a header op by changing M97 P# in main.</p>
 {"".join(op_html)}
 <div class="sign">
@@ -576,9 +704,10 @@ def _html_80mm(
     generated: datetime | None,
     auto_print: bool,
     image_paths: list[Path] | None = None,
+    short: bool = False,
 ) -> str:
     now = generated or datetime.now()
-    title = f"80mm {_program_line(result)}"
+    title = f"{'80mm min' if short else '80mm'} {_program_line(result)}"
     css = """
 @page { size: 80mm auto; margin: 2mm; }
 * { box-sizing: border-box; }
@@ -604,6 +733,12 @@ h1 { font-size: 13pt; margin: 0 0 4pt; text-align: center; letter-spacing: 0.04e
 .kv { display: flex; justify-content: space-between; gap: 6pt; }
 .d { word-wrap: break-word; overflow-wrap: anywhere; }
 .warn { font-weight: 700; }
+.cycle { font-weight: 700; margin: 2pt 0 4pt; }
+pre.chart {
+  font: inherit;
+  margin: 2pt 0 6pt;
+  white-space: pre;
+}
 .toolbar { margin: 0 0 8pt; font-family: "Segoe UI", Arial, sans-serif; }
 .hint { display: block; margin-top: 4pt; font-size: 8pt; }
 .step-views { margin: 0 0 6pt; }
@@ -620,7 +755,7 @@ h1 { font-size: 13pt; margin: 0 0 4pt; text-align: center; letter-spacing: 0.04e
 """
     chunks: list[str] = []
     a = chunks.append
-    a("<h1>CNC TOOLS</h1>")
+    a(f"<h1>{'CNC TOOLS MIN' if short else 'CNC TOOLS'}</h1>")
     a(f'<div class="center">80 mm</div>')
     views = _step_views_html(image_paths)
     if views:
@@ -637,35 +772,51 @@ h1 { font-size: 13pt; margin: 0 0 4pt; text-align: center; letter-spacing: 0.04e
     a('<hr class="rule">')
     a("<div>Min Z = work Z</div>")
     a(f"<div>Time ≈ moves {RAPID_MM_PER_MIN/1000:.0f} m/min</div>")
-    a("<div>Until M30; M99 returns</div>")
-    a("<div>Op = change M97 P#</div>")
+    if not short:
+        a("<div>Until M30; M99 returns</div>")
+        a("<div>Op = change M97 P#</div>")
     if not result.operations:
         a("<div>(no operations)</div>")
     for op in result.operations:
+        cycle_s, _ = _op_cycle(op)
         a('<hr class="rule">')
         a(f'<div class="tline d">{escape(_op_heading(op))}</div>')
+        a(f'<div class="cycle">{escape(_cycle_label(op))}</div>')
+        chart = _share_chart_pre(op, THERMAL_BAR_WIDTH)
+        if chart:
+            a(chart)
         if not op.summaries:
             a("<div>(no tools)</div>")
             continue
         for s in op.summaries:
             desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
             a('<div class="tool">')
-            a(f'<div class="tline"><span class="box"></span>T{s.tool}</div>')
+            if short:
+                a(f'<div class="tline">T{s.tool}</div>')
+            else:
+                a(f'<div class="tline"><span class="box"></span>T{s.tool}</div>')
             a(f'<div class="d">{escape(desc)}</div>')
             a(f'<div class="kv"><span>Min Z</span><span>{escape(_fmt_z(s.min_z))}</span></div>')
-            a(f'<div class="kv"><span>Time</span><span>{escape(_time_of(s))}</span></div>')
+            if not short:
+                a(f'<div class="kv"><span>Time</span><span>{escape(_time_of(s))}</span></div>')
             for u in s.usages:
                 for warn in u.warnings:
                     a(f'<div class="warn">! {escape(warn)}</div>')
             a("</div>")
+        if short:
+            continue
         a('<div class="tline">EACH CHANGE</div>')
         for u in op.usages:
+            share = _pct_of(u, cycle_s)
             a('<div class="tool">')
             a(f'<div class="tline"><span class="box"></span>T{u.tool}</div>')
             a(f'<div class="d">{escape(u.description or "(no comment)")}</div>')
             a(f'<div class="d">{escape(_usage_meta(u, include_lines=False))}</div>')
             a(f'<div class="kv"><span>Min Z</span><span>{escape(_fmt_z(u.min_z))}</span></div>')
-            a(f'<div class="kv"><span>Time</span><span>{escape(_time_of(u))}</span></div>')
+            a(
+                f'<div class="kv"><span>Time</span>'
+                f'<span>{escape(_time_of(u))}  {share}%</span></div>'
+            )
             for warn in u.warnings:
                 a(f'<div class="warn">! {escape(warn)}</div>')
             a("</div>")
@@ -762,7 +913,7 @@ def open_print_html(
 
     paper = paper.lower()
     stem = Path(result.path).stem or "report"
-    tag = "A4" if paper == PAPER_A4 else "80mm"
+    tag = "A4" if paper == PAPER_A4 else ("80mm_min" if paper == PAPER_80MM_MIN else "80mm")
     path = Path(tempfile.gettempdir()) / f"fh6parse_{stem}_{tag}.html"
     path.write_text(
         format_print_html(

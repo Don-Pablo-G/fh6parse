@@ -22,6 +22,9 @@ G95 (feed per rev) still on at the next T or M30 prints a WARNING to set G94.
 Approx machine time is summed from G0/G1/G2/G3, F#nnn, and Haas/Fanuc canned
 cycles (G73 chip-break 0.2 mm, G83 full retract to R, G84 retract at 1.0×F).
 Rapids assumed 20 m/min; no accel. A trailing + means missing F or S.
+Each operation shows Cycle (that path until M30) and a share chart of each T.
+FULL also prints % of cycle on each Txx M6. Text/80 mm uses a solid block bar
+(CP852); A4 HTML uses a black CSS track.
 
 Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   A4:     A4 paper, 100%, headers/footers off
