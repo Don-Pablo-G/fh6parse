@@ -21,6 +21,7 @@ from .cadmark import (
 from .i18n import GUI_DEFAULT, file_count, parse_language, t, update_button_label
 from .kiosk import (
     load_kiosk_config,
+    machine_display_name,
     parse_gui_paper,
     parse_machine_form,
     save_kiosk_values,
@@ -100,14 +101,12 @@ class ToolReportApp(tk.Tk):
         self.out_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.rb_lang_pl = ttk.Radiobutton(
             top,
-            text="Polski",
             value="pl",
             variable=self._lang_var,
             command=self._on_language,
         )
         self.rb_lang_en = ttk.Radiobutton(
             top,
-            text="English",
             value="en",
             variable=self._lang_var,
             command=self._on_language,
@@ -219,9 +218,12 @@ class ToolReportApp(tk.Tk):
             self.out_label.config(text=self._tr("save_next_to_nc"))
         else:
             self.out_label.config(text=str(self._out_dir))
+        self.rb_lang_pl.config(text=self._tr("lang_pl"))
+        self.rb_lang_en.config(text=self._tr("lang_en"))
         self.lbl_preview.config(text=self._tr("preview_print"))
         self.lbl_machine.config(text=self._tr("machine"))
         self.btn_machine_add.config(text=self._tr("machine_add"))
+        self._sync_machine_combo()
         self.rb_80.config(text=self._tr("paper_thermal"))
         self.btn_print_a4.config(text=self._tr("print_a4"))
         self.btn_print_80.config(text=self._tr("print_80"))
@@ -235,6 +237,7 @@ class ToolReportApp(tk.Tk):
             self.status.config(text=self._tr("gui_idle"))
         else:
             self._status_loaded()
+        self._on_select()
 
     def _on_language(self) -> None:
         self._lang = parse_language(self._lang_var.get(), default=GUI_DEFAULT)
@@ -249,9 +252,12 @@ class ToolReportApp(tk.Tk):
             pass
 
     def _machine_labels(self) -> list[str]:
-        names = [m.name for m in self._machines]
+        names = [machine_display_name(m, self._lang) for m in self._machines]
         if len(names) != len(set(names)):
-            return [f"{m.name} ({m.id})" for m in self._machines]
+            return [
+                f"{machine_display_name(m, self._lang)} ({m.id})"
+                for m in self._machines
+            ]
         return names
 
     def _label_for_machine(self, mill) -> str:
@@ -371,7 +377,7 @@ class ToolReportApp(tk.Tk):
                 self._cfg_source = saved
                 save_machine_profile(mill, dest=ui_overlay_path())
             except OSError as exc:
-                err.config(text=str(exc))
+                err.config(text=self._tr("settings_save_fail", detail=exc))
                 return
             self._apply_saved_machine(mill)
             win.destroy()
@@ -597,7 +603,7 @@ class ToolReportApp(tk.Tk):
             return
         _path, result = selected
         paper = self._paper.get()
-        text = format_report(result, paper=paper)
+        text = format_report(result, paper=paper, lang=self._lang)
         self.preview.insert("1.0", text)
         if paper == PAPER_80MM:
             self.preview.configure(width=50, font=("Consolas", 11), wrap=tk.NONE)
@@ -623,7 +629,10 @@ class ToolReportApp(tk.Tk):
             return
         path, result = selected
         dests = write_report(
-            result, out_dir=self._out_dir, image_paths=self._images_for(path)
+            result,
+            out_dir=self._out_dir,
+            image_paths=self._images_for(path),
+            lang=self._lang,
         )
         self.status.config(
             text=self._tr("wrote_files", n=len(dests), folder=dests[0].parent)
@@ -636,7 +645,10 @@ class ToolReportApp(tk.Tk):
         written = 0
         for path, result in self._results.values():
             write_report(
-                result, out_dir=self._out_dir, image_paths=self._images_for(path)
+                result,
+                out_dir=self._out_dir,
+                image_paths=self._images_for(path),
+                lang=self._lang,
             )
             written += 1
         self.status.config(text=self._tr("wrote_all", n=written))
@@ -655,6 +667,7 @@ class ToolReportApp(tk.Tk):
             paper=paper,
             auto_print=True,
             image_paths=self._images_for(path),
+            lang=self._lang,
         )
         label = "A4" if paper == PAPER_A4 else "80 mm"
         self.status.config(

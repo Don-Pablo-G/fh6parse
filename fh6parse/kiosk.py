@@ -238,6 +238,13 @@ def parse_machine_form(
     )
 
 
+def machine_display_name(mill: MachineProfile, lang: str) -> str:
+    """Translate the built-in mill; keep operator-chosen names as typed."""
+    if mill.id == "default" and mill.name == DEFAULT_MACHINE.name:
+        return t(lang, "machine_default")
+    return mill.name
+
+
 def _ini_number(value: float) -> str:
     if abs(value - round(value)) < 1e-9:
         return str(int(round(value)))
@@ -499,7 +506,7 @@ def prefer_lgpio_factory() -> str:
     return "lgpio"
 
 
-def _gpio_fail_hint(exc: BaseException) -> str:
+def _gpio_fail_hint(exc: BaseException, lang: str = KIOSK_DEFAULT) -> str:
     text = str(exc)
     lowered = text.lower()
     if (
@@ -508,7 +515,7 @@ def _gpio_fail_hint(exc: BaseException) -> str:
         or "pin factory" in lowered
         or "lgpio" in lowered
     ):
-        return f"{text}  (Pi 5 needs python3-lgpio; RPi.GPIO is not supported)"
+        return f"{text}  ({t(lang, 'gpio_pi5')})"
     return text
 
 
@@ -801,7 +808,7 @@ class KioskApp(tk.Tk):
         ).pack(side=tk.LEFT)
         self._machine_value_lbl = tk.Label(
             mill_row,
-            text=self.cfg.active_machine().name,
+            text=machine_display_name(self.cfg.active_machine(), self._lang),
             font=update_font,
             bg="#1a1a1a",
             fg=ACCENT,
@@ -976,6 +983,7 @@ class KioskApp(tk.Tk):
         self._config_keys.pack(anchor="w", pady=(10, 0))
         self._style_lang_buttons()
         self._style_swap_buttons()
+        self._refresh_gpio_labels()
 
     def _build_mill_form(self, small, update_font) -> None:
         panel = tk.Frame(
@@ -1152,7 +1160,7 @@ class KioskApp(tk.Tk):
             lbl.config(text=str(getattr(self.cfg, attr)))
         self._steps_value_lbl.config(text=str(self.cfg.encoder_steps))
         mill = self.cfg.active_machine()
-        self._machine_value_lbl.config(text=mill.name)
+        self._machine_value_lbl.config(text=machine_display_name(mill, self._lang))
         self._machine_detail_lbl.config(
             text=self._tr(
                 "machine_detail",
@@ -1617,7 +1625,10 @@ class KioskApp(tk.Tk):
             )
             self._gpio.extend([enc, full, mini])
         except Exception as exc:  # GPIO missing or pin busy
-            self._set_status(self._tr("gpio_off", detail=_gpio_fail_hint(exc)), error=True)
+            self._set_status(
+                self._tr("gpio_off", detail=_gpio_fail_hint(exc, self._lang)),
+                error=True,
+            )
 
     def _on_encoder_gpio(self, delta: int) -> None:
         if self.cfg.encoder_swap:
@@ -2045,7 +2056,7 @@ class KioskApp(tk.Tk):
         self.update_idletasks()
         try:
             result = self._parse_path(path)
-            text = format_report(result, paper=paper)
+            text = format_report(result, paper=paper, lang=self._lang)
             images: list[Path] = []
             if self._models is not None:
                 images = self._models.ready_images(path)
@@ -2057,7 +2068,7 @@ class KioskApp(tk.Tk):
             )
             self._set_status(self._tr("printed", name=path.name, route=route))
         except Exception as exc:  # shop-floor: stay up
-            self._set_status(str(exc), error=True)
+            self._set_status(self._tr("print_fail", detail=exc), error=True)
         return "break"
 
     def _set_status(self, text: str, *, error: bool = False) -> None:

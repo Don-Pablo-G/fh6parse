@@ -81,7 +81,9 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
     sudo chmod 440 /etc/sudoers.d/fh6parse-kiosk
 
   Update (git checkout only; never automatic)
-    Need 1.4.0. If --version is older, SSH:
+    Need 1.4.0. Later 1.4.0 git commits (preview, mill table, Add mill, on-screen
+    isometric, empty-pocket) still keep that number — UPDATE then shows a hash.
+    If --version is older than 1.4.0, SSH:
       cd /home/kiosk/fh6parse && git pull --ff-only && sudo systemctl restart fh6parse-kiosk
     From 1.3.2: on start the kiosk fetches origin in the background.
     If a newer commit exists, a yellow UPDATE to x.y.z button appears (touch or U).
@@ -100,9 +102,10 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
     tarball or switch to git (LINUX-KIOSK.md §3.2 / §8.4).
 
   Keyboard/mouse (troubleshooting, hot-plug OK): arrows, click, wheel, F, M, U.
-  F2 or C (or click PL/EN) opens settings: Polish default, switch to English.
-  Language is saved in ~/.config/fh6parse/ui.ini (survives UPDATE).
-  Escape closes settings first, then leaves fullscreen, then closes.
+  F2 or C (or click PL/EN) opens settings: Polish default, mill, Add mill…,
+  GPIO pins, ticks per tooth. Language and mill are saved in
+  ~/.config/fh6parse/ui.ini (survives UPDATE).
+  Escape closes the mill form first, then settings, then leaves fullscreen.
 
   Encoder highlights a file. The panel under the list shows each operation
   (tool count, cycle time, 3D ready) and the stacked isometric when ready

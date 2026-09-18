@@ -459,9 +459,15 @@ class TestPi5GpioFactory(unittest.TestCase):
         self.assertIn(name, {"", "lgpio"})
 
     def test_rpi_gpio_error_mentions_pi5(self) -> None:
-        hint = _gpio_fail_hint(RuntimeError("Unable to load RPi.GPIO pin factory"))
+        hint = _gpio_fail_hint(
+            RuntimeError("Unable to load RPi.GPIO pin factory"), "en"
+        )
         self.assertIn("python3-lgpio", hint)
         self.assertIn("Pi 5", hint)
+        pl = _gpio_fail_hint(
+            RuntimeError("Unable to load RPi.GPIO pin factory"), "pl"
+        )
+        self.assertIn("wymaga python3-lgpio", pl)
 
 
 if __name__ == "__main__":

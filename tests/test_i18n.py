@@ -63,6 +63,88 @@ class TestI18n(unittest.TestCase):
         self.assertIn("AKTUALIZUJ do 1.3.5", update_button_label("pl", status))
         self.assertIn("UPDATE to 1.3.5", update_button_label("en", status))
 
+    def test_placeholders_match(self) -> None:
+        import re
+
+        def fields(text: str) -> tuple[str, ...]:
+            return tuple(re.findall(r"\{(\w+)\}", text))
+
+        for key in STRINGS["en"]:
+            self.assertEqual(
+                fields(STRINGS["en"][key]),
+                fields(STRINGS["pl"][key]),
+                key,
+            )
+
+    def test_default_mill_label_follows_language(self) -> None:
+        from fh6parse.kiosk import machine_display_name
+        from fh6parse.machtime import DEFAULT_MACHINE, MachineProfile
+
+        self.assertEqual(machine_display_name(DEFAULT_MACHINE, "en"), "Default mill")
+        self.assertEqual(
+            machine_display_name(DEFAULT_MACHINE, "pl"), "Domyślna obrabiarka"
+        )
+        custom = MachineProfile(id="default", name="Haas VF-2")
+        self.assertEqual(machine_display_name(custom, "pl"), "Haas VF-2")
+
+    def test_print_and_gpio_errors_are_translated(self) -> None:
+        self.assertEqual(t("en", "print_fail", detail="lp0"), "Print failed: lp0")
+        self.assertEqual(t("pl", "print_fail", detail="lp0"), "Druk nieudany: lp0")
+        self.assertIn("python3-lgpio", t("pl", "gpio_pi5"))
+        self.assertIn("RPi.GPIO", t("en", "gpio_pi5"))
+
+
+class TestTicketLanguage(unittest.TestCase):
+    def _sample(self):
+        from fh6parse.parser import parse_nc_text
+
+        src = """O1
+T1 M6
+G43 Z10. H99
+G1 Z-1. F200
+M30
+"""
+        return parse_nc_text(src, "t.nc")
+
+    def test_default_ticket_stays_english(self) -> None:
+        from fh6parse.report import PAPER_80MM, format_print_html, format_report
+
+        r = self._sample()
+        text = format_report(r)
+        self.assertIn("CNC TOOL REPORT  |  A4", text)
+        self.assertIn("WARNING: H99 does not match T1", text)
+        self.assertIn("Cycle ", text)
+        mm = format_report(r, paper=PAPER_80MM)
+        self.assertIn("SHARE", mm)
+        html = format_print_html(r)
+        self.assertIn('lang="en"', html)
+        self.assertIn("Print", html)
+
+    def test_polish_tickets_translate_labels_and_warnings(self) -> None:
+        from fh6parse.report import (
+            PAPER_80MM,
+            PAPER_80MM_MIN,
+            format_print_html,
+            format_report,
+        )
+
+        r = self._sample()
+        a4 = format_report(r, lang="pl")
+        self.assertIn("RAPORT NARZĘDZI CNC  |  A4", a4)
+        self.assertIn("UWAGA: H99 nie zgadza się z T1", a4)
+        self.assertIn("Cykl ", a4)
+        self.assertIn("Udział cyklu", a4)
+        self.assertNotIn("WARNING:", a4)
+        mm = format_report(r, paper=PAPER_80MM, lang="pl")
+        self.assertIn("UDZIAŁ", mm)
+        self.assertIn("KAŻDA WYMIANA", mm)
+        mini = format_report(r, paper=PAPER_80MM_MIN, lang="pl")
+        self.assertIn("NARZĘDZIA CNC MIN", mini)
+        html = format_print_html(r, lang="pl")
+        self.assertIn('lang="pl"', html)
+        self.assertIn("Drukuj", html)
+        self.assertIn("H99 nie zgadza się z T1", html)
+
 
 class TestLanguageIni(unittest.TestCase):
     def setUp(self) -> None:

@@ -1,6 +1,6 @@
 # fh6parse Linux kiosk manual
 
-**Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. The screen shows **v1.4.0**. A yellow **UPDATE to …** button appears only when the network has a newer git commit — it does **not** apply until you tap it, then it restarts the kiosk. The Windows office exe uses the same button against a GitHub Release.
+**Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C, tool-change time). Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. The screen shows **v1.4.0** (later git commits keep that number; the yellow **UPDATE** button then shows a short hash). The Windows office exe uses the same button against a GitHub Release (tag **vX.Y.Z** builds the exe).
 
 Python **3.10+** is required (Bookworm ships 3.11). Use **Raspberry Pi OS 64-bit Desktop** (Bookworm or later). Pi 5 has no 32-bit OS.
 
@@ -31,7 +31,7 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 | MUNBYN P047 (ITPP047) | USB, 80 mm ESC/POS, auto-cutter. Own mains PSU. |
 | Company STEP folder (optional) | NAS of `.stp` / `.step` if the stick has none. See **§3.7**. Stick copy is enough. |
 | Network (optional) | Only for git install and later **UPDATE**. Printing works offline. |
-| Keyboard / mouse | First-time setup, **settings** (language, GPIO pins, encoder ticks), SSH, or tap **UPDATE**. Not required for encoder + GPIO print. |
+| Keyboard / mouse | First-time setup, **settings** (language, mill / **Add mill…**, GPIO pins, encoder ticks), SSH, or tap **UPDATE**. Not required for encoder + GPIO print. |
 
 Default GPIO (**BCM** numbers, not header pin numbers):
 
@@ -435,14 +435,14 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 5. **MIN** — short ticket: stacked line-art isometrics when ready, then per operation cycle time, share chart of each T, then T, H/D/S to load, description, min Z, and H/D/G95 mismatch flags.
 6. If there is no cube, print anyway. The slip is text only.
 7. Status after a good print: **`device:/dev/usb/lp0`**. If it says `lp:…`, CUPS took the job — **§3.5**.
-8. **WARNING:** lines: `H{n} does not match T{tool}` on G43, `D{n} does not match T{tool}` on any D, and `G95 still active…` if feed-per-rev was not cancelled with G94 before the next tool (or M30). Matching H/D stay quiet. Comments with `!` print as **Programmer notes**.
+8. **WARNING:** lines: `H{n} does not match T{tool}` on G43, `D{n} does not match T{tool}` on any D, `G95 still active…` if feed-per-rev was not cancelled with G94 before the next tool (or M30), and empty-pocket (`Txx M6` with no motion) except the **last** tool change (spindle prep). Matching H/D stay quiet. Comments with `!` print as **Programmer notes**.
 9. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
 10. Wake: encoder, inserting a USB stick, or a **keyboard / mouse**. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored.
-11. Settings: **F2** / **C** or the **PL**/**EN** chip (mouse) — **§3.6**. Encoder does not open settings. Pins and ticks per tooth are on that panel.
+11. Settings: **F2** / **C** or the **PL**/**EN** chip (mouse) — **§3.6**. Encoder does not open settings. Mill picker, **Add mill…**, pins, and ticks per tooth are on that panel.
 12. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
-13. Current version is **v…** at the top right. If the Pi is on the network and origin is ahead, a yellow **UPDATE to x.y.z** button appears **after this boot’s check**. It does **not** update by itself. One tap installs and **restarts** the kiosk (sudoers in **§3.2**). Print still works until you tap it.
+13. Current version is **v…** at the top right. If the Pi is on the network and origin is ahead, a yellow **UPDATE to x.y.z** (or a git hash if the number is still 1.4.0) appears **after this boot’s check**. It does **not** update by itself. One tap installs and **restarts** the kiosk (sudoers in **§3.2**). Print still works until you tap it.
 
-Parse happens at print time, not when the list is shown. STEP matching and rendering run in the background and must not delay the ticket.
+Preview parse runs when a file is highlighted (idle, not on FULL/MIN). STEP matching and rendering run in the background and must not delay the ticket.
 
 ---
 
@@ -460,7 +460,8 @@ Parse happens at print time, not when the list is shown. STEP matching and rende
 | Ticket does not cut | Cutter empty/jammed. App already sends ESC/POS cut (`GS V`). |
 | Screen never sleeps | `idle_seconds = 0`, or encoder bouncing. Still on Wayland? Switch to X11 so `xset` works. |
 | Keyboard/mouse do nothing | Plug into the Pi USB-A; X11 picks them up. Click or press a key — the kiosk claims focus. **F2** / **C** opens settings. **Esc** closes settings, then leaves fullscreen. GPIO print buttons still do not wake the screensaver. |
-| Language resets to Polish after you picked English | Stored in `/home/kiosk/.config/fh6parse/ui.ini`. Pick **English** again in settings. **UPDATE** does not delete that file. Pins and ticks live in the same overlay. |
+| Language resets to Polish after you picked English | Stored in `/home/kiosk/.config/fh6parse/ui.ini`. Pick **English** again in settings. **UPDATE** does not delete that file. Pins, mill, and ticks live in the same overlay. |
+| **Add mill…** missing / mill list is only Default | Clone is older than this pull. Settings → **Add mill…**. Saved in `ui.ini` (`[machine.<id>]`). |
 | Screen stays in English and **F2** does nothing | Wake first if the screen is black. Click the **EN** chip next to **v…**. Encoder never opens settings. |
 | Black screen immediately | Desktop blanking plus app DPMS. Disable LXDE idle blank; keep kiosk `idle_seconds = 60`. |
 | Wrong aspect / sideways UI | Rotate until `xdpyinfo` (or Screen Configuration) shows 600×800. App geometry is 600×800 fullscreen. Pi 5 output is often `HDMI-A-1`. |
@@ -478,6 +479,7 @@ Parse happens at print time, not when the list is shown. STEP matching and rende
 | Pictures still shaded / grey mush | Old cache. `rm -rf /tmp/fh6parse-models` and wait for the cube again. The current renderer is black edges on white only. |
 | No `WARNING:` for a wrong D | Clone is older than this pull. `git log -1 --oneline` must mention D vs T. D is checked on G43 and on G41/G42. |
 | No `WARNING:` after tapping / G95 | Next `Txx M6` (or M30) must still be in G95. A `G94` on the next tool’s line cancels it. |
+| No empty-pocket `WARNING:` on an idle T | The **last** Txx M6 with no motion is spindle prep (quiet). Earlier idle Txx M6 should warn. |
 
 CLI without the kiosk (reports next to the NC file):
 
@@ -494,7 +496,7 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 | --- | --- |
 | `/home/kiosk/fh6parse` | Source checkout (shop update path) |
 | `/etc/fh6parse-kiosk.ini` | Pins, printer, idle, `model_roots` (never overwritten by **UPDATE**) |
-| `/home/kiosk/.config/fh6parse/ui.ini` | Screen language, GPIO pins, encoder ticks. Written by settings. Survives **UPDATE**. |
+| `/home/kiosk/.config/fh6parse/ui.ini` | Screen language, mill (including **Add mill…**), GPIO pins, encoder ticks. Written by settings. Survives **UPDATE**. |
 | `/etc/systemd/system/fh6parse-kiosk.service` | Autostart |
 | `/etc/sudoers.d/fh6parse-kiosk` | NOPASSWD restart for on-screen **UPDATE** |
 | `packaging/fh6parse-kiosk.ini.example` | Template |
@@ -505,7 +507,7 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 
 ## 8. Updating the kiosk
 
-This section is for **fh6parse 1.4.0** on a **git checkout** (`/home/kiosk/fh6parse`). Confirm first:
+This section is for **fh6parse 1.4.0** on a **git checkout** (`/home/kiosk/fh6parse`). The badge stays **1.4.0** until you tag a newer number; shop commits after that badge (preview, mill table / **Add mill…**, on-screen isometric, empty-pocket, loops / canned L) still arrive on **UPDATE** as a git hash. Confirm first:
 
 ```
 python3 -m fh6parse --version
@@ -586,13 +588,13 @@ Take this sheet to the Pi. The kiosk must show **v1.4.0** at the top right.
 ```
 cd /home/kiosk/fh6parse
 git fetch
-git checkout main
+git checkout master
 git pull --ff-only
 git log -1 --oneline
 sudo systemctl restart fh6parse-kiosk
 ```
 
-`git log -1` should mention **1.4.0** (cycle time / share chart, Windows UPDATE). STEP isometrics, D vs T, and USB `/dev/usb/lp0` are already in older commits. Or wait for the yellow **UPDATE** after a restart (check runs once per boot).
+`git log -1` on current master should mention **Add mill** (or on-screen isometric / empty pocket if that is the last commit you pulled). The on-screen badge is still **v1.4.0**. STEP isometrics, D vs T, USB `/dev/usb/lp0`, cycle time, and kiosk preview are already in older 1.4.0 commits. Or wait for the yellow **UPDATE** after a restart (check runs once per boot).
 
 Clear old STEP bitmaps:
 
@@ -627,7 +629,10 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Wrong D on G41/G42 → same D warning, once | |
 | Matching D (= T) → no D warning | |
 | G95 then next T without G94 → `WARNING: G95 still active…` | |
+| Idle Txx M6 (not the last change) → empty-pocket warning | |
+| Last Txx M6 with no motion stays quiet (spindle prep) | |
 | `(…!…)` comments listed as programmer notes | |
+| Highlight preview: ops, cycle time, 3D ready, stacked isometric when ready | |
 
 **4. STEP views** (`.stp` on the USB stick, or `model_roots`; CAD extra required)
 
@@ -641,8 +646,8 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Through-holes as ellipses, not filled blobs | |
 | Long shaft is a thin strip across 80 mm | |
 | Print without a cube is still text-only, no wait | |
-| Settings (**F2** / **PL** chip): language, BCM pins, ticks per tooth; survives restart | |
+| Settings (**F2** / **PL** chip): language, mill / **Add mill…**, BCM pins, ticks per tooth; survives restart | |
 | Clicky encoder: rest is stable; highlight changes halfway to the next tooth | |
 
-Windows office PC: double-click the exe (or `python -m fh6parse --gui` from a git clone). **Polski / English** radios at the top right (default English). Set **STEP folders…**. A wireframe cube means the STEP bitmap is ready; the stacked isometric also appears above the report preview. Windows print is still the browser dialog, not `/dev/usb/lp0`. If GitHub (frozen exe) or origin (git) has a newer build, a yellow **UPDATE** button appears after launch — one click, then the window restarts. Publish a new exe by tagging **vX.Y.Z** (GitHub Actions builds it) or `packaging\build_windows.bat` then `packaging\publish_windows.ps1`. The tag must match `_version.py`. Do not overwrite `fh6parse-kiosk.ini` next to the exe.
+Windows office PC: double-click the exe (or `python -m fh6parse --gui` from a git clone). **Polski / English** radios at the top right (default English). Set **STEP folders…**. **Add mill…** next to the mill combo (name, rapids m/min, B/C, tool-change seconds). Last NC folder, report folder, and A4 vs 80 mm are remembered. A wireframe cube means the STEP bitmap is ready; the stacked isometric also appears above the report preview. Windows print is still the browser dialog, not `/dev/usb/lp0`. If GitHub (frozen exe) or origin (git) has a newer build, a yellow **UPDATE** button appears after launch — one click, then the window restarts. Frozen **1.4.0** office boxes only show UPDATE after you tag a **newer** version. Publish by tagging **vX.Y.Z** (GitHub Actions builds it) or `packaging\build_windows.bat` then `packaging\publish_windows.ps1`. The tag must match `_version.py`. Do not overwrite `fh6parse-kiosk.ini` next to the exe.
 

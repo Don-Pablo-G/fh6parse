@@ -1,4 +1,4 @@
-"""Polish / English UI strings. Tickets stay as printed (not translated)."""
+"""Polish / English UI and ticket strings."""
 
 from __future__ import annotations
 
@@ -53,6 +53,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "print_kind_full": "full",
         "print_kind_min": "min",
         "printed": "Printed {name}  ({route})",
+        "print_fail": "Print failed: {detail}",
         "no_file": "No file",
         "busy_update": "Updating…",
         "gpio_off": "GPIO off: {detail}",
@@ -83,7 +84,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "machine_name_required": "Type a mill name.",
         "machine_bad_number": "Check the numbers.",
         "machine_saved": "Saved mill {name}",
+        "machine_default": "Default mill",
         "gpio_pins": "GPIO (BCM numbers, not header pins)",
+        "gpio_pi5": "Pi 5 needs python3-lgpio; RPi.GPIO is not supported",
         "pin_clk": "Encoder CLK",
         "pin_dt": "Encoder DT",
         "pin_full": "FULL button",
@@ -145,6 +148,106 @@ STRINGS: dict[str, dict[str, str]] = {
         "wrote_files": "Wrote {n} files in {folder}",
         "wrote_all": "Wrote A4 + 80 mm reports for {n} file(s)",
         "opened_print": "Opened {label} print preview ({name})",
+        "ticket_title_a4": "CNC TOOL REPORT  |  A4",
+        "ticket_title_80": "CNC TOOL REPORT",
+        "ticket_title_min": "CNC TOOLS MIN",
+        "ticket_title_html": "CNC tool report",
+        "ticket_title_html_doc": "Tool report {prog}",
+        "ticket_80mm": "80 mm",
+        "ticket_file": "File:",
+        "ticket_file_html": "File",
+        "ticket_file_fallback": "file",
+        "ticket_program": "Program:",
+        "ticket_program_html": "Program",
+        "ticket_units": "Units:",
+        "ticket_units_html": "Units",
+        "ticket_units_mm": "mm (G21)",
+        "ticket_units_inch": "inch (G20)",
+        "ticket_generated": "Generated:",
+        "ticket_printed_html": "Printed",
+        "ticket_header_notes": "Header notes:",
+        "ticket_programmer_notes": "Programmer notes (!):",
+        "ticket_notes_short": "! NOTES",
+        "ticket_minz_legend": "Min Z = lowest work Z (G53/G28 ignored).",
+        "ticket_time_legend": (
+            "Time ≈ programmed moves + cycles ({assumptions}). "
+            "+ means missing F or S."
+        ),
+        "ticket_cycle_legend": (
+            "Cycle = that op until M30. The chart under Cycle is each T as a share."
+        ),
+        "ticket_sim_legend": (
+            "Each operation is simulated until M30 "
+            "(GOTO, IF, WHILE/DO, M97 L, canned L)."
+        ),
+        "ticket_m97_legend": "Select a header op by changing M97 P# in main.",
+        "ticket_loaded_legend": "[ ] = loaded",
+        "ticket_no_ops": "(no operations found)",
+        "ticket_no_ops_short": "(no operations)",
+        "ticket_no_tools": "(no tools)",
+        "ticket_no_tool_changes": "(no tool changes until M30)",
+        "ticket_no_txx": "(no Txx M6)",
+        "ticket_no_comment": "(no comment)",
+        "ticket_no_onumber": "(no O-number)",
+        "ticket_share": "Share of cycle",
+        "ticket_share_short": "SHARE",
+        "ticket_tool_list": "TOOL LIST (deepest Min Z per T)",
+        "ticket_each_change": "EACH TOOL CHANGE",
+        "ticket_each_change_short": "EACH CHANGE",
+        "ticket_each_change_html": "Each tool change",
+        "ticket_warning": "WARNING:",
+        "ticket_minz": "Min Z",
+        "ticket_minz_compact": "MinZ",
+        "ticket_time": "Time",
+        "ticket_cycle": "Cycle {time}",
+        "ticket_na": "n/a",
+        "ticket_sign_a4": (
+            "Operator: ____________________    Date: ________    Loaded: [ ]"
+        ),
+        "ticket_sign_op": "Op: ________",
+        "ticket_sign_date": "Date: ______",
+        "ticket_sign_loaded": "Loaded: [ ]",
+        "ticket_sign_loaded_html": "Loaded",
+        "ticket_operator": "Operator",
+        "ticket_date": "Date",
+        "ticket_tools_loaded": "Tools loaded",
+        "ticket_load": "Load",
+        "ticket_desc": "Description",
+        "ticket_ok": "OK",
+        "ticket_sub": "Sub",
+        "ticket_minz_work": "MinZ=work Z",
+        "ticket_minz_work_html": "Min Z = work Z",
+        "ticket_time_moves": "Time≈moves {assumptions}",
+        "ticket_time_moves_html": "Time ≈ moves {assumptions}",
+        "ticket_until_m30": "Until M30; loops/L/M99",
+        "ticket_op_m97": "Op = change M97 P#",
+        "ticket_rapids": "rapids {rapid}",
+        "ticket_tchg": "tool change {tchg}",
+        "ticket_no_accel": "no accel",
+        "ticket_tchg_compact": "Tchg {tchg}",
+        "ticket_html_fine": (
+            "Min Z is lowest work-coordinate Z (G53/G28 ignored). "
+            "Time is programmed motion and canned cycles (approx; {assumptions}). "
+            "Cycle is the sum for that operation until M30. The chart under Cycle "
+            "is each T as a share of that cycle. Each Txx M6 also shows its own %. "
+            "A trailing + means missing F or S. Each operation is simulated until "
+            "M30 (GOTO, IF, WHILE/DO, M97 L, canned L). Select a header op by "
+            "changing M97 P# in main."
+        ),
+        "ticket_print": "Print",
+        "ticket_print_hint_a4": (
+            "Print dialog: A4, portrait, 100% scale, headers and footers off."
+        ),
+        "ticket_print_hint_80": (
+            "Print dialog: select the 80 mm printer, paper 80 mm, 100% scale, "
+            "headers/footers off, do not fit to A4."
+        ),
+        "ticket_step_alt": "STEP isometric",
+        "ticket_warn_g95_next": "G95 still active (feed per rev); set G94",
+        "ticket_warn_g95_end": "G95 still active at M30; set G94",
+        "ticket_warn_no_motion": "no motion after tool change",
+        "ticket_warn_no_feed": "no feed (probe/macro?)",
+        "ticket_warn_mismatch": "{offset} does not match {tool}",
     },
     "pl": {
         "app_title_kiosk": "Kiosk CNC {version}",
@@ -187,6 +290,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "print_kind_full": "pełny",
         "print_kind_min": "skrót",
         "printed": "Wydrukowano {name}  ({route})",
+        "print_fail": "Druk nieudany: {detail}",
         "no_file": "Brak pliku",
         "busy_update": "Aktualizowanie…",
         "gpio_off": "GPIO wyłączone: {detail}",
@@ -217,7 +321,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "machine_name_required": "Wpisz nazwę obrabiarki.",
         "machine_bad_number": "Sprawdź liczby.",
         "machine_saved": "Zapisano obrabiarkę {name}",
+        "machine_default": "Domyślna obrabiarka",
         "gpio_pins": "GPIO (numery BCM, nie piny złącza)",
+        "gpio_pi5": "Pi 5 wymaga python3-lgpio; RPi.GPIO nie jest obsługiwane",
         "pin_clk": "Enkoder CLK",
         "pin_dt": "Enkoder DT",
         "pin_full": "Przycisk FULL",
@@ -279,6 +385,106 @@ STRINGS: dict[str, dict[str, str]] = {
         "wrote_files": "Zapisano {n} plików w {folder}",
         "wrote_all": "Zapisano raporty A4 i 80 mm dla {n} plików",
         "opened_print": "Otwarto podgląd wydruku {label} ({name})",
+        "ticket_title_a4": "RAPORT NARZĘDZI CNC  |  A4",
+        "ticket_title_80": "RAPORT NARZĘDZI CNC",
+        "ticket_title_min": "NARZĘDZIA CNC MIN",
+        "ticket_title_html": "Raport narzędzi CNC",
+        "ticket_title_html_doc": "Raport narzędzi {prog}",
+        "ticket_80mm": "80 mm",
+        "ticket_file": "Plik:",
+        "ticket_file_html": "Plik",
+        "ticket_file_fallback": "plik",
+        "ticket_program": "Program:",
+        "ticket_program_html": "Program",
+        "ticket_units": "Jednostki:",
+        "ticket_units_html": "Jednostki",
+        "ticket_units_mm": "mm (G21)",
+        "ticket_units_inch": "cale (G20)",
+        "ticket_generated": "Wygenerowano:",
+        "ticket_printed_html": "Wydrukowano",
+        "ticket_header_notes": "Uwagi nagłówka:",
+        "ticket_programmer_notes": "Uwagi programisty (!):",
+        "ticket_notes_short": "! UWAGI",
+        "ticket_minz_legend": "Min Z = najniższe Z robocze (G53/G28 pomijane).",
+        "ticket_time_legend": (
+            "Czas ≈ ruchy i cykle programowane ({assumptions}). "
+            "+ oznacza brak F lub S."
+        ),
+        "ticket_cycle_legend": (
+            "Cykl = ta operacja do M30. Wykres pod Cyklem to udział każdego T."
+        ),
+        "ticket_sim_legend": (
+            "Każda operacja liczona do M30 "
+            "(GOTO, IF, WHILE/DO, M97 L, cykle L)."
+        ),
+        "ticket_m97_legend": "Wybór operacji z nagłówka: zmień M97 P# w main.",
+        "ticket_loaded_legend": "[ ] = załadowano",
+        "ticket_no_ops": "(brak operacji)",
+        "ticket_no_ops_short": "(brak operacji)",
+        "ticket_no_tools": "(brak narzędzi)",
+        "ticket_no_tool_changes": "(brak wymian do M30)",
+        "ticket_no_txx": "(brak Txx M6)",
+        "ticket_no_comment": "(brak komentarza)",
+        "ticket_no_onumber": "(brak numeru O)",
+        "ticket_share": "Udział cyklu",
+        "ticket_share_short": "UDZIAŁ",
+        "ticket_tool_list": "LISTA NARZĘDZI (najniższe Min Z na T)",
+        "ticket_each_change": "KAŻDA WYMIANA NARZĘDZIA",
+        "ticket_each_change_short": "KAŻDA WYMIANA",
+        "ticket_each_change_html": "Każda wymiana narzędzia",
+        "ticket_warning": "UWAGA:",
+        "ticket_minz": "Min Z",
+        "ticket_minz_compact": "MinZ",
+        "ticket_time": "Czas",
+        "ticket_cycle": "Cykl {time}",
+        "ticket_na": "n/d",
+        "ticket_sign_a4": (
+            "Operator: ____________________    Data: ________    Załad.: [ ]"
+        ),
+        "ticket_sign_op": "Op: ________",
+        "ticket_sign_date": "Data: ______",
+        "ticket_sign_loaded": "Załad.: [ ]",
+        "ticket_sign_loaded_html": "Załadowano",
+        "ticket_operator": "Operator",
+        "ticket_date": "Data",
+        "ticket_tools_loaded": "Narzędzia załadowane",
+        "ticket_load": "Załad.",
+        "ticket_desc": "Opis",
+        "ticket_ok": "OK",
+        "ticket_sub": "Sub",
+        "ticket_minz_work": "MinZ=Z robocze",
+        "ticket_minz_work_html": "Min Z = Z robocze",
+        "ticket_time_moves": "Czas≈ruchy {assumptions}",
+        "ticket_time_moves_html": "Czas ≈ ruchy {assumptions}",
+        "ticket_until_m30": "Do M30; pętle/L/M99",
+        "ticket_op_m97": "Op = zmień M97 P#",
+        "ticket_rapids": "szybkie {rapid}",
+        "ticket_tchg": "wymiana narzędzia {tchg}",
+        "ticket_no_accel": "bez przysp.",
+        "ticket_tchg_compact": "Wym. {tchg}",
+        "ticket_html_fine": (
+            "Min Z to najniższe Z we współrzędnych detalu (G53/G28 pomijane). "
+            "Czas to ruchy programowane i cykle wiertarskie (ok.; {assumptions}). "
+            "Cykl to suma tej operacji do M30. Wykres pod Cyklem to udział "
+            "każdego T w tym cyklu. Każde Txx M6 ma też własny %. "
+            "Plus na końcu oznacza brak F lub S. Każda operacja liczona do "
+            "M30 (GOTO, IF, WHILE/DO, M97 L, cykle L). Wybór operacji z "
+            "nagłówka: zmień M97 P# w main."
+        ),
+        "ticket_print": "Drukuj",
+        "ticket_print_hint_a4": (
+            "Druk: A4, pion, skala 100%, bez nagłówków i stopek."
+        ),
+        "ticket_print_hint_80": (
+            "Druk: drukarka 80 mm, papier 80 mm, skala 100%, bez nagłówków, "
+            "nie dopasowuj do A4."
+        ),
+        "ticket_step_alt": "Izometria STEP",
+        "ticket_warn_g95_next": "G95 nadal aktywne (posuw/obr.); ustaw G94",
+        "ticket_warn_g95_end": "G95 nadal aktywne przy M30; ustaw G94",
+        "ticket_warn_no_motion": "brak ruchu po wymianie narzędzia",
+        "ticket_warn_no_feed": "brak posuwu (sonda/makro?)",
+        "ticket_warn_mismatch": "{offset} nie zgadza się z {tool}",
     },
 }
 

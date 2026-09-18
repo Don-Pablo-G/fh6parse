@@ -5,12 +5,60 @@ from __future__ import annotations
 from datetime import datetime
 from html import escape
 from pathlib import Path
+from contextvars import ContextVar
 import base64
+import re
 import textwrap
 import webbrowser
 
-from .parser import BangNote, Operation, ParseResult, ToolSummary, ToolUsage
+from .i18n import GUI_DEFAULT, parse_language, t
+from .parser import (
+    BangNote,
+    G95_END_WARN,
+    G95_NEXT_WARN,
+    NO_FEED_WARN,
+    NO_MOTION_WARN,
+    Operation,
+    ParseResult,
+    ToolSummary,
+    ToolUsage,
+)
 from .machtime import DEFAULT_MACHINE, format_machine_time
+
+
+_ticket_lang: ContextVar[str] = ContextVar("ticket_lang", default=GUI_DEFAULT)
+_MISMATCH_RE = re.compile(r"^([A-Z]#?\d+) does not match (T#?\d+)$")
+_WARN_KEYS = {
+    G95_NEXT_WARN: "ticket_warn_g95_next",
+    G95_END_WARN: "ticket_warn_g95_end",
+    NO_MOTION_WARN: "ticket_warn_no_motion",
+    NO_FEED_WARN: "ticket_warn_no_feed",
+}
+
+
+def _set_ticket_lang(lang: str | None) -> str:
+    code = parse_language(lang, default=GUI_DEFAULT)
+    _ticket_lang.set(code)
+    return code
+
+
+def _tr(key: str, **kwargs: object) -> str:
+    return t(_ticket_lang.get(), key, **kwargs)
+
+
+def _warn_text(warn: str) -> str:
+    key = _WARN_KEYS.get(warn)
+    if key:
+        return _tr(key)
+    match = _MISMATCH_RE.match(warn)
+    if match:
+        return _tr("ticket_warn_mismatch", offset=match.group(1), tool=match.group(2))
+    return warn
+
+
+def _warn_line(warn: str, *, prefix: str | None = None) -> str:
+    head = prefix if prefix is not None else f"{_tr('ticket_warning')} "
+    return f"{head}{_warn_text(warn)}"
 
 
 def _bang_label(note: BangNote) -> str:
@@ -54,12 +102,17 @@ def _time_assumptions(result: ParseResult, *, compact: bool = False) -> str:
             bits.append(mill.name)
         bits.append(rapid.replace(" ", ""))
         if tchg > 0:
-            bits.append(f"Tchg {mill.tool_change_label().replace(' ', '')}")
+            bits.append(
+                _tr(
+                    "ticket_tchg_compact",
+                    tchg=mill.tool_change_label().replace(" ", ""),
+                )
+            )
         return " ".join(bits)
-    bits = [f"rapids {rapid}"]
+    bits = [_tr("ticket_rapids", rapid=rapid)]
     if tchg > 0:
-        bits.append(f"tool change {mill.tool_change_label()}")
-    bits.append("no accel")
+        bits.append(_tr("ticket_tchg", tchg=mill.tool_change_label()))
+    bits.append(_tr("ticket_no_accel"))
     head = f"{mill.name}, " if named else ""
     return f"{head}{', '.join(bits)}"
 
@@ -76,7 +129,7 @@ def _op_cycle(op: Operation) -> tuple[float, bool]:
 
 def _cycle_label(op: Operation) -> str:
     seconds, incomplete = _op_cycle(op)
-    return f"Cycle {_fmt_time(seconds, incomplete=incomplete)}"
+    return _tr("ticket_cycle", time=_fmt_time(seconds, incomplete=incomplete))
 
 
 def _pct(part: float, total: float) -> int:
@@ -106,12 +159,13 @@ def _chart_line(tool: int, obj: object, total: float, bar_width: int) -> str:
 
 
 def _share_chart_text(
-    op: Operation, bar_width: int, *, heading: str = "SHARE"
+    op: Operation, bar_width: int, *, short: bool = True
 ) -> list[str]:
     if not op.summaries:
         return []
     total, _ = _op_cycle(op)
     rows = [_chart_line(s.tool, s, total, bar_width) for s in op.summaries]
+    heading = _tr("ticket_share_short" if short else "ticket_share")
     return [heading, *rows]
 
 
@@ -133,7 +187,7 @@ def _share_chart_html(op: Operation) -> str:
             "</tr>"
         )
     return (
-        '<p class="cycle-sub">Share of cycle</p>'
+        f'<p class="cycle-sub">{escape(_tr("ticket_share"))}</p>'
         '<table class="chart"><tbody>'
         + "".join(rows)
         + "</tbody></table>"
@@ -155,7 +209,7 @@ def _share_chart_pre(op: Operation, bar_width: int) -> str:
 
 def _fmt_z(z: float | None) -> str:
     if z is None:
-        return "n/a"
+        return _tr("ticket_na")
     return f"{z:.3f}"
 
 
@@ -241,14 +295,14 @@ def _summary_warnings(s: ToolSummary) -> list[str]:
 
 def _units_label(units: str) -> str:
     if units == "mm":
-        return "mm (G21)"
+        return _tr("ticket_units_mm")
     if units == "inch":
-        return "inch (G20)"
+        return _tr("ticket_units_inch")
     return units
 
 
 def _program_line(result: ParseResult) -> str:
-    prog = result.program_number or "(no O-number)"
+    prog = result.program_number or _tr("ticket_no_onumber")
     if result.program_title:
         return f"{prog} ({result.program_title})"
     return prog
@@ -302,7 +356,9 @@ def format_report(
     *,
     paper: str = PAPER_A4,
     generated: datetime | None = None,
+    lang: str | None = None,
 ) -> str:
+    _set_ticket_lang(lang)
     paper = paper.lower()
     if paper == PAPER_80MM_MIN:
         return _format_text_80mm_min(result, generated=generated)
@@ -311,49 +367,50 @@ def format_report(
     return _format_text_a4(result, generated=generated)
 
 
+def _a4_field(label: str, value: str) -> str:
+    return f"{label:<14}{value}"
+
+
 def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
     now = generated or datetime.now()
     w78 = A4_WIDTH
     lines: list[str] = []
     w = lines.append
-    w("CNC TOOL REPORT  |  A4")
+    w(_tr("ticket_title_a4"))
     w("=" * w78)
-    w(f"File:      {result.filename or result.path}")
+    w(_a4_field(_tr("ticket_file"), result.filename or result.path))
     prog = _program_line(result)
-    label = "Program:   "
+    label = f"{_tr('ticket_program'):<14}"
     wrapped = _wrap(prog, w78 - len(label))
     w(label + wrapped[0])
     for part in wrapped[1:]:
         w(" " * len(label) + part)
-    w(f"Units:     {_units_label(result.units)}")
-    w(f"Generated: {now.strftime('%Y-%m-%d %H:%M')}")
+    w(_a4_field(_tr("ticket_units"), _units_label(result.units)))
+    w(_a4_field(_tr("ticket_generated"), now.strftime("%Y-%m-%d %H:%M")))
     if result.header_comments:
         w("")
-        w("Header notes:")
+        w(_tr("ticket_header_notes"))
         for c in result.header_comments:
             for part in _wrap(f"({c})", w78 - 2):
                 w(f"  {part}")
     if result.bang_notes:
         w("")
-        w("Programmer notes (!):")
+        w(_tr("ticket_programmer_notes"))
         for note in result.bang_notes:
             for part in _wrap(_bang_label(note), w78 - 2):
                 w(f"  {part}")
 
     w("")
-    w("Min Z = lowest work Z (G53/G28 ignored).")
-    w(
-        f"Time ≈ programmed moves + cycles ({_time_assumptions(result)}). "
-        "+ means missing F or S."
-    )
-    w("Cycle = that op until M30. The chart under Cycle is each T as a share.")
-    w("Each operation is simulated until M30 (GOTO, IF, WHILE/DO, M97 L, canned L).")
-    w("Select a header op by changing M97 P# in main.")
-    w("[ ] = loaded")
+    w(_tr("ticket_minz_legend"))
+    w(_tr("ticket_time_legend", assumptions=_time_assumptions(result)))
+    w(_tr("ticket_cycle_legend"))
+    w(_tr("ticket_sim_legend"))
+    w(_tr("ticket_m97_legend"))
+    w(_tr("ticket_loaded_legend"))
     ops = result.operations or []
     if not ops:
         w("")
-        w("(no operations found)")
+        w(_tr("ticket_no_ops"))
     for op in ops:
         w("")
         w("=" * w78)
@@ -362,45 +419,53 @@ def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
         w("=" * w78)
         cycle_s, _ = _op_cycle(op)
         w(_cycle_label(op))
-        for line in _share_chart_text(op, A4_BAR_WIDTH, heading="Share of cycle"):
+        for line in _share_chart_text(op, A4_BAR_WIDTH, short=False):
             w(line)
         if not op.summaries:
-            w("(no tool changes until M30)")
+            w(_tr("ticket_no_tool_changes"))
             continue
-        w("TOOL LIST (deepest Min Z per T)")
+        w(_tr("ticket_tool_list"))
         w("-" * w78)
+        none = _tr("ticket_no_comment")
+        minz = _tr("ticket_minz")
+        time_lbl = _tr("ticket_time")
         for s in op.summaries:
-            desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
-            w(f"[ ] {_t_of_summary(s):<12}  Min Z {_fmt_z(s.min_z):>9}  Time {_time_of(s):>7}")
+            desc = " / ".join(s.descriptions) if s.descriptions else none
+            w(
+                f"[ ] {_t_of_summary(s):<12}  {minz} {_fmt_z(s.min_z):>9}  "
+                f"{time_lbl} {_time_of(s):>7}"
+            )
             for part in _wrap(desc, w78 - 4):
                 w(f"    {part}")
             for u in s.usages:
                 for warn in u.warnings:
-                    for part in _wrap(f"WARNING: {warn}", w78 - 6):
+                    for part in _wrap(_warn_line(warn), w78 - 6):
                         w(f"      {part}")
         w("")
-        w("EACH TOOL CHANGE")
+        w(_tr("ticket_each_change"))
         w("-" * w78)
         for u in op.usages:
             w("")
             share = _pct_of(u, cycle_s)
-            for part in _wrap(f"[ ] {_t_of_usage(u)}  {u.description or '(no comment)'}", w78):
+            for part in _wrap(
+                f"[ ] {_t_of_usage(u)}  {u.description or none}", w78
+            ):
                 w(part)
             for part in _wrap(_usage_meta(u), w78 - 4):
                 w(f"    {part}")
-            bits = f"Min Z {_fmt_z(u.min_z)}"
+            bits = f"{minz} {_fmt_z(u.min_z)}"
             if u.min_z_line:
                 bits += f"  L{u.min_z_line}"
-            bits += f"  Time {_time_of(u)}  {share:3d}%"
+            bits += f"  {time_lbl} {_time_of(u)}  {share:3d}%"
             for part in _wrap(bits, w78 - 4):
                 w(f"    {part}")
             for warn in u.warnings:
-                for part in _wrap(f"WARNING: {warn}", w78 - 4):
+                for part in _wrap(_warn_line(warn), w78 - 4):
                     w(f"    {part}")
 
     w("")
     w("=" * w78)
-    w("Operator: ____________________    Date: ________    Loaded: [ ]")
+    w(_tr("ticket_sign_a4"))
     w("")
     return "\n".join(lines)
 
@@ -413,30 +478,33 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
     dash = "-" * n
     lines: list[str] = []
     w = lines.append
+    none = _tr("ticket_no_comment")
+    minz_lbl = _tr("ticket_minz_compact")
+    time_lbl = _tr("ticket_time")
 
     def block(text: str, width: int = n) -> None:
         for part in _wrap(text, width):
             w(part)
 
     w(bar)
-    w("CNC TOOL REPORT")
-    w("80 mm")
+    w(_tr("ticket_title_80"))
+    w(_tr("ticket_80mm"))
     w(bar)
-    block(result.filename or Path(result.path).name or "file")
+    block(result.filename or Path(result.path).name or _tr("ticket_file_fallback"))
     block(_program_line(result))
     w(_units_label(result.units))
     w(now.strftime("%Y-%m-%d %H:%M"))
     for c in result.header_comments[:8]:
         block(f"({c})")
     if result.bang_notes:
-        w("! NOTES")
+        w(_tr("ticket_notes_short"))
         for note in result.bang_notes:
             block(f"! {_bang_label(note)}")
     w(dash)
-    w("MinZ=work Z")
-    w(f"Time≈moves {_time_assumptions(result, compact=True)}")
-    w("Until M30; loops/L/M99")
-    w("Op = change M97 P#")
+    w(_tr("ticket_minz_work"))
+    w(_tr("ticket_time_moves", assumptions=_time_assumptions(result, compact=True)))
+    w(_tr("ticket_until_m30"))
+    w(_tr("ticket_op_m97"))
     for op in result.operations or []:
         w(dash)
         block(_op_heading(op))
@@ -446,35 +514,35 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
         for line in _share_chart_text(op, THERMAL_BAR_WIDTH):
             w(line)
         if not op.summaries:
-            w("(no tools)")
+            w(_tr("ticket_no_tools"))
             continue
         for s in op.summaries:
-            desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
+            desc = " / ".join(s.descriptions) if s.descriptions else none
             w(f"[ ] {_t_of_summary(s)}")
             block(desc)
-            w(f"MinZ {_fmt_z(s.min_z)}  Time {_time_of(s)}")
+            w(f"{minz_lbl} {_fmt_z(s.min_z)}  {time_lbl} {_time_of(s)}")
             for u in s.usages:
                 for warn in u.warnings:
-                    block(f"! {warn}")
+                    block(_warn_line(warn, prefix="! "))
             w(dash)
-        w("EACH CHANGE")
+        w(_tr("ticket_each_change_short"))
         w(dash)
         for u in op.usages:
             share = _pct_of(u, cycle_s)
             w(f"[ ] {_t_of_usage(u)}")
-            block(u.description or "(no comment)")
+            block(u.description or none)
             block(_usage_meta(u, include_lines=False))
-            minz = f"MinZ {_fmt_z(u.min_z)}"
+            minz = f"{minz_lbl} {_fmt_z(u.min_z)}"
             if u.min_z_line:
                 minz += f" L{u.min_z_line}"
-            w(f"{minz}  Time {_time_of(u)}  {share:3d}%")
+            w(f"{minz}  {time_lbl} {_time_of(u)}  {share:3d}%")
             for warn in u.warnings:
-                block(f"! {warn}")
+                block(_warn_line(warn, prefix="! "))
             w(dash)
 
-    w("Op: ________")
-    w("Date: ______")
-    w("Loaded: [ ]")
+    w(_tr("ticket_sign_op"))
+    w(_tr("ticket_sign_date"))
+    w(_tr("ticket_sign_loaded"))
     w(bar)
     w("")
     return "\n".join(lines)
@@ -488,26 +556,28 @@ def _format_text_80mm_min(result: ParseResult, *, generated: datetime | None) ->
     dash = "-" * n
     lines: list[str] = []
     w = lines.append
+    none = _tr("ticket_no_comment")
+    minz_lbl = _tr("ticket_minz_compact")
 
     def block(text: str, width: int = n) -> None:
         for part in _wrap(text, width):
             w(part)
 
     w(bar)
-    w("CNC TOOLS MIN")
-    w("80 mm")
+    w(_tr("ticket_title_min"))
+    w(_tr("ticket_80mm"))
     w(bar)
-    block(result.filename or Path(result.path).name or "file")
+    block(result.filename or Path(result.path).name or _tr("ticket_file_fallback"))
     block(_program_line(result))
     w(_units_label(result.units))
     w(now.strftime("%Y-%m-%d %H:%M"))
     if result.bang_notes:
-        w("! NOTES")
+        w(_tr("ticket_notes_short"))
         for note in result.bang_notes:
             block(f"! {_bang_label(note)}")
     w(dash)
-    w("MinZ=work Z")
-    w(f"Time≈moves {_time_assumptions(result, compact=True)}")
+    w(_tr("ticket_minz_work"))
+    w(_tr("ticket_time_moves", assumptions=_time_assumptions(result, compact=True)))
     for op in result.operations or []:
         w(dash)
         block(_op_heading(op))
@@ -516,23 +586,23 @@ def _format_text_80mm_min(result: ParseResult, *, generated: datetime | None) ->
         for line in _share_chart_text(op, THERMAL_BAR_WIDTH):
             w(line)
         if not op.summaries:
-            w("(no tools)")
+            w(_tr("ticket_no_tools"))
             continue
         for s in op.summaries:
-            desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
+            desc = " / ".join(s.descriptions) if s.descriptions else none
             w(f"{_t_of_summary(s)}")
             block(desc)
             load = _summary_hds(s)
             if load:
                 block(load)
-            w(f"MinZ {_fmt_z(s.min_z)}")
+            w(f"{minz_lbl} {_fmt_z(s.min_z)}")
             for warn in _summary_warnings(s):
-                block(f"! {warn}")
+                block(_warn_line(warn, prefix="! "))
             w(dash)
 
-    w("Op: ________")
-    w("Date: ______")
-    w("Loaded: [ ]")
+    w(_tr("ticket_sign_op"))
+    w(_tr("ticket_sign_date"))
+    w(_tr("ticket_sign_loaded"))
     w(bar)
     w("")
     return "\n".join(lines)
@@ -545,7 +615,9 @@ def format_print_html(
     generated: datetime | None = None,
     auto_print: bool = False,
     image_paths: list[Path] | None = None,
+    lang: str | None = None,
 ) -> str:
+    _set_ticket_lang(lang)
     paper = paper.lower()
     if paper in (PAPER_80MM, PAPER_80MM_MIN):
         return _html_80mm(
@@ -576,7 +648,7 @@ def _step_views_html(image_paths: list[Path] | None) -> str:
             continue
         b64 = base64.b64encode(blob).decode("ascii")
         parts.append(
-            f'<img class="step-view" alt="STEP isometric" '
+            f'<img class="step-view" alt="{escape(_tr("ticket_step_alt"))}" '
             f'src="data:image/png;base64,{b64}">'
         )
     if not parts:
@@ -594,7 +666,7 @@ window.addEventListener("load", function () {
 });
 </script>"""
     return f"""<!DOCTYPE html>
-<html lang="en">
+<html lang="{escape(_ticket_lang.get())}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -605,7 +677,7 @@ window.addEventListener("load", function () {
 </head>
 <body>
 <div class="no-print toolbar">
-  <button type="button" onclick="window.print()">Print</button>
+  <button type="button" onclick="window.print()">{escape(_tr("ticket_print"))}</button>
   <span class="hint">{escape(hint)}</span>
 </div>
 {body}
@@ -623,7 +695,6 @@ def _html_a4(
     image_paths: list[Path] | None = None,
 ) -> str:
     now = generated or datetime.now()
-    title = f"Tool report {_program_line(result)}"
     css = """
 @page { size: A4 portrait; margin: 12mm; }
 * { box-sizing: border-box; }
@@ -674,6 +745,7 @@ table.chart td.bar { padding-right: 0; }
 }
 """
     notes = ""
+    none = _tr("ticket_no_comment")
     if result.header_comments:
         items = "".join(f"<li>({escape(c)})</li>" for c in result.header_comments)
         notes = f'<ul class="notes">{items}</ul>'
@@ -681,20 +753,25 @@ table.chart td.bar { padding-right: 0; }
         items = "".join(
             f"<li>{escape(_bang_label(note))}</li>" for note in result.bang_notes
         )
-        notes += f'<h2>Programmer notes (!)</h2><ul class="notes">{items}</ul>'
+        notes += (
+            f'<h2>{escape(_tr("ticket_programmer_notes"))}</h2>'
+            f'<ul class="notes">{items}</ul>'
+        )
 
     op_html: list[str] = []
     if not result.operations:
-        op_html.append("<p>(no operations found)</p>")
+        op_html.append(f"<p>{escape(_tr('ticket_no_ops'))}</p>")
     for op in result.operations:
         cycle_s, _ = _op_cycle(op)
         setup_rows = []
         if not op.summaries:
-            setup_rows.append('<tr><td colspan="6">(no tool changes until M30)</td></tr>')
+            setup_rows.append(
+                f'<tr><td colspan="6">{escape(_tr("ticket_no_tool_changes"))}</td></tr>'
+            )
         for s in op.summaries:
-            desc = escape(" / ".join(s.descriptions) if s.descriptions else "(no comment)")
+            desc = escape(" / ".join(s.descriptions) if s.descriptions else none)
             warns = "".join(
-                f'<div class="warn">WARNING: {escape(w)}</div>'
+                f'<div class="warn">{escape(_warn_line(w))}</div>'
                 for u in s.usages
                 for w in u.warnings
             )
@@ -710,10 +787,13 @@ table.chart td.bar { padding-right: 0; }
             )
         change_rows = []
         if not op.usages:
-            change_rows.append('<tr><td colspan="8">(no Txx M6)</td></tr>')
+            change_rows.append(
+                f'<tr><td colspan="8">{escape(_tr("ticket_no_txx"))}</td></tr>'
+            )
         for u in op.usages:
             extra = "".join(
-                f'<div class="warn">WARNING: {escape(warn)}</div>' for warn in u.warnings
+                f'<div class="warn">{escape(_warn_line(warn))}</div>'
+                for warn in u.warnings
             )
             bc = " ".join(p for p in (_fmt_axis("B", u.b), _fmt_axis("C", u.c)) if p) or "—"
             share = _pct_of(u, cycle_s)
@@ -721,7 +801,7 @@ table.chart td.bar { padding-right: 0; }
                 "<tr>"
                 f'<td class="c"><span class="box"></span></td>'
                 f"<td>{escape(_t_of_usage(u))}</td>"
-                f"<td>{escape(u.description or '(no comment)')}{extra}</td>"
+                f"<td>{escape(u.description or none)}{extra}</td>"
                 f"<td>{escape(u.subprogram)}</td>"
                 f"<td>{escape(bc)}</td>"
                 f"<td>{escape(' '.join(p for p in (_fmt_hd('H', u.h_offset, u.h_hash), _fmt_hd('D', u.d_offset, u.d_hash), _fmt_s(u.s_rpm)) if p) or '—')}</td>"
@@ -734,48 +814,49 @@ table.chart td.bar { padding-right: 0; }
         op_html.append(_share_chart_html(op))
         op_html.append(
             "<table><thead><tr>"
-            '<th class="c">Load</th><th>T</th><th>Description</th>'
-            '<th class="n">Min Z</th><th class="n">Time</th><th class="c">OK</th>'
+            f'<th class="c">{escape(_tr("ticket_load"))}</th><th>T</th>'
+            f'<th>{escape(_tr("ticket_desc"))}</th>'
+            f'<th class="n">{escape(_tr("ticket_minz"))}</th>'
+            f'<th class="n">{escape(_tr("ticket_time"))}</th>'
+            f'<th class="c">{escape(_tr("ticket_ok"))}</th>'
             "</tr></thead><tbody>"
             + "".join(setup_rows)
             + "</tbody></table>"
         )
-        op_html.append("<h3>Each tool change</h3>")
+        op_html.append(f'<h3>{escape(_tr("ticket_each_change_html"))}</h3>')
         op_html.append(
             "<table><thead><tr>"
-            '<th class="c">Load</th><th>T</th><th>Description</th><th>Sub</th>'
-            '<th>B/C</th><th>H / D / S</th><th class="n">Min Z</th>'
-            '<th class="n">Time</th>'
+            f'<th class="c">{escape(_tr("ticket_load"))}</th><th>T</th>'
+            f'<th>{escape(_tr("ticket_desc"))}</th>'
+            f'<th>{escape(_tr("ticket_sub"))}</th>'
+            '<th>B/C</th><th>H / D / S</th>'
+            f'<th class="n">{escape(_tr("ticket_minz"))}</th>'
+            f'<th class="n">{escape(_tr("ticket_time"))}</th>'
             "</tr></thead><tbody>"
             + "".join(change_rows)
             + "</tbody></table>"
         )
 
+    title = _tr("ticket_title_html_doc", prog=_program_line(result))
     body = f"""
-<h1>CNC tool report</h1>
+<h1>{escape(_tr("ticket_title_html"))}</h1>
 {_step_views_html(image_paths)}
 <div class="meta">
-  <b>File</b><span>{escape(result.filename or result.path)}</span>
-  <b>Units</b><span>{escape(_units_label(result.units))}</span>
-  <b>Program</b><span>{escape(_program_line(result))}</span>
-  <b>Printed</b><span>{escape(now.strftime("%Y-%m-%d %H:%M"))}</span>
+  <b>{escape(_tr("ticket_file_html"))}</b><span>{escape(result.filename or result.path)}</span>
+  <b>{escape(_tr("ticket_units_html"))}</b><span>{escape(_units_label(result.units))}</span>
+  <b>{escape(_tr("ticket_program_html"))}</b><span>{escape(_program_line(result))}</span>
+  <b>{escape(_tr("ticket_printed_html"))}</b><span>{escape(now.strftime("%Y-%m-%d %H:%M"))}</span>
 </div>
 {notes}
-<p class="fine">Min Z is lowest work-coordinate Z (G53/G28 ignored).
-Time is programmed motion and canned cycles (approx;
-{escape(_time_assumptions(result))}). Cycle is the sum for
-that operation until M30. The chart under Cycle is each T as a share of that
-cycle. Each Txx M6 also shows its own %. A trailing + means missing F or S.
-Each operation is simulated until M30 (GOTO, IF, WHILE/DO, M97 L, canned L).
-Select a header op by changing M97 P# in main.</p>
+<p class="fine">{escape(_tr("ticket_html_fine", assumptions=_time_assumptions(result)))}</p>
 {"".join(op_html)}
 <div class="sign">
-  <div class="line">Operator</div>
-  <div class="line">Date</div>
-  <div class="line">Tools loaded</div>
+  <div class="line">{escape(_tr("ticket_operator"))}</div>
+  <div class="line">{escape(_tr("ticket_date"))}</div>
+  <div class="line">{escape(_tr("ticket_tools_loaded"))}</div>
 </div>
 """
-    hint = "Print dialog: A4, portrait, 100% scale, headers and footers off."
+    hint = _tr("ticket_print_hint_a4")
     return _html_shell(title, css, body, auto_print=auto_print, hint=hint)
 
 
@@ -836,8 +917,11 @@ pre.chart {
 """
     chunks: list[str] = []
     a = chunks.append
-    a(f"<h1>{'CNC TOOLS MIN' if short else 'CNC TOOLS'}</h1>")
-    a(f'<div class="center">80 mm</div>')
+    none = _tr("ticket_no_comment")
+    minz = _tr("ticket_minz")
+    time_lbl = _tr("ticket_time")
+    a(f"<h1>{escape(_tr('ticket_title_min') if short else _tr('brand'))}</h1>")
+    a(f'<div class="center">{escape(_tr("ticket_80mm"))}</div>')
     views = _step_views_html(image_paths)
     if views:
         a(views)
@@ -847,17 +931,19 @@ pre.chart {
     for c in result.header_comments[:8]:
         a(f'<div class="d">({escape(c)})</div>')
     if result.bang_notes:
-        a('<div class="warn">! NOTES</div>')
+        a(f'<div class="warn">{escape(_tr("ticket_notes_short"))}</div>')
         for note in result.bang_notes:
             a(f'<div class="warn d">! {escape(_bang_label(note))}</div>')
     a('<hr class="rule">')
-    a("<div>Min Z = work Z</div>")
-    a(f"<div>Time ≈ moves {escape(_time_assumptions(result, compact=True))}</div>")
+    a(f"<div>{escape(_tr('ticket_minz_work_html'))}</div>")
+    a(
+        f"<div>{escape(_tr('ticket_time_moves_html', assumptions=_time_assumptions(result, compact=True)))}</div>"
+    )
     if not short:
-        a("<div>Until M30; loops/L/M99</div>")
-        a("<div>Op = change M97 P#</div>")
+        a(f"<div>{escape(_tr('ticket_until_m30'))}</div>")
+        a(f"<div>{escape(_tr('ticket_op_m97'))}</div>")
     if not result.operations:
-        a("<div>(no operations)</div>")
+        a(f"<div>{escape(_tr('ticket_no_ops_short'))}</div>")
     for op in result.operations:
         cycle_s, _ = _op_cycle(op)
         a('<hr class="rule">')
@@ -867,10 +953,10 @@ pre.chart {
         if chart:
             a(chart)
         if not op.summaries:
-            a("<div>(no tools)</div>")
+            a(f"<div>{escape(_tr('ticket_no_tools'))}</div>")
             continue
         for s in op.summaries:
-            desc = " / ".join(s.descriptions) if s.descriptions else "(no comment)"
+            desc = " / ".join(s.descriptions) if s.descriptions else none
             a('<div class="tool">')
             if short:
                 a(f'<div class="tline">{escape(_t_of_summary(s))}</div>')
@@ -881,38 +967,37 @@ pre.chart {
                 load = _summary_hds(s)
                 if load:
                     a(f'<div class="d">{escape(load)}</div>')
-            a(f'<div class="kv"><span>Min Z</span><span>{escape(_fmt_z(s.min_z))}</span></div>')
+            a(f'<div class="kv"><span>{escape(minz)}</span><span>{escape(_fmt_z(s.min_z))}</span></div>')
             if not short:
-                a(f'<div class="kv"><span>Time</span><span>{escape(_time_of(s))}</span></div>')
+                a(f'<div class="kv"><span>{escape(time_lbl)}</span><span>{escape(_time_of(s))}</span></div>')
             for warn in _summary_warnings(s):
-                a(f'<div class="warn">! {escape(warn)}</div>')
+                a(f'<div class="warn">{escape(_warn_line(warn, prefix="! "))}</div>')
             a("</div>")
         if short:
             continue
-        a('<div class="tline">EACH CHANGE</div>')
+        a(f'<div class="tline">{escape(_tr("ticket_each_change_short"))}</div>')
         for u in op.usages:
             share = _pct_of(u, cycle_s)
             a('<div class="tool">')
             a(f'<div class="tline"><span class="box"></span>{escape(_t_of_usage(u))}</div>')
-            a(f'<div class="d">{escape(u.description or "(no comment)")}</div>')
+            a(f'<div class="d">{escape(u.description or none)}</div>')
             a(f'<div class="d">{escape(_usage_meta(u, include_lines=False))}</div>')
-            a(f'<div class="kv"><span>Min Z</span><span>{escape(_fmt_z(u.min_z))}</span></div>')
+            a(f'<div class="kv"><span>{escape(minz)}</span><span>{escape(_fmt_z(u.min_z))}</span></div>')
             a(
-                f'<div class="kv"><span>Time</span>'
+                f'<div class="kv"><span>{escape(time_lbl)}</span>'
                 f'<span>{escape(_time_of(u))}  {share}%</span></div>'
             )
             for warn in u.warnings:
-                a(f'<div class="warn">! {escape(warn)}</div>')
+                a(f'<div class="warn">{escape(_warn_line(warn, prefix="! "))}</div>')
             a("</div>")
     a('<hr class="rule">')
-    a("<div>Op: ____________</div>")
-    a("<div>Date: __________</div>")
-    a('<div><span class="box"></span>Loaded</div>')
-
-    hint = (
-        "Print dialog: select the 80 mm printer, paper 80 mm, 100% scale, "
-        "headers/footers off, do not fit to A4."
+    a(f"<div>{escape(_tr('ticket_sign_op'))}</div>")
+    a(f"<div>{escape(_tr('ticket_sign_date'))}</div>")
+    a(
+        f'<div><span class="box"></span>{escape(_tr("ticket_sign_loaded_html"))}</div>'
     )
+
+    hint = _tr("ticket_print_hint_80")
     return _html_shell(title, css, "\n".join(chunks), auto_print=auto_print, hint=hint)
 
 
@@ -943,6 +1028,7 @@ def write_report(
     out_dir: str | Path | None = None,
     papers: str = "both",
     image_paths: list[Path] | None = None,
+    lang: str | None = None,
 ) -> list[Path]:
     """Write text + HTML for A4, 80 mm, or both. Returns paths written."""
     if dest:
@@ -962,25 +1048,35 @@ def write_report(
     written: list[Path] = []
     if PAPER_A4 in want:
         a4_txt = directory / f"{stem}_tool_report.txt"
-        a4_txt.write_text(format_report(result, paper=PAPER_A4), encoding="utf-8")
+        a4_txt.write_text(
+            format_report(result, paper=PAPER_A4, lang=lang), encoding="utf-8"
+        )
         a4_html = directory / f"{stem}_tool_report_A4.html"
         a4_html.write_text(
-            format_print_html(result, paper=PAPER_A4, image_paths=image_paths),
+            format_print_html(
+                result, paper=PAPER_A4, image_paths=image_paths, lang=lang
+            ),
             encoding="utf-8",
         )
         written.extend([a4_txt, a4_html])
     if PAPER_80MM in want:
         mm_txt = directory / f"{stem}_tool_report_80mm.txt"
-        mm_txt.write_text(format_report(result, paper=PAPER_80MM), encoding="utf-8")
+        mm_txt.write_text(
+            format_report(result, paper=PAPER_80MM, lang=lang), encoding="utf-8"
+        )
         mm_html = directory / f"{stem}_tool_report_80mm.html"
         mm_html.write_text(
-            format_print_html(result, paper=PAPER_80MM, image_paths=image_paths),
+            format_print_html(
+                result, paper=PAPER_80MM, image_paths=image_paths, lang=lang
+            ),
             encoding="utf-8",
         )
         written.extend([mm_txt, mm_html])
     if PAPER_80MM_MIN in want:
         min_txt = directory / f"{stem}_tool_report_80mm_min.txt"
-        min_txt.write_text(format_report(result, paper=PAPER_80MM_MIN), encoding="utf-8")
+        min_txt.write_text(
+            format_report(result, paper=PAPER_80MM_MIN, lang=lang), encoding="utf-8"
+        )
         written.append(min_txt)
     return written
 
@@ -991,6 +1087,7 @@ def open_print_html(
     paper: str = PAPER_A4,
     auto_print: bool = True,
     image_paths: list[Path] | None = None,
+    lang: str | None = None,
 ) -> Path:
     """Write a temp HTML file and open it in the default browser for printing."""
     import tempfile
@@ -1001,7 +1098,11 @@ def open_print_html(
     path = Path(tempfile.gettempdir()) / f"fh6parse_{stem}_{tag}.html"
     path.write_text(
         format_print_html(
-            result, paper=paper, auto_print=auto_print, image_paths=image_paths
+            result,
+            paper=paper,
+            auto_print=auto_print,
+            image_paths=image_paths,
+            lang=lang,
         ),
         encoding="utf-8",
     )
