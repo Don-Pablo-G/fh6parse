@@ -430,7 +430,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 
 1. Power on. Screen shows **Włóż pendrive** / **Insert USB** (or the last stick if it was already plugged in). The kiosk is Polish unless settings were changed.
 2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear.
-3. Turn the encoder to highlight a file. A **3D cube** next to the name means the STEP views are ready for that program.
+3. Turn the encoder to highlight a file. The panel under the list shows each operation’s tool count and cycle time, and whether the STEP views are ready. A **3D cube** next to the name also means the STEP views are ready. Check OP1 vs OP2 here before printing.
 4. **FULL** — 80 mm ticket: stacked line-art isometrics when ready, then operations, cycle time, a share chart of each T, tool list, each tool change (time and % of cycle), warnings, min Z.
 5. **MIN** — short ticket: stacked line-art isometrics when ready, then per operation cycle time, share chart of each T, then T, H/D/S to load, description, min Z, and H/D/G95 mismatch flags.
 6. If there is no cube, print anyway. The slip is text only.

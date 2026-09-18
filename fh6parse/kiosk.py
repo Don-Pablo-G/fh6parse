@@ -28,13 +28,20 @@ from .i18n import (
     file_count,
     parse_language,
     t,
+    tool_count,
     update_button_label,
     usb_count,
 )
 from .idle import ScreensaverGate
-from .machtime import DEFAULT_MACHINE, MachineProfile, RAPID_MM_PER_MIN, ROTARY_DEG_PER_MIN
+from .machtime import (
+    DEFAULT_MACHINE,
+    MachineProfile,
+    RAPID_MM_PER_MIN,
+    ROTARY_DEG_PER_MIN,
+    format_machine_time,
+)
 from .modelprep import ModelPrep
-from .parser import parse_nc_file
+from .parser import ParseResult, parse_nc_file
 from .printer import print_ticket
 from .report import PAPER_80MM, PAPER_80MM_MIN, format_report
 from .update import UpdateCheck
@@ -48,6 +55,8 @@ OK = "#8fd19e"
 BCM_MIN = 0
 BCM_MAX = 27
 ENCODER_STEPS_MAX = 16
+PREVIEW_DEBOUNCE_MS = 180
+PREVIEW_CACHE_MAX = 40
 UI_OVERLAY_KEYS = (
     "language",
     "encoder_clk",
@@ -215,6 +224,23 @@ def merge_machines(
     if sel not in {m.id for m in machines}:
         sel = "default"
     return sel, machines
+
+
+def format_kiosk_preview(
+    result: ParseResult, *, lang: str, step_ready: bool
+) -> str:
+    """One screen block: each op's tool count and cycle, then STEP ready."""
+    lines: list[str] = []
+    ops = result.operations or []
+    if not ops:
+        lines.append(t(lang, "preview_no_tools"))
+    for op in ops:
+        seconds = sum(u.time_s for u in op.usages)
+        incomplete = any(u.time_incomplete for u in op.usages)
+        time = format_machine_time(seconds, incomplete=incomplete)
+        lines.append(f"{op.title}  {tool_count(lang, len(op.summaries))}  {time}")
+    lines.append(t(lang, "preview_step_yes" if step_ready else "preview_step_no"))
+    return "\n".join(lines)
 
 
 def save_kiosk_values(
@@ -406,6 +432,9 @@ class KioskApp(tk.Tk):
         self._lang = parse_language(cfg.language, default=KIOSK_DEFAULT)
         self._config_open = False
         self._enc_leftover = 0
+        self._preview_job: str | None = None
+        self._preview_gen = 0
+        self._preview_cache: dict[str, tuple[float, str, ParseResult]] = {}
 
         self.title(t(self._lang, "app_title_kiosk", version=__version__))
         self.configure(bg=BG)
@@ -494,6 +523,18 @@ class KioskApp(tk.Tk):
         self.listbox.bind("<MouseWheel>", self._on_wheel)
         self.listbox.bind("<Button-4>", lambda e: self._on_wheel_button(-1))
         self.listbox.bind("<Button-5>", lambda e: self._on_wheel_button(1))
+        preview_font = tkfont.Font(family=family, size=16, weight="bold")
+        self.preview = tk.Label(
+            mid,
+            text="",
+            font=preview_font,
+            bg=BG,
+            fg=ACCENT,
+            wraplength=self.cfg.width - 40,
+            justify="left",
+            anchor="w",
+        )
+        self.preview.pack(fill=tk.X, pady=(10, 0))
 
         foot = tk.Frame(self, bg=BG)
         foot.pack(fill=tk.X, padx=16, pady=(4, 16))
@@ -944,8 +985,10 @@ class KioskApp(tk.Tk):
         if nxt == self.cfg.machine_id:
             return
         self.cfg.machine_id = nxt
+        self._preview_cache.clear()
         self._refresh_gpio_labels()
         self._persist_ui_settings()
+        self._schedule_preview()
         self._arm_idle()
 
     def _set_encoder_swap(self, swap: bool) -> None:
@@ -987,6 +1030,7 @@ class KioskApp(tk.Tk):
         self._style_lang_buttons()
         self._refresh_gpio_labels()
         self._refresh_hint()
+        self._schedule_preview()
         if self._update_available and self._pending_update is not None and not self._updating:
             self.update_btn.config(text=update_button_label(self._lang, self._pending_update))
         elif not self._updating:
@@ -1308,6 +1352,7 @@ class KioskApp(tk.Tk):
         self._refresh_hint()
         if not files:
             self._index = 0
+            self._clear_preview()
             return
         if keep_highlight and current in files:
             self._index = files.index(current)
@@ -1362,6 +1407,127 @@ class KioskApp(tk.Tk):
         self.listbox.selection_set(iid)
         self.listbox.focus(iid)
         self.listbox.see(iid)
+        self._schedule_preview()
+
+    def _path_key(self, path: Path) -> str | None:
+        try:
+            return str(path.resolve())
+        except OSError:
+            return None
+
+    def _file_mtime(self, path: Path) -> float | None:
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return None
+
+    def _cached_result(self, path: Path) -> ParseResult | None:
+        key = self._path_key(path)
+        mtime = self._file_mtime(path)
+        if key is None or mtime is None:
+            return None
+        hit = self._preview_cache.get(key)
+        if hit is None:
+            return None
+        stored_mtime, mill, result = hit
+        if stored_mtime != mtime or mill != self.cfg.machine_id:
+            return None
+        return result
+
+    def _store_result(self, path: Path, result: ParseResult) -> None:
+        key = self._path_key(path)
+        mtime = self._file_mtime(path)
+        if key is None or mtime is None:
+            return
+        self._preview_cache[key] = (mtime, self.cfg.machine_id, result)
+        while len(self._preview_cache) > PREVIEW_CACHE_MAX:
+            self._preview_cache.pop(next(iter(self._preview_cache)))
+
+    def _parse_path(self, path: Path) -> ParseResult:
+        hit = self._cached_result(path)
+        if hit is not None:
+            return hit
+        result = parse_nc_file(path, machine=self.cfg.active_machine())
+        self._store_result(path, result)
+        return result
+
+    def _clear_preview(self) -> None:
+        self._preview_gen += 1
+        if self._preview_job:
+            self.after_cancel(self._preview_job)
+            self._preview_job = None
+        self.preview.config(text="", fg=ACCENT)
+
+    def _show_preview(self, result: ParseResult, path: Path) -> None:
+        self.preview.config(
+            text=format_kiosk_preview(
+                result, lang=self._lang, step_ready=self._cad_ready_for(path)
+            ),
+            fg=ACCENT,
+        )
+
+    def _schedule_preview(self) -> None:
+        self._preview_gen += 1
+        if self._preview_job:
+            self.after_cancel(self._preview_job)
+            self._preview_job = None
+        path = self._selected()
+        if path is None:
+            self.preview.config(text="", fg=ACCENT)
+            return
+        hit = self._cached_result(path)
+        if hit is not None:
+            self._show_preview(hit, path)
+            return
+        gen = self._preview_gen
+        self._preview_job = self.after(
+            PREVIEW_DEBOUNCE_MS, lambda: self._kick_preview(path, gen)
+        )
+
+    def _kick_preview(self, path: Path, gen: int) -> None:
+        self._preview_job = None
+        if gen != self._preview_gen:
+            return
+        selected = self._selected()
+        if selected is None or self._path_key(selected) != self._path_key(path):
+            return
+        hit = self._cached_result(path)
+        if hit is not None:
+            self._show_preview(hit, path)
+            return
+        self.preview.config(text=self._tr("preview_reading"), fg=MUTED)
+        threading.Thread(
+            target=self._preview_worker, args=(path, gen), daemon=True
+        ).start()
+
+    def _preview_worker(self, path: Path, gen: int) -> None:
+        result: ParseResult | None = None
+        err: str | None = None
+        try:
+            result = parse_nc_file(path, machine=self.cfg.active_machine())
+        except Exception as exc:  # shop-floor: stay up
+            err = str(exc)
+        self._queue(lambda: self._apply_preview(path, gen, result, err))
+
+    def _apply_preview(
+        self,
+        path: Path,
+        gen: int,
+        result: ParseResult | None,
+        err: str | None,
+    ) -> None:
+        if gen != self._preview_gen:
+            return
+        selected = self._selected()
+        if selected is None or self._path_key(selected) != self._path_key(path):
+            return
+        if err or result is None:
+            self.preview.config(
+                text=self._tr("preview_fail", name=path.name), fg=ERR
+            )
+            return
+        self._store_result(path, result)
+        self._show_preview(result, path)
 
     def _on_encoder(self, delta: int) -> None:
         action = self.gate.encoder()
@@ -1496,7 +1662,7 @@ class KioskApp(tk.Tk):
         self._set_status(self._tr("printing", kind=kind, name=path.name))
         self.update_idletasks()
         try:
-            result = parse_nc_file(path, machine=self.cfg.active_machine())
+            result = self._parse_path(path)
             text = format_report(result, paper=paper)
             images: list[Path] = []
             if self._models is not None:

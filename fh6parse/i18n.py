@@ -56,6 +56,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "no_file": "No file",
         "busy_update": "Updating…",
         "gpio_off": "GPIO off: {detail}",
+        "preview_reading": "Reading…",
+        "preview_fail": "Cannot read {name}",
+        "preview_no_tools": "no tools",
+        "preview_step_yes": "3D ready",
+        "preview_step_no": "no 3D",
         "settings": "Settings",
         "settings_blurb": (
             "Language, mill (rapids and tool-change time), BCM pins, and ticks "
@@ -174,6 +179,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "no_file": "Brak pliku",
         "busy_update": "Aktualizowanie…",
         "gpio_off": "GPIO wyłączone: {detail}",
+        "preview_reading": "Czytanie…",
+        "preview_fail": "Nie można odczytać {name}",
+        "preview_no_tools": "brak narzędzi",
+        "preview_step_yes": "3D gotowe",
+        "preview_step_no": "brak 3D",
         "settings": "Ustawienia",
         "settings_blurb": (
             "Język, obrabiarka (szybkie i czas wymiany narzędzia), piny BCM "
@@ -283,6 +293,16 @@ def file_count(lang: str, n: int) -> str:
     return f"{n} files"
 
 
+def tool_count(lang: str, n: int) -> str:
+    lang = parse_language(lang, default=GUI_DEFAULT)
+    n = int(n)
+    if lang == "pl":
+        return f"{n} {_pl_narzedzie(n)}"
+    if n == 1:
+        return "1 tool"
+    return f"{n} tools"
+
+
 def usb_count(n: int) -> str:
     return f"{n} USB"
 
@@ -296,6 +316,17 @@ def _pl_plik(n: int) -> str:
     if 2 <= (n % 10) <= 4:
         return "pliki"
     return "plików"
+
+
+def _pl_narzedzie(n: int) -> str:
+    n = abs(int(n))
+    if n == 1:
+        return "narzędzie"
+    if 12 <= (n % 100) <= 14:
+        return "narzędzi"
+    if 2 <= (n % 10) <= 4:
+        return "narzędzia"
+    return "narzędzi"
 
 
 def update_button_label(lang: str, status: Any) -> str:

@@ -13,6 +13,7 @@ from fh6parse.i18n import (
     file_count,
     parse_language,
     t,
+    tool_count,
     update_button_label,
 )
 from fh6parse.kiosk import load_kiosk_config, save_kiosk_values
@@ -47,6 +48,13 @@ class TestI18n(unittest.TestCase):
         self.assertEqual(file_count("pl", 22), "22 pliki")
         self.assertEqual(file_count("en", 1), "1 file")
         self.assertEqual(file_count("en", 3), "3 files")
+
+    def test_polish_tool_plural(self) -> None:
+        self.assertEqual(tool_count("pl", 1), "1 narzędzie")
+        self.assertEqual(tool_count("pl", 2), "2 narzędzia")
+        self.assertEqual(tool_count("pl", 5), "5 narzędzi")
+        self.assertEqual(tool_count("en", 1), "1 tool")
+        self.assertEqual(tool_count("en", 6), "6 tools")
 
     def test_update_button_follows_language(self) -> None:
         status = UpdateCheck(

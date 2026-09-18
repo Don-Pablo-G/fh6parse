@@ -249,6 +249,44 @@ class TestKioskConfig(unittest.TestCase):
                     self.assertEqual(cfg.active_machine().tool_change_s, 8.0)
 
 
+class TestKioskPreview(unittest.TestCase):
+    def test_two_ops_show_tools_time_and_step(self) -> None:
+        from fh6parse.kiosk import format_kiosk_preview
+        from fh6parse.parser import parse_nc_file
+
+        samples = Path(__file__).resolve().parent / "samples"
+        r = parse_nc_file(samples / "000814086.nc")
+        text = format_kiosk_preview(r, lang="en", step_ready=False)
+        self.assertIn("OP1", text)
+        self.assertIn("OP2", text)
+        self.assertIn("tools", text)
+        self.assertIn("no 3D", text)
+        self.assertNotIn("3D ready", text)
+        ready = format_kiosk_preview(r, lang="en", step_ready=True)
+        self.assertIn("3D ready", ready)
+        pl = format_kiosk_preview(r, lang="pl", step_ready=False)
+        self.assertIn("narzęd", pl)
+        self.assertIn("brak 3D", pl)
+
+    def test_single_op_shows_cycle(self) -> None:
+        from fh6parse.kiosk import format_kiosk_preview
+        from fh6parse.parser import parse_nc_text
+
+        src = """O1
+T1 M6
+G90 G94
+G0 X0 Y0 Z0
+G1 X100 F500
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        text = format_kiosk_preview(r, lang="en", step_ready=True)
+        self.assertIn("MAIN", text)
+        self.assertIn("1 tool", text)
+        self.assertIn("0:12", text)
+        self.assertIn("3D ready", text)
+
+
 class TestEncoderClicks(unittest.TestCase):
     def test_one_tick_is_one_file_by_default(self) -> None:
         from fh6parse.kiosk import encoder_file_delta
