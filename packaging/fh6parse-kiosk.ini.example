@@ -11,6 +11,8 @@ fullscreen = true
 idle_seconds = 60
 # Screen language: pl (default on the kiosk) or en. Change in settings (F2 / mouse).
 # language = pl
+# Windows GUI also stores last_nc_dir, last_out_dir, last_paper (a4 or 80mm)
+# in this file and in ~/.config/fh6parse/ui.ini.
 
 encoder_clk = 17
 encoder_dt = 27

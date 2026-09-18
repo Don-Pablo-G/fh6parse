@@ -18,7 +18,7 @@ from .cadmark import (
     row_is_ready,
 )
 from .i18n import GUI_DEFAULT, file_count, parse_language, t, update_button_label
-from .kiosk import load_kiosk_config, save_kiosk_values, save_model_roots, ui_overlay_path
+from .kiosk import load_kiosk_config, parse_gui_paper, save_kiosk_values, save_model_roots, ui_overlay_path
 from .modelprep import ModelPrep
 from .modelrender import render_available
 from .parser import ParseResult, parse_nc_file
@@ -42,7 +42,6 @@ class ToolReportApp(tk.Tk):
         self._results: dict[str, tuple[Path, ParseResult]] = {}
         self._order: list[str] = []
         self._out_dir: Path | None = None
-        self._paper = tk.StringVar(value=PAPER_A4)
         cfg = load_kiosk_config()
         self._cfg_source = cfg.source
         self._lang = parse_language(cfg.language, default=GUI_DEFAULT)
@@ -51,6 +50,12 @@ class ToolReportApp(tk.Tk):
         self._machine_id = cfg.machine_id
         self._machine_var = tk.StringVar()
         self._model_roots = list(cfg.model_roots)
+        self._last_nc_dir = cfg.last_nc_dir
+        self._paper = tk.StringVar(value=parse_gui_paper(cfg.last_paper))
+        if cfg.last_out_dir:
+            out = Path(cfg.last_out_dir)
+            if out.is_dir():
+                self._out_dir = out
         self._models: ModelPrep | None = None
         self._model_job: str | None = None
         self._pending_update: UpdateCheck | None = None
@@ -108,14 +113,14 @@ class ToolReportApp(tk.Tk):
             text="A4",
             value=PAPER_A4,
             variable=self._paper,
-            command=self._on_select,
+            command=self._on_paper,
         )
         self.rb_a4.pack(side=tk.LEFT, padx=(0, 8))
         self.rb_80 = ttk.Radiobutton(
             paper_row,
             value=PAPER_80MM,
             variable=self._paper,
-            command=self._on_select,
+            command=self._on_paper,
         )
         self.rb_80.pack(side=tk.LEFT, padx=(0, 12))
         self.lbl_machine = ttk.Label(paper_row)
@@ -198,6 +203,8 @@ class ToolReportApp(tk.Tk):
         self.btn_step.config(text=self._tr("step_folders"))
         if self._out_dir is None:
             self.out_label.config(text=self._tr("save_next_to_nc"))
+        else:
+            self.out_label.config(text=str(self._out_dir))
         self.lbl_preview.config(text=self._tr("preview_print"))
         self.lbl_machine.config(text=self._tr("machine"))
         self.rb_80.config(text=self._tr("paper_thermal"))
@@ -254,6 +261,24 @@ class ToolReportApp(tk.Tk):
             (m for m in self._machines if m.id == self._machine_id),
             self._machines[0],
         )
+
+    def _persist_gui_prefs(self) -> None:
+        updates = {"last_paper": parse_gui_paper(self._paper.get())}
+        if self._last_nc_dir:
+            updates["last_nc_dir"] = self._last_nc_dir
+        if self._out_dir is not None:
+            updates["last_out_dir"] = str(self._out_dir)
+        try:
+            saved = save_kiosk_values(updates, source=self._cfg_source)
+            self._cfg_source = saved
+            save_kiosk_values(updates, dest=ui_overlay_path())
+        except OSError:
+            pass
+
+    def _on_paper(self) -> None:
+        self._paper.set(parse_gui_paper(self._paper.get()))
+        self._persist_gui_prefs()
+        self._on_select()
 
     def _persist_machine(self) -> None:
         try:
@@ -385,15 +410,22 @@ class ToolReportApp(tk.Tk):
         )
 
     def open_files(self) -> None:
+        kwargs: dict[str, str] = {}
+        start = Path(self._last_nc_dir) if self._last_nc_dir else None
+        if start is not None and start.is_dir():
+            kwargs["initialdir"] = str(start)
         paths = filedialog.askopenfilenames(
             title=self._tr("select_cnc"),
             filetypes=[
                 (self._tr("ft_cnc"), "*.nc *.NC *.tap *.TAP *.txt *.TXT"),
                 (self._tr("ft_all"), "*.*"),
             ],
+            **kwargs,
         )
         if not paths:
             return
+        self._last_nc_dir = str(Path(paths[0]).parent)
+        self._persist_gui_prefs()
         errors: list[str] = []
         for raw in paths:
             path = Path(raw)
@@ -460,11 +492,15 @@ class ToolReportApp(tk.Tk):
             self.preview.configure(width=82, font=("Consolas", 10), wrap=tk.WORD)
 
     def choose_out_dir(self) -> None:
-        chosen = filedialog.askdirectory(title=self._tr("out_folder_title"))
+        kwargs: dict[str, str] = {}
+        if self._out_dir is not None and self._out_dir.is_dir():
+            kwargs["initialdir"] = str(self._out_dir)
+        chosen = filedialog.askdirectory(title=self._tr("out_folder_title"), **kwargs)
         if not chosen:
             return
         self._out_dir = Path(chosen)
         self.out_label.config(text=str(self._out_dir))
+        self._persist_gui_prefs()
 
     def save_current(self) -> None:
         selected = self._selected_result()
@@ -492,6 +528,9 @@ class ToolReportApp(tk.Tk):
         self.status.config(text=self._tr("wrote_all", n=written))
 
     def print_paper(self, paper: str) -> None:
+        self._paper.set(parse_gui_paper(paper))
+        self._persist_gui_prefs()
+        self._on_select()
         selected = self._selected_result()
         if selected is None:
             messagebox.showinfo(self._tr("print_title"), self._tr("select_first"))

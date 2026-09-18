@@ -249,6 +249,46 @@ class TestKioskConfig(unittest.TestCase):
                     self.assertEqual(cfg.active_machine().tool_change_s, 8.0)
 
 
+    def test_reads_last_folder_and_paper(self) -> None:
+        from fh6parse.kiosk import parse_gui_paper
+        from fh6parse.report import PAPER_80MM
+
+        self.assertEqual(parse_gui_paper("80mm"), PAPER_80MM)
+        self.assertEqual(parse_gui_paper("thermal"), PAPER_80MM)
+        self.assertEqual(parse_gui_paper("nope"), "a4")
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "kiosk.ini"
+            nc = Path(raw) / "stick"
+            nc.mkdir()
+            path.write_text(
+                "[kiosk]\n"
+                f"last_nc_dir = {nc.as_posix()}\n"
+                f"last_out_dir = {Path(raw).as_posix()}\n"
+                "last_paper = 80mm\n",
+                encoding="utf-8",
+            )
+            cfg = load_kiosk_config(path)
+            self.assertEqual(Path(cfg.last_nc_dir), nc)
+            self.assertEqual(Path(cfg.last_out_dir), Path(raw))
+            self.assertEqual(cfg.last_paper, PAPER_80MM)
+
+    def test_overlay_overrides_last_paper(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        from fh6parse.kiosk import save_kiosk_values, ui_overlay_path
+        from fh6parse.report import PAPER_80MM
+
+        with tempfile.TemporaryDirectory() as home:
+            with patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
+                with tempfile.TemporaryDirectory() as raw:
+                    main = Path(raw) / "kiosk.ini"
+                    main.write_text("[kiosk]\nlast_paper = a4\n", encoding="utf-8")
+                    save_kiosk_values({"last_paper": "80mm"}, ui_overlay_path())
+                    cfg = load_kiosk_config(main)
+                    self.assertEqual(cfg.last_paper, PAPER_80MM)
+
+
 class TestKioskPreview(unittest.TestCase):
     def test_two_ops_show_tools_time_and_step(self) -> None:
         from fh6parse.kiosk import format_kiosk_preview

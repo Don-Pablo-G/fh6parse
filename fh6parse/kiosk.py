@@ -43,7 +43,7 @@ from .machtime import (
 from .modelprep import ModelPrep
 from .parser import ParseResult, parse_nc_file
 from .printer import print_ticket
-from .report import PAPER_80MM, PAPER_80MM_MIN, format_report
+from .report import PAPER_80MM, PAPER_80MM_MIN, PAPER_A4, format_report
 from .update import UpdateCheck
 
 BG = "#111111"
@@ -127,6 +127,9 @@ class KioskConfig:
     model_roots: list[Path] = field(default_factory=list)
     language: str = ""
     machine_id: str = "default"
+    last_nc_dir: str = ""
+    last_out_dir: str = ""
+    last_paper: str = PAPER_A4
     machines: list[MachineProfile] = field(default_factory=lambda: [DEFAULT_MACHINE])
     source: Path | None = None
 
@@ -171,7 +174,7 @@ def kiosk_config_write_path() -> Path:
 
 
 def ui_overlay_path() -> Path:
-    """Writable per-user file for language, mill, and GPIO (kiosk cannot write /etc)."""
+    """Writable per-user file for language, mill, last folder/paper, and GPIO."""
     return Path.home() / ".config" / "fh6parse" / "ui.ini"
 
 
@@ -275,6 +278,25 @@ def save_model_roots(roots: list[Path], dest: Path | None = None) -> Path:
     )
 
 
+def parse_gui_paper(raw: str) -> str:
+    paper = (raw or "").strip().lower().replace(" ", "")
+    if paper in {PAPER_80MM, "80", "80mmthermal", "thermal"}:
+        return PAPER_80MM
+    return PAPER_A4
+
+
+def _apply_gui_memory(cfg: KioskConfig, src: configparser.SectionProxy) -> None:
+    nc = src.get("last_nc_dir", fallback="").strip()
+    if nc:
+        cfg.last_nc_dir = nc
+    out = src.get("last_out_dir", fallback="").strip()
+    if out:
+        cfg.last_out_dir = out
+    paper = src.get("last_paper", fallback="").strip()
+    if paper:
+        cfg.last_paper = parse_gui_paper(paper)
+
+
 def _clamp_bcm(value: int) -> int:
     return max(BCM_MIN, min(BCM_MAX, int(value)))
 
@@ -341,6 +363,7 @@ def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
                 parse_language(lang_raw, default=KIOSK_DEFAULT) if lang_raw else ""
             )
             machine_id = src.get("machine", fallback="").strip()
+            _apply_gui_memory(cfg, src)
     overlay = ui_overlay_path()
     if overlay.is_file():
         extra = configparser.ConfigParser()
@@ -355,6 +378,7 @@ def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
             over_m = over_sec.get("machine", "").strip()
             if over_m:
                 machine_id = over_m
+            _apply_gui_memory(cfg, over_sec)
     cfg.machine_id, cfg.machines = merge_machines(parsers, machine_id)
     return cfg
 
