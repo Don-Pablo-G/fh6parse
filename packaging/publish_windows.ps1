@@ -11,7 +11,7 @@ if (-not $Version) { throw "could not read package version" }
 
 $exe = Join-Path $Root "dist\packages\fh6parse-$Version-windows-x64.exe"
 if (-not (Test-Path $exe)) {
-    throw "missing $exe — run packaging\build_windows.bat first"
+    throw "missing $exe - run packaging\build_windows.bat first"
 }
 
 $tag = "v$Version"
@@ -19,15 +19,18 @@ $notes = "Windows office GUI. On the PC: yellow UPDATE downloads this exe and re
 
 gh --version | Out-Null
 $exists = $false
+$prev = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 gh release view $tag --repo Don-Pablo-G/fh6parse 2>$null | Out-Null
 if ($LASTEXITCODE -eq 0) { $exists = $true }
+$ErrorActionPreference = $prev
 
 if ($exists) {
     Write-Host "Uploading to existing $tag"
     gh release upload $tag $exe --clobber --repo Don-Pablo-G/fh6parse
 } else {
     Write-Host "Creating $tag"
-    gh release create $tag $exe --title "fh6parse $Version" --notes $notes --repo Don-Pablo-G/fh6parse
+    gh release create $tag $exe --title "fh6parse $Version" --notes $notes --repo Don-Pablo-G/fh6parse --target master
 }
 
 Write-Host "Published $exe as $tag"
