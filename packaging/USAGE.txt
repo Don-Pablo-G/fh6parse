@@ -37,6 +37,10 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   same fh6parse-kiosk.ini as STEP folders (and in %USERPROFILE%\.config\fh6parse\ui.ini).
   Views are visible edges only (no shading). The longest axis is across the
   80 mm width; height is cropped to the part (a long shaft is a thin strip).
+  Update: if origin (git GUI) or GitHub Releases (frozen exe) has a newer
+  build, a yellow UPDATE button appears after launch. One click installs and
+  restarts. Never automatic. Frozen exe: packaging\build_windows.bat then
+  packaging\publish_windows.ps1 (needs gh). Keep the ini next to the exe.
 
 Raspberry Pi 5 kiosk (portrait 600x800) — version 1.3.4
   Full wiring + OS + printer + update: packaging/LINUX-KIOSK.md

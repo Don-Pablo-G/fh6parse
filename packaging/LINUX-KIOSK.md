@@ -621,5 +621,5 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Settings (**F2** / **PL** chip): language, BCM pins, ticks per tooth; survives restart | |
 | Clicky encoder: rest is stable; highlight changes halfway to the next tooth | |
 
-Windows office PC: replace the exe with `fh6parse-1.3.4-windows-x64.exe` from this same tree (same `--version`). **Polski / English** radios at the top right (default English). Set **STEP folders…**. A wireframe cube means the STEP bitmap is ready. Windows print is still the browser dialog, not `/dev/usb/lp0`.
+Windows office PC: double-click the exe (or `python -m fh6parse --gui` from a git clone). **Polski / English** radios at the top right (default English). Set **STEP folders…**. A wireframe cube means the STEP bitmap is ready. Windows print is still the browser dialog, not `/dev/usb/lp0`. If GitHub (frozen exe) or origin (git) has a newer build, a yellow **UPDATE** button appears after launch — one click, then the window restarts. Publish a new exe with `packaging\build_windows.bat` then `packaging\publish_windows.ps1`. Do not overwrite `fh6parse-kiosk.ini` next to the exe.
 

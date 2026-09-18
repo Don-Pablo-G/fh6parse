@@ -11,9 +11,13 @@ from fh6parse.update import (
     FROZEN_MSG,
     UpdateCheck,
     check_for_update,
+    check_github_windows_exe,
     find_git_root,
+    parse_windows_release,
+    perform_frozen_exe_update,
     perform_update,
     version_from_text,
+    version_key,
 )
 
 
@@ -191,6 +195,31 @@ class TestPerformUpdate(unittest.TestCase):
         self.assertIn("restarted fh6parse-kiosk", out.getvalue())
         self.assertTrue(any(c[:3] == ["sudo", "-n", "systemctl"] for c in self.calls))
 
+    def test_gui_git_update_skips_systemd(self) -> None:
+        def run(cmd: list[str], **_kwargs) -> _Proc:
+            joined = " ".join(cmd)
+            if "rev-parse" in joined:
+                return _Proc(0, stdout="deadbeef\n")
+            if "pull" in joined:
+                return _Proc(0, stdout="Already up to date.\n")
+            if "diff" in joined:
+                return _Proc(0, stdout="")
+            if "systemctl" in joined:
+                self.fail("GUI update must not touch systemd")
+            return _Proc(0)
+
+        out = io.StringIO()
+        code = perform_update(
+            frozen=False,
+            start=self.start,
+            runner=run,
+            stdout=out,
+            stderr=io.StringIO(),
+            restart_kiosk=False,
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("restart the app", out.getvalue())
+
 
 class TestCheckForUpdate(unittest.TestCase):
     def setUp(self) -> None:
@@ -311,6 +340,150 @@ class TestVersionLabel(unittest.TestCase):
             remote_sha="deadbee",
         )
         self.assertEqual(status.button_label(), "UPDATE  deadbee")
+
+
+class TestWindowsExeRelease(unittest.TestCase):
+    def test_version_key_orders_dots(self) -> None:
+        self.assertLess(version_key("1.3.4"), version_key("1.3.10"))
+        self.assertEqual(version_key("v1.3.4"), version_key("1.3.4"))
+
+    def test_newer_asset_is_available(self) -> None:
+        payload = {
+            "assets": [
+                {
+                    "name": "fh6parse-1.3.5-windows-x64.exe",
+                    "browser_download_url": "https://example.test/a.exe",
+                }
+            ]
+        }
+        status = parse_windows_release(payload, current="1.3.4")
+        self.assertTrue(status.available)
+        self.assertEqual(status.new_version, "1.3.5")
+        self.assertEqual(status.kind, "exe")
+        self.assertEqual(status.download_url, "https://example.test/a.exe")
+
+    def test_same_version_is_up_to_date(self) -> None:
+        payload = {
+            "assets": [
+                {
+                    "name": "fh6parse-1.3.4-windows-x64.exe",
+                    "browser_download_url": "https://example.test/a.exe",
+                }
+            ]
+        }
+        status = parse_windows_release(payload, current="1.3.4")
+        self.assertFalse(status.available)
+        self.assertEqual(status.detail, "up to date")
+
+    def test_missing_exe_asset(self) -> None:
+        status = parse_windows_release({"assets": []}, current="1.3.4")
+        self.assertFalse(status.available)
+        self.assertEqual(status.detail, "no exe")
+
+    def test_github_check_uses_opener(self) -> None:
+        import json
+
+        class _Resp:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_a):
+                return False
+
+            def read(self):
+                return json.dumps(
+                    {
+                        "assets": [
+                            {
+                                "name": "fh6parse-9.9.9-windows-x64.exe",
+                                "browser_download_url": "https://example.test/n.exe",
+                            }
+                        ]
+                    }
+                ).encode()
+
+        status = check_github_windows_exe(
+            current="1.0.0", opener=lambda *_a, **_k: _Resp()
+        )
+        self.assertTrue(status.available)
+        self.assertEqual(status.new_version, "9.9.9")
+
+    def test_github_404_is_no_release(self) -> None:
+        import urllib.error
+
+        def opener(req, timeout=None):
+            from email.message import EmailMessage
+
+            raise urllib.error.HTTPError(
+                getattr(req, "full_url", "https://example.test"),
+                404,
+                "not found",
+                EmailMessage(),
+                None,
+            )
+
+        status = check_github_windows_exe(current="1.0.0", opener=opener)
+        self.assertFalse(status.available)
+        self.assertEqual(status.detail, "no release")
+
+    def test_frozen_exe_update_stages_and_spawns(self) -> None:
+        import json
+
+        with tempfile.TemporaryDirectory() as raw:
+            exe = Path(raw) / "fh6parse.exe"
+            exe.write_bytes(b"old")
+            spawned: list[list[str]] = []
+
+            class _Resp:
+                def __init__(self, body: bytes):
+                    self._body = body
+                    self.status = 200
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *_a):
+                    return False
+
+                def read(self):
+                    return self._body
+
+            def opener(req, timeout=None):
+                url = getattr(req, "full_url", "")
+                if "releases" in url:
+                    return _Resp(
+                        json.dumps(
+                            {
+                                "assets": [
+                                    {
+                                        "name": "fh6parse-2.0.0-windows-x64.exe",
+                                        "browser_download_url": "https://example.test/n.exe",
+                                    }
+                                ]
+                            }
+                        ).encode()
+                    )
+                return _Resp(b"new-exe")
+
+            def spawn(cmd, **_k):
+                spawned.append(cmd)
+                return None
+
+            out = io.StringIO()
+            code = perform_frozen_exe_update(
+                exe=exe,
+                opener=opener,
+                pid=1,
+                spawn=spawn,
+                stdout=out,
+                stderr=io.StringIO(),
+            )
+            self.assertEqual(code, 0)
+            self.assertTrue((exe.with_name("fh6parse.exe.new")).is_file())
+            self.assertTrue((exe.with_name("_fh6parse_update.bat")).is_file())
+            self.assertTrue(spawned)
 
 
 if __name__ == "__main__":

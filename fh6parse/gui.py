@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -15,7 +17,7 @@ from .cadmark import (
     make_file_tree,
     row_is_ready,
 )
-from .i18n import GUI_DEFAULT, file_count, parse_language, t
+from .i18n import GUI_DEFAULT, file_count, parse_language, t, update_button_label
 from .kiosk import load_kiosk_config, save_kiosk_values, save_model_roots, ui_overlay_path
 from .modelprep import ModelPrep
 from .modelrender import render_available
@@ -27,6 +29,7 @@ from .report import (
     open_print_html,
     write_report,
 )
+from .update import UpdateCheck
 
 
 class ToolReportApp(tk.Tk):
@@ -47,12 +50,15 @@ class ToolReportApp(tk.Tk):
         self._model_roots = list(cfg.model_roots)
         self._models: ModelPrep | None = None
         self._model_job: str | None = None
+        self._pending_update: UpdateCheck | None = None
+        self._updating = False
 
         self._build()
         self._apply_language()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._start_models()
         self.after(400, self._poll_models)
+        self.after(400, self._start_update_check)
 
     def _tr(self, key: str, **kwargs) -> str:
         return t(self._lang, key, **kwargs)
@@ -117,6 +123,18 @@ class ToolReportApp(tk.Tk):
             paper_row, command=lambda: self.print_paper(PAPER_80MM)
         )
         self.btn_print_80.pack(side=tk.LEFT)
+        self.btn_update = tk.Button(
+            paper_row,
+            text=self._tr("update"),
+            command=self._on_update,
+            bg="#e6b800",
+            fg="#111",
+            activebackground="#f0c420",
+            activeforeground="#111",
+            relief=tk.FLAT,
+            padx=10,
+            font=("Segoe UI", 10, "bold"),
+        )
 
         body = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
         body.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
@@ -170,6 +188,10 @@ class ToolReportApp(tk.Tk):
         self.rb_80.config(text=self._tr("paper_thermal"))
         self.btn_print_a4.config(text=self._tr("print_a4"))
         self.btn_print_80.config(text=self._tr("print_80"))
+        if self._pending_update is not None and not self._updating:
+            self.btn_update.config(text=update_button_label(self._lang, self._pending_update))
+        else:
+            self.btn_update.config(text=self._tr("update"))
         self.cad_legend_lbl.config(text=f"  {self._tr('cad_legend')}")
         self.lbl_report.config(text=self._tr("report_preview"))
         if not self._results:
@@ -404,6 +426,74 @@ class ToolReportApp(tk.Tk):
         self.status.config(
             text=self._tr("opened_print", label=label, name=html.name)
         )
+
+    def _start_update_check(self) -> None:
+        threading.Thread(target=self._check_update_worker, daemon=True).start()
+
+    def _check_update_worker(self) -> None:
+        from .update import check_for_update, check_github_windows_exe
+
+        if getattr(sys, "frozen", False):
+            status = check_github_windows_exe()
+        else:
+            status = check_for_update()
+        self.after(0, lambda: self._apply_update_status(status))
+
+    def _apply_update_status(self, status: UpdateCheck) -> None:
+        if self._updating or not status.available:
+            return
+        self._pending_update = status
+        self.btn_update.config(text=update_button_label(self._lang, status))
+        if not self.btn_update.winfo_ismapped():
+            self.btn_update.pack(side=tk.LEFT, padx=(12, 0))
+        if status.new_version:
+            self.status.config(
+                text=self._tr(
+                    "update_status_gui",
+                    current=status.current_version or __version__,
+                    new=status.new_version,
+                )
+            )
+        else:
+            self.status.config(text=self._tr("update_available_gui"))
+
+    def _on_update(self) -> None:
+        if self._updating or self._pending_update is None:
+            return
+        self._updating = True
+        self.btn_update.config(state=tk.DISABLED, text=self._tr("updating"))
+        self.status.config(text=self._tr("update_progress_gui"))
+        threading.Thread(target=self._update_worker, daemon=True).start()
+
+    def _update_worker(self) -> None:
+        from .update import perform_frozen_exe_update, perform_update
+
+        if getattr(sys, "frozen", False):
+            code = perform_frozen_exe_update()
+        else:
+            code = perform_update(restart_kiosk=False)
+        self.after(0, lambda: self._update_done(code))
+
+    def _update_done(self, code: int) -> None:
+        if code == 0:
+            self.status.config(text=self._tr("update_restarting_gui"))
+            self.update_idletasks()
+            if getattr(sys, "frozen", False):
+                self.destroy()
+                return
+            from .update import relaunch_gui
+
+            relaunch_gui()
+            return
+        self._updating = False
+        if self._pending_update is not None:
+            self.btn_update.config(
+                state=tk.NORMAL,
+                text=update_button_label(self._lang, self._pending_update),
+            )
+        else:
+            self.btn_update.config(state=tk.NORMAL, text=self._tr("update"))
+        self.status.config(text=self._tr("update_failed_gui"))
 
     def _on_close(self) -> None:
         if self._model_job is not None:

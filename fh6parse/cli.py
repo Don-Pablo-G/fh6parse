@@ -55,7 +55,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--update",
         action="store_true",
-        help="Git-pull this checkout (same as the kiosk UPDATE button), skip pip unless deps changed, restart kiosk",
+        help=(
+            "Update this install (same as the UPDATE button): git pull on a "
+            "checkout, or replace the Windows exe from GitHub Releases"
+        ),
     )
     p.add_argument(
         "--config",
@@ -94,9 +97,11 @@ def run_cli(argv: list[str] | None = None) -> int:
 
     args = build_parser().parse_args(argv)
     if args.update:
-        from .update import perform_update
+        from .update import perform_frozen_exe_update, perform_update
 
-        return perform_update()
+        if _frozen() and sys.platform.startswith("win"):
+            return perform_frozen_exe_update()
+        return perform_update(restart_kiosk=sys.platform.startswith("linux"))
     if args.kiosk:
         from .kiosk import run_kiosk
 

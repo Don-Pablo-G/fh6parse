@@ -44,6 +44,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "update_failed": (
             "Update failed — tap again, or: sudo systemctl restart fh6parse-kiosk"
         ),
+        "update_progress_gui": "Updating — the window will restart",
+        "update_restarting_gui": "Updated — restarting",
+        "update_failed_gui": "Update failed — click UPDATE to try again.",
+        "update_available_gui": "Update available  ·  click UPDATE to install and restart",
+        "update_status_gui": "v{current} → {new}  ·  click UPDATE to install and restart",
         "printing": "Printing {kind}: {name}…",
         "print_kind_full": "full",
         "print_kind_min": "min",
@@ -149,6 +154,15 @@ STRINGS: dict[str, dict[str, str]] = {
         "update_failed": (
             "Aktualizacja nieudana — naciśnij jeszcze raz, albo: "
             "sudo systemctl restart fh6parse-kiosk"
+        ),
+        "update_progress_gui": "Aktualizowanie — okno uruchomi się ponownie",
+        "update_restarting_gui": "Zaktualizowano — restart",
+        "update_failed_gui": "Aktualizacja nieudana — kliknij AKTUALIZUJ ponownie.",
+        "update_available_gui": (
+            "Aktualizacja dostępna  ·  kliknij AKTUALIZUJ, potem restart"
+        ),
+        "update_status_gui": (
+            "v{current} → {new}  ·  kliknij AKTUALIZUJ, potem restart"
         ),
         "printing": "Drukowanie ({kind}): {name}…",
         "print_kind_full": "pełny",
