@@ -53,6 +53,8 @@ HEADER_OP_RE = re.compile(r"N(\d+)\s*[-–]\s*(.*)$", re.IGNORECASE)
 CYCLE_START = {73, 74, 76, 77, 81, 82, 83, 84, 85, 86, 87, 88, 89}
 G95_NEXT_WARN = "G95 still active (feed per rev); set G94"
 G95_END_WARN = "G95 still active at M30; set G94"
+NO_MOTION_WARN = "no motion after tool change"
+NO_FEED_WARN = "no feed (probe/macro?)"
 
 
 def _parse_number(raw: str) -> float:
@@ -148,6 +150,8 @@ class ToolUsage:
     warnings: list[str] = field(default_factory=list)
     time_s: float = 0.0
     time_incomplete: bool = False
+    had_work: bool = False
+    had_cut: bool = False
 
     def consider_z(self, z: float, line_no: int) -> None:
         if self.min_z is None or z < self.min_z:
@@ -672,6 +676,26 @@ def _apply_line_to_usage(
         usage.cycle_r = r_word.value
 
 
+def _flag_empty_pockets(changes: list[ToolUsage]) -> None:
+    """Warn on called tools that never moved, except the last Txx M6.
+
+    A final tool change with no work is usual Haas/Fanuc prep so the next
+    cycle already has the first tool in the spindle.
+    """
+    if not changes:
+        return
+    last = changes[-1]
+    for usage in changes:
+        if not usage.had_work:
+            if usage is last:
+                continue
+            if NO_MOTION_WARN not in usage.warnings:
+                usage.warnings.append(NO_MOTION_WARN)
+        elif not usage.had_cut:
+            if NO_FEED_WARN not in usage.warnings:
+                usage.warnings.append(NO_FEED_WARN)
+
+
 def _feed_on_line(line: Line, hash_vars: dict[int, float]) -> float | None:
     w = line.first("F")
     if w is not None:
@@ -760,6 +784,7 @@ def _run_program(
     hash_vars: dict[int, float] = {}
     hash_descs: dict[int, str] = {}
     inch_now = inch
+    changes: list[ToolUsage] = []
 
     def finish_current(end_line: int) -> None:
         nonlocal current
@@ -946,6 +971,7 @@ def _run_program(
                 if msg not in current.warnings:
                     current.warnings.append(msg)
             current.called_from_main = True
+            changes.append(current)
             if feed_per_rev and G95_NEXT_WARN not in current.warnings:
                 current.warnings.append(G95_NEXT_WARN)
             if mill.tool_change_s > 0:
@@ -965,6 +991,7 @@ def _run_program(
 
         fpm = feed_per_min(feed_val, per_rev=feed_per_rev, rpm=s_rpm)
         timed: float | None = 0.0
+        cycle_line = False
 
         if g53:
             g53_x, dx = axis_delta(g53_x, x_raw, incremental=False)
@@ -1078,6 +1105,28 @@ def _run_program(
             current.add_time(rot)
             current.line_end = line.number
             _apply_line_to_usage(current, line, cycle_active, hash_vars)
+            if not g53:
+                g43_only = (
+                    line.has_g(43)
+                    and z_word is not None
+                    and x_word is None
+                    and y_word is None
+                    and b_raw is None
+                    and c_raw is None
+                    and not cycle_line
+                )
+                axis = (
+                    cycle_line
+                    or x_word is not None
+                    or y_word is not None
+                    or (z_word is not None and not g43_only)
+                    or b_raw is not None
+                    or c_raw is not None
+                )
+                if axis:
+                    current.had_work = True
+                    if cycle_line or motion in (1, 2, 3):
+                        current.had_cut = True
             work_z: float | None = None
             if not g53 and cycle_active and cycle_code is not None and (
                 starting_cycle
@@ -1099,6 +1148,7 @@ def _run_program(
     finish_current(lines[-1].number if lines else 0)
     if current is not None and feed_per_rev and G95_NEXT_WARN not in current.warnings:
         current.warnings.append(G95_END_WARN)
+    _flag_empty_pockets(changes)
     return executed
 
 

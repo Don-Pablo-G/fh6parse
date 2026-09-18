@@ -98,6 +98,10 @@ class TestSE0241282(unittest.TestCase):
         self.assertIn(None, ops)
         self.assertEqual({s.tool for s in ops[60].summaries}, {20})
         self.assertNotIn(20, {s.tool for s in ops[None].summaries})
+        from fh6parse.parser import NO_FEED_WARN
+
+        t20 = [u for u in ops[60].usages if u.tool == 20][0]
+        self.assertIn(NO_FEED_WARN, t20.warnings)
 
 
 class Test000814086(unittest.TestCase):
@@ -718,6 +722,61 @@ M30
         self.assertEqual(u.tool, 0)
         self.assertIn("T#100 not assigned", u.warnings)
         self.assertIn("T#100", format_report(parse_nc_text(src, "t.nc")))
+
+
+class TestEmptyPocket(unittest.TestCase):
+    def test_middle_stub_warns_last_prep_does_not(self) -> None:
+        src = """O1
+T1 M6
+G90 G1 Z-1. F100
+T2 M6
+G43 Z10. H2
+T1 M6
+M30
+"""
+        from fh6parse.parser import NO_MOTION_WARN, NO_FEED_WARN
+
+        r = parse_nc_text(src, "t.nc")
+        self.assertEqual([u.tool for u in r.usages], [1, 2, 1])
+        self.assertNotIn(NO_MOTION_WARN, r.usages[0].warnings)
+        self.assertIn(NO_MOTION_WARN, r.usages[1].warnings)
+        self.assertNotIn(NO_MOTION_WARN, r.usages[2].warnings)
+        self.assertNotIn(NO_FEED_WARN, r.usages[2].warnings)
+        text = format_report(r, paper=PAPER_80MM_MIN)
+        self.assertIn("no motion after tool change", text)
+        for line in text.splitlines():
+            self.assertLessEqual(len(line), THERMAL_WIDTH, msg=repr(line))
+
+    def test_only_last_tool_with_no_motion_is_prep(self) -> None:
+        src = """O1
+T1 M6
+G53 G0 Z63.5
+M30
+"""
+        from fh6parse.parser import NO_MOTION_WARN
+
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertNotIn(NO_MOTION_WARN, u.warnings)
+
+    def test_rapids_only_warns_no_feed(self) -> None:
+        src = """O1
+T1 M6
+G90 G0 X0 Y0 Z10
+M30
+"""
+        from fh6parse.parser import NO_FEED_WARN, NO_MOTION_WARN
+
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertIn(NO_FEED_WARN, u.warnings)
+        self.assertNotIn(NO_MOTION_WARN, u.warnings)
+
+    def test_sample_cutters_are_not_empty(self) -> None:
+        from fh6parse.parser import NO_FEED_WARN, NO_MOTION_WARN
+
+        r = parse_nc_file(SAMPLES / "D0134078.nc")
+        for u in r.usages:
+            self.assertNotIn(NO_MOTION_WARN, u.warnings)
+            self.assertNotIn(NO_FEED_WARN, u.warnings)
 
 
 if __name__ == "__main__":

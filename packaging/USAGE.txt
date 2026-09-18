@@ -23,6 +23,9 @@ on that assign, e.g. #100=1 (Frez fi12) then T#100 prints T1 (#100)). H# / D#
 must use the same # as T# or a literal that equals that tool; otherwise WARNING.
 Comments containing ! are listed as programmer notes.
 G95 (feed per rev) still on at the next T or M30 prints a WARNING to set G94.
+A Txx M6 that never moves warns (empty pocket), except the last tool change —
+that is spindle prep for the next cycle. Rapids-only tools (probe / G65-style)
+warn that there is no feed.
 Approx machine time and Min Z follow the programmed path: GOTO / IF GOTO,
 WHILE/DO/END, M97/M98 L repeats, and canned-cycle L (G91 steps XY between
 holes; G90 repeats the same XY). Skipped tools show Min Z n/a. Time is summed
