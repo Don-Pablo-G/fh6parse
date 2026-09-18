@@ -1,4 +1,4 @@
-fh6parse 1.3.4 — CNC tool list / min-Z report
+fh6parse 1.4.0 — CNC tool list / min-Z report
 
 Windows:  double-click fh6parse.exe  (or run from Command Prompt)
 Linux:    ./fh6parse                 (or fh6parse --gui)
@@ -42,7 +42,7 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   restarts. Never automatic. Frozen exe: packaging\build_windows.bat then
   packaging\publish_windows.ps1 (needs gh). Keep the ini next to the exe.
 
-Raspberry Pi 5 kiosk (portrait 600x800) — version 1.3.4
+Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
   Full wiring + OS + printer + update: packaging/LINUX-KIOSK.md
   64-bit Raspberry Pi OS Desktop. raspi-config: X11 + desktop autologin.
   Official 27 W USB-C PSU. micro-HDMI on HDMI0. Same BCM pins as Pi 3/4.
@@ -50,7 +50,7 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.3.4
   Do not install python3-rpi.gpio (Pi 5 RP1 GPIO needs lgpio).
   git clone https://github.com/Don-Pablo-G/fh6parse.git
   cd fh6parse && sudo pip3 install -e . --break-system-packages
-  python3 -m fh6parse --version          (expect fh6parse 1.3.4)
+  python3 -m fh6parse --version          (expect fh6parse 1.4.0)
   python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
   Copy packaging/fh6parse-kiosk.ini.example to /etc/fh6parse-kiosk.ini
   Autostart: packaging/fh6parse-kiosk.service
@@ -59,12 +59,12 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.3.4
     sudo chmod 440 /etc/sudoers.d/fh6parse-kiosk
 
   Update (git checkout only; never automatic)
-    Need 1.3.4. If --version is older, SSH:
+    Need 1.4.0. If --version is older, SSH:
       cd /home/kiosk/fh6parse && git pull --ff-only && sudo systemctl restart fh6parse-kiosk
     From 1.3.2: on start the kiosk fetches origin in the background.
     If a newer commit exists, a yellow UPDATE to x.y.z button appears (touch or U).
     It does not update until you tap it; one tap pulls and restarts the kiosk.
-    Print still works offline. Screen shows v1.3.4 at the top.
+    Print still works offline. Screen shows v1.4.0 at the top.
     CLI:
       python3 -m fh6parse --version
       python3 -m fh6parse --update

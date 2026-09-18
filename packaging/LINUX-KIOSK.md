@@ -1,6 +1,6 @@
 # fh6parse Linux kiosk manual
 
-**Version 1.3.4.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. The screen shows **v1.3.4**. A yellow **UPDATE to …** button appears only when the network has a newer git commit — it does **not** apply until you tap it, then it restarts the kiosk.
+**Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. The screen shows **v1.4.0**. A yellow **UPDATE to …** button appears only when the network has a newer git commit — it does **not** apply until you tap it, then it restarts the kiosk. The Windows office exe uses the same button against a GitHub Release.
 
 Python **3.10+** is required (Bookworm ships 3.11). Use **Raspberry Pi OS 64-bit Desktop** (Bookworm or later). Pi 5 has no 32-bit OS.
 
@@ -13,7 +13,7 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 5. [Daily use](#5-daily-use)
 6. [Troubleshooting](#6-troubleshooting)
 7. [Files on disk](#7-files-on-disk)
-8. [Updating (1.3.4)](#8-updating-the-kiosk)
+8. [Updating (1.4.0)](#8-updating-the-kiosk)
 9. [Field test](#9-field-test)
 
 ---
@@ -194,7 +194,7 @@ Check:
 python3 -m fh6parse --version
 ```
 
-Expect `fh6parse 1.3.4`. If the number is older, this clone is behind — `git fetch && git pull --ff-only` then check again (**§8**).
+Expect `fh6parse 1.4.0`. If the number is older, this clone is behind — `git fetch && git pull --ff-only` then check again (**§8**).
 
 Later upgrades are **§8**. Do not run `pip install` on every pull. The kiosk does not update by itself.
 
@@ -215,7 +215,7 @@ Run:
 ./fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 ```
 
-The one-file ARM tarball does not bundle the CAD stack, so **§3.7** pictures are git-checkout only. There is no **UPDATE** button and `--update` refuses this install. To get the 1.3.4 shop update path later, switch to the git checkout above.
+The one-file ARM tarball does not bundle the CAD stack, so **§3.7** pictures are git-checkout only. There is no **UPDATE** button and `--update` refuses this install. To get the 1.4.0 shop update path later, switch to the git checkout above.
 
 For systemd, set `ExecStart=/home/kiosk/fh6parse --kiosk --config /etc/fh6parse-kiosk.ini` (path to the unpacked binary).
 
@@ -448,7 +448,7 @@ Parse happens at print time, not when the list is shown. STEP matching and rende
 | `--update` says one-file package | This Pi is running the ARM tarball. Copy a new tarball or reinstall from git (**§3.2**). |
 | `--update` / fast-forward failed | Uncommitted edits or a diverged branch. See **§8.1**. Do not merge on the shop floor. |
 | `--update` / **UPDATE** pulled but UI unchanged | `sudo systemctl restart fh6parse-kiosk`. Missing sudoers: **§3.2**. |
-| **UPDATE** button never appears | Offline, one-file tarball, already up to date. Check is only at kiosk start. Screen should show **v1.3.4**. |
+| **UPDATE** button never appears | Offline, one-file tarball, already up to date. Check is only at kiosk start. Screen should show **v1.4.0**. |
 | **UPDATE** says failed / kiosk did not restart | `sudo -n systemctl restart fh6parse-kiosk` from user `kiosk` should succeed after **§3.2**. Then `sudo systemctl restart fh6parse-kiosk`. |
 | No **3D cube** next to files | No matching `.stp` on the stick (or in `model_roots`). CAD extra missing (`pip3 install -e '.[models]'`). Still rendering (wait). G-code rev does not match any `.stp`. |
 | Cube shows, ticket has no picture | Status not `device:/dev/usb/lp0` (CUPS intercepted). Printer rejected `GS v 0`. Test text-only first (**§3.5**). |
@@ -483,17 +483,17 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 
 ## 8. Updating the kiosk
 
-This section is for **fh6parse 1.3.4** on a **git checkout** (`/home/kiosk/fh6parse`). Confirm first:
+This section is for **fh6parse 1.4.0** on a **git checkout** (`/home/kiosk/fh6parse`). Confirm first:
 
 ```
 python3 -m fh6parse --version
 ```
 
-You want `fh6parse 1.3.4` (also **v1.3.4** on the kiosk). The kiosk **never updates by itself**. Print works with or without a network.
+You want `fh6parse 1.4.0` (also **v1.4.0** on the kiosk). The kiosk **never updates by itself**. Print works with or without a network.
 
-### 8.1 First pull to 1.3.4 (already installed, older number)
+### 8.1 First pull to 1.4.0 (already installed, older number)
 
-If `--version` is older than 1.3.4, SSH as `kiosk`:
+If `--version` is older than 1.4.0, SSH as `kiosk`:
 
 ```
 cd /home/kiosk/fh6parse
@@ -519,7 +519,7 @@ On each kiosk start, a background thread runs `git fetch` (~20 s timeout) and co
 | After the check | What you see |
 | --- | --- |
 | Offline, timeout, one-file binary, or already current | No button. **v…** stays at the top. Print as usual. |
-| Origin has a newer commit | Yellow **UPDATE to x.y.z** (or a short git hash if the number did not change). Status: `v1.3.4 → x.y.z · tap UPDATE to install and restart`. |
+| Origin has a newer commit | Yellow **UPDATE to x.y.z** (or a short git hash if the number did not change). Status: `v1.4.0 → x.y.z · tap UPDATE to install and restart`. |
 
 Tap **UPDATE** once (touch or **U**). That is the only action: `git pull --ff-only`, pip only if `pyproject.toml` changed, then **restart** `fh6parse-kiosk`. Print is paused only while that runs. The new version is live after the restart.
 
@@ -551,13 +551,13 @@ It never writes `/etc/fh6parse-kiosk.ini` or `~/.config/fh6parse/ui.ini`. Pins, 
 
 ### 8.4 One-file ARM tarball
 
-No **UPDATE** button. `python3 -m fh6parse --update` (or `./fh6parse --update`) exits with a message to copy a new tarball or switch to a git clone. That package is a first copy, not the 1.3.4 upgrade path. To convert: follow **§3.2** (git + pip), point systemd `ExecStart` back to `python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini`, then **§8.2**.
+No **UPDATE** button. `python3 -m fh6parse --update` (or `./fh6parse --update`) exits with a message to copy a new tarball or switch to a git clone. That package is a first copy, not the 1.4.0 upgrade path. To convert: follow **§3.2** (git + pip), point systemd `ExecStart` back to `python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini`, then **§8.2**.
 
 ---
 
 ## 9. Field test
 
-Take this sheet to the Pi. The kiosk must show **v1.3.4** at the top right.
+Take this sheet to the Pi. The kiosk must show **v1.4.0** at the top right.
 
 **1. Get this code onto the Pi** (user `kiosk`):
 
@@ -570,7 +570,7 @@ git log -1 --oneline
 sudo systemctl restart fh6parse-kiosk
 ```
 
-`git log -1` should mention the latest drop (Polish/English UI, or the wireframe cube). D vs T and USB `/dev/usb/lp0` are already in older 1.3.4 commits. Or wait for the yellow **UPDATE** after a restart (check runs once per boot).
+`git log -1` should mention **1.4.0** (cycle time / share chart, Windows UPDATE). STEP isometrics, D vs T, and USB `/dev/usb/lp0` are already in older commits. Or wait for the yellow **UPDATE** after a restart (check runs once per boot).
 
 Clear old STEP bitmaps:
 

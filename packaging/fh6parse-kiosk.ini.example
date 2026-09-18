@@ -2,7 +2,7 @@
 # GPIO numbers are BCM (same pins as Pi 3/4). Buttons: momentary to GND.
 # KY-040 encoder: CLK / DT; shaft switch unused. Pi 5 needs lgpio, not RPi.GPIO.
 # Updates are not configured here. Git checkout + on-screen UPDATE: see
-# packaging/LINUX-KIOSK.md §8 (fh6parse 1.3.4). This file is never overwritten.
+# packaging/LINUX-KIOSK.md §8 (fh6parse 1.4.0). This file is never overwritten.
 
 [kiosk]
 width = 600
