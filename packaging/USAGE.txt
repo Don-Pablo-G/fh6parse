@@ -10,6 +10,7 @@ GUI
 Reports next to the NC file (A4 + 80 mm text and HTML)
   fh6parse.exe C:\path\program.nc
   ./fh6parse /path/program.nc
+  fh6parse.exe program.nc --machine vf-4ss
 
 Output folder
   fh6parse.exe program.nc -o D:\reports
@@ -21,7 +22,9 @@ line immediately below. Comments containing ! are listed as programmer notes.
 G95 (feed per rev) still on at the next T or M30 prints a WARNING to set G94.
 Approx machine time is summed from G0/G1/G2/G3, F#nnn, and Haas/Fanuc canned
 cycles (G73 chip-break 0.2 mm, G83 full retract to R, G84 retract at 1.0×F).
-Rapids assumed 20 m/min; no accel. A trailing + means missing F or S.
+Rapids and tool-change time come from the mill in fh6parse-kiosk.ini
+([machine.<id>] plus kiosk.machine). Built-in default is 20 m/min and 0 s
+tool change. No accel. A trailing + means missing F or S.
 Each operation shows Cycle (that path until M30) and a share chart of each T.
 FULL also prints % of cycle on each Txx M6. Text/80 mm uses a solid block bar
 (CP852); A4 HTML uses a black CSS track.
@@ -35,6 +38,8 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   waits — if the model is missing the report is text only.
   Language: Polski / English radios (top right). Default English. Saved in the
   same fh6parse-kiosk.ini as STEP folders (and in %USERPROFILE%\.config\fh6parse\ui.ini).
+  Machine: combo on the preview row. Add [machine.<id>] sections in the ini
+  (rapid_mm_min, tool_change_s). Current mill is kiosk.machine in the same files.
   Views are visible edges only (no shading). The longest axis is across the
   80 mm width; height is cropped to the part (a long shaft is a thin strip).
   Update: if origin (git GUI) or GitHub Releases (frozen exe) has a newer

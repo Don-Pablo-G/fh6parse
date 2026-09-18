@@ -10,7 +10,7 @@ import textwrap
 import webbrowser
 
 from .parser import BangNote, Operation, ParseResult, ToolUsage
-from .machtime import RAPID_MM_PER_MIN, format_machine_time
+from .machtime import DEFAULT_MACHINE, format_machine_time
 
 
 def _bang_label(note: BangNote) -> str:
@@ -38,9 +38,30 @@ def _fmt_time(seconds: float, *, incomplete: bool = False) -> str:
 
 def _time_of(obj: object) -> str:
     return _fmt_time(
-        float(getattr(obj, "time_s", 0.0) or 0.0),
+        getattr(obj, "time_s", 0.0),
         incomplete=bool(getattr(obj, "time_incomplete", False)),
     )
+
+
+def _time_assumptions(result: ParseResult, *, compact: bool = False) -> str:
+    mill = result.machine
+    rapid = mill.rapid_m_min_label()
+    tchg = mill.tool_change_s
+    named = mill.id != "default" or mill.name != DEFAULT_MACHINE.name
+    if compact:
+        bits: list[str] = []
+        if named:
+            bits.append(mill.name)
+        bits.append(rapid.replace(" ", ""))
+        if tchg > 0:
+            bits.append(f"Tchg {mill.tool_change_label().replace(' ', '')}")
+        return " ".join(bits)
+    bits = [f"rapids {rapid}"]
+    if tchg > 0:
+        bits.append(f"tool change {mill.tool_change_label()}")
+    bits.append("no accel")
+    head = f"{mill.name}, " if named else ""
+    return f"{head}{', '.join(bits)}"
 
 
 def _seconds_of(obj: object) -> float:
@@ -266,8 +287,8 @@ def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
     w("")
     w("Min Z = lowest work Z (G53/G28 ignored).")
     w(
-        f"Time ≈ programmed moves + cycles (rapids {RAPID_MM_PER_MIN/1000:.0f} m/min, "
-        "no accel). + means missing F or S."
+        f"Time ≈ programmed moves + cycles ({_time_assumptions(result)}). "
+        "+ means missing F or S."
     )
     w("Cycle = that op until M30. The chart under Cycle is each T as a share.")
     w("Each operation is simulated until M30. M97 calls a sub; M99 returns.")
@@ -357,7 +378,7 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
             block(f"! {_bang_label(note)}")
     w(dash)
     w("MinZ=work Z")
-    w(f"Time≈moves {RAPID_MM_PER_MIN/1000:.0f}m/min")
+    w(f"Time≈moves {_time_assumptions(result, compact=True)}")
     w("Until M30; M99 returns")
     w("Op = change M97 P#")
     for op in result.operations or []:
@@ -429,6 +450,8 @@ def _format_text_80mm_min(result: ParseResult, *, generated: datetime | None) ->
         for note in result.bang_notes:
             block(f"! {_bang_label(note)}")
     w(dash)
+    w("MinZ=work Z")
+    w(f"Time≈moves {_time_assumptions(result, compact=True)}")
     for op in result.operations or []:
         w(dash)
         block(_op_heading(op))
@@ -681,8 +704,8 @@ table.chart td.bar { padding-right: 0; }
 </div>
 {notes}
 <p class="fine">Min Z is lowest work-coordinate Z (G53/G28 ignored).
-Time is programmed motion and canned cycles (approx; rapids
-{escape(f"{RAPID_MM_PER_MIN/1000:.0f}")} m/min; no accel). Cycle is the sum for
+Time is programmed motion and canned cycles (approx;
+{escape(_time_assumptions(result))}). Cycle is the sum for
 that operation until M30. The chart under Cycle is each T as a share of that
 cycle. Each Txx M6 also shows its own %. A trailing + means missing F or S.
 Each operation is simulated until M30 (M97 calls a sub, M99 returns).
@@ -771,7 +794,7 @@ pre.chart {
             a(f'<div class="warn d">! {escape(_bang_label(note))}</div>')
     a('<hr class="rule">')
     a("<div>Min Z = work Z</div>")
-    a(f"<div>Time ≈ moves {RAPID_MM_PER_MIN/1000:.0f} m/min</div>")
+    a(f"<div>Time ≈ moves {escape(_time_assumptions(result, compact=True))}</div>")
     if not short:
         a("<div>Until M30; M99 returns</div>")
         a("<div>Op = change M97 P#</div>")

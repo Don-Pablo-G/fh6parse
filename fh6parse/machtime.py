@@ -5,12 +5,36 @@ Approx only: no accel, assumed mill rapids, work XYZ not mixed with G53.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import math
 import re
 
-# Conservative mill rapids. Documented on the ticket. Not a machine table.
+# Conservative mill defaults. Overridden by [machine.*] in the kiosk ini.
 RAPID_MM_PER_MIN = 20000.0
 ROTARY_DEG_PER_MIN = 5400.0  # 90 deg/s B/C
+
+
+@dataclass(frozen=True)
+class MachineProfile:
+    """Shop mill used for programmed-time estimates."""
+
+    id: str = "default"
+    name: str = "Default mill"
+    rapid_mm_min: float = RAPID_MM_PER_MIN
+    rotary_deg_min: float = ROTARY_DEG_PER_MIN
+    tool_change_s: float = 0.0
+
+    def rapid_m_min_label(self) -> str:
+        return f"{self.rapid_mm_min / 1000.0:.0f} m/min"
+
+    def tool_change_label(self) -> str:
+        s = self.tool_change_s
+        if abs(s - round(s)) < 1e-6:
+            return f"{int(round(s))} s"
+        return f"{s:g} s"
+
+
+DEFAULT_MACHINE = MachineProfile()
 # Haas G73 chip-break retract (user: 0.2 mm, not Setting 22 0.5 mm).
 G73_PULLBACK_MM = 0.2
 # Haas Setting 22 default 0.02" ≈ 0.5 mm — G83 re-approach above last peck.
@@ -41,10 +65,13 @@ def format_machine_time(seconds: float | None, *, incomplete: bool = False) -> s
     return text
 
 
-def rapid_per_min(*, inch: bool) -> float:
+def rapid_per_min(*, inch: bool, profile: MachineProfile | None = None) -> float:
+    rate = (profile or DEFAULT_MACHINE).rapid_mm_min
+    if rate <= 0:
+        rate = RAPID_MM_PER_MIN
     if inch:
-        return RAPID_MM_PER_MIN / 25.4
-    return RAPID_MM_PER_MIN
+        return rate / 25.4
+    return rate
 
 
 def feed_per_min(
@@ -65,22 +92,32 @@ def seconds_for_length(
     *,
     rapid: bool,
     inch: bool,
+    profile: MachineProfile | None = None,
 ) -> float | None:
     if length <= 1e-12:
         return 0.0
     if rapid:
-        return 60.0 * length / rapid_per_min(inch=inch)
+        return 60.0 * length / rapid_per_min(inch=inch, profile=profile)
     if feed is None or feed <= 1e-12:
         return None
     return 60.0 * length / feed
 
 
-def seconds_for_rotary(deg: float, *, rapid: bool, feed: float | None) -> float | None:
+def seconds_for_rotary(
+    deg: float,
+    *,
+    rapid: bool,
+    feed: float | None,
+    profile: MachineProfile | None = None,
+) -> float | None:
     length = abs(deg)
     if length <= 1e-12:
         return 0.0
     if rapid:
-        return 60.0 * length / ROTARY_DEG_PER_MIN
+        rate = (profile or DEFAULT_MACHINE).rotary_deg_min
+        if rate <= 0:
+            rate = ROTARY_DEG_PER_MIN
+        return 60.0 * length / rate
     if feed is None or feed <= 1e-12:
         return None
     return 60.0 * length / feed
@@ -208,6 +245,7 @@ def canned_cycle_seconds(
     j: float | None = None,
     p: float | None = None,
     retract_mult: float | None = None,
+    profile: MachineProfile | None = None,
 ) -> float | None:
     """Z motion of a Haas mill Group 09 cycle after the XY rapid to the hole.
 
@@ -218,10 +256,18 @@ def canned_cycle_seconds(
     depth = abs(z - r)
 
     def t_feed(dist: float, *, rate: float | None = None) -> float | None:
-        return seconds_for_length(dist, rate if rate is not None else feed, rapid=False, inch=inch)
+        return seconds_for_length(
+            dist,
+            rate if rate is not None else feed,
+            rapid=False,
+            inch=inch,
+            profile=profile,
+        )
 
     def t_rapid(dist: float) -> float:
-        return seconds_for_length(dist, None, rapid=True, inch=inch) or 0.0
+        return seconds_for_length(
+            dist, None, rapid=True, inch=inch, profile=profile
+        ) or 0.0
 
     total = 0.0
     if z_initial is not None:
@@ -248,14 +294,22 @@ def canned_cycle_seconds(
     elif code == 73:
         pecks = peck_depths(depth, q=q, i=i, j=j, k=k if i is not None else None)
         k_clear = k if i is None and q is not None and k is not None and k > 0 else None
-        body = _g73_seconds(pecks, feed, inch=inch, chip=chip, k_clear=k_clear, clear=clear)
+        body = _g73_seconds(
+            pecks,
+            feed,
+            inch=inch,
+            chip=chip,
+            k_clear=k_clear,
+            clear=clear,
+            profile=profile,
+        )
         if body is None:
             return None
         total += body + dwell
         total += _retract_after_bottom(z, r, z_initial, g98, t_rapid)
     elif code == 83:
         pecks = peck_depths(depth, q=q, i=i, j=j, k=k)
-        body = _g83_seconds(pecks, feed, inch=inch, clear=clear)
+        body = _g83_seconds(pecks, feed, inch=inch, clear=clear, profile=profile)
         if body is None:
             return None
         total += body + dwell
@@ -263,7 +317,9 @@ def canned_cycle_seconds(
     elif code in {74, 84}:
         out_rate = feed * j_out if feed is not None else None
         pecks = peck_depths(depth, q=q, i=None, j=None, k=None) if q else [depth]
-        body = _g84_seconds(pecks, feed, out_rate, inch=inch, depth=depth, clear=clear)
+        body = _g84_seconds(
+            pecks, feed, out_rate, inch=inch, depth=depth, clear=clear, profile=profile
+        )
         if body is None:
             return None
         total += body
@@ -328,6 +384,7 @@ def _g73_seconds(
     chip: float,
     k_clear: float | None,
     clear: float,
+    profile: MachineProfile | None = None,
 ) -> float | None:
     """Chip-break pecks; optional Haas K+Q full return to R every K of cut."""
     total = 0.0
@@ -335,7 +392,7 @@ def _g73_seconds(
     acc = 0.0
     depth = sum(pecks)
     for this in pecks:
-        t = seconds_for_length(this, feed, rapid=False, inch=inch)
+        t = seconds_for_length(this, feed, rapid=False, inch=inch, profile=profile)
         if t is None:
             return None
         total += t
@@ -345,12 +402,14 @@ def _g73_seconds(
             break
         full_r = k_clear is not None and acc + 1e-9 >= k_clear
         if full_r:
-            total += seconds_for_length(cut, None, rapid=True, inch=inch) or 0.0
-            total += seconds_for_length(max(0.0, cut - clear), None, rapid=True, inch=inch) or 0.0
+            total += seconds_for_length(cut, None, rapid=True, inch=inch, profile=profile) or 0.0
+            total += seconds_for_length(
+                max(0.0, cut - clear), None, rapid=True, inch=inch, profile=profile
+            ) or 0.0
             acc = 0.0
         else:
-            total += seconds_for_length(chip, None, rapid=True, inch=inch) or 0.0
-            total += seconds_for_length(chip, None, rapid=True, inch=inch) or 0.0
+            total += seconds_for_length(chip, None, rapid=True, inch=inch, profile=profile) or 0.0
+            total += seconds_for_length(chip, None, rapid=True, inch=inch, profile=profile) or 0.0
     return total
 
 
@@ -360,6 +419,7 @@ def _g83_seconds(
     *,
     inch: bool,
     clear: float,
+    profile: MachineProfile | None = None,
 ) -> float | None:
     """Haas G83: peck, rapid to R, rapid to last peck + Setting 22, feed next."""
     total = 0.0
@@ -367,15 +427,17 @@ def _g83_seconds(
     depth = sum(pecks)
     for n, this in enumerate(pecks):
         extra = min(clear, cut) if n else 0.0
-        t = seconds_for_length(this + extra, feed, rapid=False, inch=inch)
+        t = seconds_for_length(this + extra, feed, rapid=False, inch=inch, profile=profile)
         if t is None:
             return None
         total += t
         cut += this
         if cut + 1e-9 >= depth:
             break
-        total += seconds_for_length(cut, None, rapid=True, inch=inch) or 0.0
-        total += seconds_for_length(max(0.0, cut - clear), None, rapid=True, inch=inch) or 0.0
+        total += seconds_for_length(cut, None, rapid=True, inch=inch, profile=profile) or 0.0
+        total += seconds_for_length(
+            max(0.0, cut - clear), None, rapid=True, inch=inch, profile=profile
+        ) or 0.0
     return total
 
 
@@ -387,11 +449,12 @@ def _g84_seconds(
     inch: bool,
     depth: float,
     clear: float,
+    profile: MachineProfile | None = None,
 ) -> float | None:
     """Tap in at F, out at J×F (default 1.0). Q pecks retract to R at out feed."""
     if len(pecks) <= 1:
-        inn = seconds_for_length(depth, feed_in, rapid=False, inch=inch)
-        out = seconds_for_length(depth, feed_out, rapid=False, inch=inch)
+        inn = seconds_for_length(depth, feed_in, rapid=False, inch=inch, profile=profile)
+        out = seconds_for_length(depth, feed_out, rapid=False, inch=inch, profile=profile)
         if inn is None or out is None:
             return None
         return inn + out
@@ -399,19 +462,23 @@ def _g84_seconds(
     cut = 0.0
     for n, this in enumerate(pecks):
         extra = min(clear, cut) if n else 0.0
-        inn = seconds_for_length(this + extra, feed_in, rapid=False, inch=inch)
+        inn = seconds_for_length(
+            this + extra, feed_in, rapid=False, inch=inch, profile=profile
+        )
         if inn is None:
             return None
         total += inn
         cut += this
         if cut + 1e-9 >= depth:
-            out = seconds_for_length(cut, feed_out, rapid=False, inch=inch)
+            out = seconds_for_length(cut, feed_out, rapid=False, inch=inch, profile=profile)
             if out is None:
                 return None
             total += out
             break
-        out = seconds_for_length(cut, feed_out, rapid=False, inch=inch)
-        inn2 = seconds_for_length(max(0.0, cut - clear), feed_in, rapid=False, inch=inch)
+        out = seconds_for_length(cut, feed_out, rapid=False, inch=inch, profile=profile)
+        inn2 = seconds_for_length(
+            max(0.0, cut - clear), feed_in, rapid=False, inch=inch, profile=profile
+        )
         if out is None or inn2 is None:
             return None
         total += out + inn2

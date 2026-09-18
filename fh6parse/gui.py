@@ -47,6 +47,9 @@ class ToolReportApp(tk.Tk):
         self._cfg_source = cfg.source
         self._lang = parse_language(cfg.language, default=GUI_DEFAULT)
         self._lang_var = tk.StringVar(value=self._lang)
+        self._machines = list(cfg.machines)
+        self._machine_id = cfg.machine_id
+        self._machine_var = tk.StringVar()
         self._model_roots = list(cfg.model_roots)
         self._models: ModelPrep | None = None
         self._model_job: str | None = None
@@ -115,6 +118,17 @@ class ToolReportApp(tk.Tk):
             command=self._on_select,
         )
         self.rb_80.pack(side=tk.LEFT, padx=(0, 12))
+        self.lbl_machine = ttk.Label(paper_row)
+        self.lbl_machine.pack(side=tk.LEFT, padx=(0, 6))
+        self.machine_combo = ttk.Combobox(
+            paper_row,
+            textvariable=self._machine_var,
+            state="readonly",
+            width=22,
+        )
+        self.machine_combo.pack(side=tk.LEFT, padx=(0, 12))
+        self.machine_combo.bind("<<ComboboxSelected>>", self._on_machine)
+        self._sync_machine_combo()
         self.btn_print_a4 = ttk.Button(
             paper_row, command=lambda: self.print_paper(PAPER_A4)
         )
@@ -185,6 +199,7 @@ class ToolReportApp(tk.Tk):
         if self._out_dir is None:
             self.out_label.config(text=self._tr("save_next_to_nc"))
         self.lbl_preview.config(text=self._tr("preview_print"))
+        self.lbl_machine.config(text=self._tr("machine"))
         self.rb_80.config(text=self._tr("paper_thermal"))
         self.btn_print_a4.config(text=self._tr("print_a4"))
         self.btn_print_80.config(text=self._tr("print_80"))
@@ -210,6 +225,69 @@ class ToolReportApp(tk.Tk):
             save_kiosk_values({"language": self._lang}, dest=ui_overlay_path())
         except OSError:
             pass
+
+    def _machine_labels(self) -> list[str]:
+        names = [m.name for m in self._machines]
+        if len(names) != len(set(names)):
+            return [f"{m.name} ({m.id})" for m in self._machines]
+        return names
+
+    def _label_for_machine(self, mill) -> str:
+        labels = self._machine_labels()
+        for i, m in enumerate(self._machines):
+            if m.id == mill.id:
+                return labels[i]
+        return labels[0] if labels else mill.name
+
+    def _sync_machine_combo(self) -> None:
+        labels = self._machine_labels()
+        self.machine_combo["values"] = labels
+        mill = next(
+            (m for m in self._machines if m.id == self._machine_id),
+            self._machines[0],
+        )
+        self._machine_id = mill.id
+        self._machine_var.set(self._label_for_machine(mill))
+
+    def _active_machine(self):
+        return next(
+            (m for m in self._machines if m.id == self._machine_id),
+            self._machines[0],
+        )
+
+    def _persist_machine(self) -> None:
+        try:
+            saved = save_kiosk_values(
+                {"machine": self._machine_id}, source=self._cfg_source
+            )
+            self._cfg_source = saved
+            save_kiosk_values({"machine": self._machine_id}, dest=ui_overlay_path())
+        except OSError:
+            pass
+
+    def _reparse_open(self) -> None:
+        mill = self._active_machine()
+        for key, (path, _) in list(self._results.items()):
+            try:
+                self._results[key] = (path, parse_nc_file(path, machine=mill))
+            except Exception:
+                continue
+        if self._results:
+            self._on_select()
+
+    def _on_machine(self, _event=None) -> None:
+        label = self._machine_var.get()
+        labels = self._machine_labels()
+        try:
+            i = labels.index(label)
+        except ValueError:
+            return
+        mid = self._machines[i].id
+        if mid == self._machine_id:
+            return
+        self._machine_id = mid
+        self._persist_machine()
+        self._reparse_open()
 
     def _status_loaded(self, extra: str = "") -> None:
         ready = sum(
@@ -320,7 +398,10 @@ class ToolReportApp(tk.Tk):
         for raw in paths:
             path = Path(raw)
             try:
-                self._results[str(path)] = (path, parse_nc_file(path))
+                self._results[str(path)] = (
+                    path,
+                    parse_nc_file(path, machine=self._active_machine()),
+                )
             except Exception as exc:  # noqa: BLE001
                 errors.append(f"{path.name}: {exc}")
         self._refresh_list()

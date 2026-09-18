@@ -79,6 +79,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="A4, 80mm thermal, 80mm-min, or both (default both when writing files)",
     )
     p.add_argument(
+        "--machine",
+        default=None,
+        metavar="ID",
+        help="Machine id from [machine.*] in the kiosk ini (default: kiosk.machine)",
+    )
+    p.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
@@ -117,6 +123,22 @@ def run_cli(argv: list[str] | None = None) -> int:
         build_parser().print_help()
         return 2
 
+    from .kiosk import load_kiosk_config
+
+    try:
+        cfg = load_kiosk_config(args.config)
+    except FileNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    mill = cfg.active_machine()
+    if args.machine:
+        found = cfg.machine_by_id(args.machine)
+        if found is None:
+            known = ", ".join(m.id for m in cfg.machines)
+            print(f"error: unknown machine {args.machine!r} (known: {known})", file=sys.stderr)
+            return 2
+        mill = found
+
     errors = 0
     for path in args.files:
         if not path.is_file():
@@ -124,7 +146,7 @@ def run_cli(argv: list[str] | None = None) -> int:
             errors += 1
             continue
         try:
-            result = parse_nc_file(path)
+            result = parse_nc_file(path, machine=mill)
             if args.stdout:
                 paper = PAPER_A4 if args.paper_format == "both" else args.paper_format
                 print(format_report(result, paper=paper))

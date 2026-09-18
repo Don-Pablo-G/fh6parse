@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import configparser
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -31,6 +32,7 @@ from .i18n import (
     usb_count,
 )
 from .idle import ScreensaverGate
+from .machtime import DEFAULT_MACHINE, MachineProfile, RAPID_MM_PER_MIN, ROTARY_DEG_PER_MIN
 from .modelprep import ModelPrep
 from .parser import parse_nc_file
 from .printer import print_ticket
@@ -54,6 +56,7 @@ UI_OVERLAY_KEYS = (
     "encoder_steps",
     "button_full",
     "button_min",
+    "machine",
 )
 
 
@@ -114,7 +117,19 @@ class KioskConfig:
     extra_roots: list[Path] = field(default_factory=list)
     model_roots: list[Path] = field(default_factory=list)
     language: str = ""
+    machine_id: str = "default"
+    machines: list[MachineProfile] = field(default_factory=lambda: [DEFAULT_MACHINE])
     source: Path | None = None
+
+    def machine_by_id(self, mid: str) -> MachineProfile | None:
+        want = _slug_machine_id(mid)
+        for mill in self.machines:
+            if mill.id == want:
+                return mill
+        return None
+
+    def active_machine(self) -> MachineProfile:
+        return self.machine_by_id(self.machine_id) or self.machines[0]
 
 
 def _ini_paths(raw: str) -> list[Path]:
@@ -147,8 +162,59 @@ def kiosk_config_write_path() -> Path:
 
 
 def ui_overlay_path() -> Path:
-    """Writable per-user file for language and GPIO (kiosk cannot write /etc)."""
+    """Writable per-user file for language, mill, and GPIO (kiosk cannot write /etc)."""
     return Path.home() / ".config" / "fh6parse" / "ui.ini"
+
+
+def _slug_machine_id(raw: str) -> str:
+    slug = re.sub(r"[^a-z0-9._-]+", "-", raw.strip().lower())
+    return slug.strip("-.") or "default"
+
+
+def _machine_from_section(
+    section: str, src: configparser.SectionProxy
+) -> MachineProfile | None:
+    rest = section.split(".", 1)[1].strip() if "." in section else ""
+    mid = _slug_machine_id(rest)
+    if not rest:
+        return None
+    name = src.get("name", fallback=mid).strip() or mid
+    rapid = src.getfloat("rapid_mm_min", fallback=RAPID_MM_PER_MIN)
+    if rapid <= 0:
+        rapid = RAPID_MM_PER_MIN
+    rotary = src.getfloat("rotary_deg_min", fallback=ROTARY_DEG_PER_MIN)
+    if rotary <= 0:
+        rotary = ROTARY_DEG_PER_MIN
+    tchg = src.getfloat("tool_change_s", fallback=0.0)
+    if tchg < 0:
+        tchg = 0.0
+    return MachineProfile(
+        id=mid,
+        name=name,
+        rapid_mm_min=rapid,
+        rotary_deg_min=rotary,
+        tool_change_s=tchg,
+    )
+
+
+def merge_machines(
+    parsers: list[configparser.ConfigParser], selected: str = ""
+) -> tuple[str, list[MachineProfile]]:
+    """Built-in default plus every [machine.<id>] section (later files win)."""
+    by_id: dict[str, MachineProfile] = {"default": DEFAULT_MACHINE}
+    for parser in parsers:
+        for section in parser.sections():
+            if not section.lower().startswith("machine."):
+                continue
+            mill = _machine_from_section(section, parser[section])
+            if mill is not None:
+                by_id[mill.id] = mill
+    machines = [by_id.pop("default")]
+    machines.extend(sorted(by_id.values(), key=lambda m: (m.name.lower(), m.id)))
+    sel = _slug_machine_id(selected) if selected.strip() else "default"
+    if sel not in {m.id for m in machines}:
+        sel = "default"
+    return sel, machines
 
 
 def save_kiosk_values(
@@ -216,45 +282,54 @@ def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
         chosen = explicit
     else:
         chosen = next((p for p in default_config_paths() if p.is_file()), None)
-    if chosen is None:
-        return cfg
-    cfg.source = chosen
-    parser = configparser.ConfigParser()
-    parser.read(chosen, encoding="utf-8")
-    if not parser.has_section("kiosk"):
-        return cfg
-    src = parser["kiosk"]
-    cfg.width = src.getint("width", fallback=cfg.width)
-    cfg.height = src.getint("height", fallback=cfg.height)
-    cfg.fullscreen = src.getboolean("fullscreen", fallback=cfg.fullscreen)
-    cfg.idle_seconds = src.getfloat("idle_seconds", fallback=cfg.idle_seconds)
-    _apply_gpio_section(cfg, src)
-    cfg.printer_queue = src.get("printer_queue", fallback=cfg.printer_queue).strip()
-    cfg.printer_device = src.get("printer_device", fallback=cfg.printer_device)
-    cfg.usb_poll_ms = src.getint("usb_poll_ms", fallback=cfg.usb_poll_ms)
-    cfg.scan_depth = src.getint("scan_depth", fallback=cfg.scan_depth)
-    ext_raw = src.get("extensions", fallback=",".join(cfg.extensions))
-    cfg.extensions = tuple(
-        e.strip() if e.strip().startswith(".") else f".{e.strip()}"
-        for e in ext_raw.split(",")
-        if e.strip()
-    )
-    extra = src.get("extra_roots", fallback="")
-    cfg.extra_roots = _ini_paths(extra)
-    models = src.get("model_roots", fallback="")
-    cfg.model_roots = _ini_paths(models)
-    lang_raw = src.get("language", fallback="").strip()
-    cfg.language = parse_language(lang_raw, default=KIOSK_DEFAULT) if lang_raw else ""
+    parsers: list[configparser.ConfigParser] = []
+    machine_id = ""
+    if chosen is not None:
+        cfg.source = chosen
+        parser = configparser.ConfigParser()
+        parser.read(chosen, encoding="utf-8")
+        parsers.append(parser)
+        if parser.has_section("kiosk"):
+            src = parser["kiosk"]
+            cfg.width = src.getint("width", fallback=cfg.width)
+            cfg.height = src.getint("height", fallback=cfg.height)
+            cfg.fullscreen = src.getboolean("fullscreen", fallback=cfg.fullscreen)
+            cfg.idle_seconds = src.getfloat("idle_seconds", fallback=cfg.idle_seconds)
+            _apply_gpio_section(cfg, src)
+            cfg.printer_queue = src.get("printer_queue", fallback=cfg.printer_queue).strip()
+            cfg.printer_device = src.get("printer_device", fallback=cfg.printer_device)
+            cfg.usb_poll_ms = src.getint("usb_poll_ms", fallback=cfg.usb_poll_ms)
+            cfg.scan_depth = src.getint("scan_depth", fallback=cfg.scan_depth)
+            ext_raw = src.get("extensions", fallback=",".join(cfg.extensions))
+            cfg.extensions = tuple(
+                e.strip() if e.strip().startswith(".") else f".{e.strip()}"
+                for e in ext_raw.split(",")
+                if e.strip()
+            )
+            extra = src.get("extra_roots", fallback="")
+            cfg.extra_roots = _ini_paths(extra)
+            models = src.get("model_roots", fallback="")
+            cfg.model_roots = _ini_paths(models)
+            lang_raw = src.get("language", fallback="").strip()
+            cfg.language = (
+                parse_language(lang_raw, default=KIOSK_DEFAULT) if lang_raw else ""
+            )
+            machine_id = src.get("machine", fallback="").strip()
     overlay = ui_overlay_path()
     if overlay.is_file():
         extra = configparser.ConfigParser()
         extra.read(overlay, encoding="utf-8")
+        parsers.append(extra)
         if extra.has_section("kiosk"):
             over_sec = extra["kiosk"]
             over = over_sec.get("language", "").strip()
             if over:
                 cfg.language = parse_language(over, default=KIOSK_DEFAULT)
             _apply_gpio_section(cfg, over_sec)
+            over_m = over_sec.get("machine", "").strip()
+            if over_m:
+                machine_id = over_m
+    cfg.machine_id, cfg.machines = merge_machines(parsers, machine_id)
     return cfg
 
 
@@ -530,6 +605,61 @@ class KioskApp(tk.Tk):
         )
         self._btn_en.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0), ipady=10)
 
+        self._config_machine_lbl = tk.Label(
+            panel,
+            text=t(self._lang, "machine"),
+            font=small,
+            bg="#1a1a1a",
+            fg="#eeeeee",
+        )
+        self._config_machine_lbl.pack(anchor="w")
+        mill_row = tk.Frame(panel, bg="#1a1a1a")
+        mill_row.pack(fill=tk.X, pady=(4, 0))
+        tk.Button(
+            mill_row,
+            text="−",
+            font=update_font,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            relief="flat",
+            bd=0,
+            width=3,
+            cursor="hand2",
+            command=lambda: self._bump_machine(-1),
+        ).pack(side=tk.LEFT)
+        self._machine_value_lbl = tk.Label(
+            mill_row,
+            text=self.cfg.active_machine().name,
+            font=update_font,
+            bg="#1a1a1a",
+            fg=ACCENT,
+        )
+        self._machine_value_lbl.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        tk.Button(
+            mill_row,
+            text="+",
+            font=update_font,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            relief="flat",
+            bd=0,
+            width=3,
+            cursor="hand2",
+            command=lambda: self._bump_machine(1),
+        ).pack(side=tk.RIGHT)
+        self._machine_detail_lbl = tk.Label(
+            panel,
+            text="",
+            font=small,
+            bg="#1a1a1a",
+            fg=MUTED,
+            wraplength=self.cfg.width - 80,
+            justify="left",
+        )
+        self._machine_detail_lbl.pack(anchor="w", pady=(2, 12))
+
         self._config_gpio_lbl = tk.Label(
             panel,
             text=t(self._lang, "gpio_pins"),
@@ -747,11 +877,21 @@ class KioskApp(tk.Tk):
         for attr, lbl in self._pin_value_lbls.items():
             lbl.config(text=str(getattr(self.cfg, attr)))
         self._steps_value_lbl.config(text=str(self.cfg.encoder_steps))
+        mill = self.cfg.active_machine()
+        self._machine_value_lbl.config(text=mill.name)
+        self._machine_detail_lbl.config(
+            text=self._tr(
+                "machine_detail",
+                rapid=mill.rapid_m_min_label(),
+                tchg=mill.tool_change_label(),
+            )
+        )
         self._style_swap_buttons()
 
     def _ui_settings_values(self) -> dict[str, str]:
         return {
             "language": self._lang,
+            "machine": self.cfg.machine_id,
             "encoder_clk": str(self.cfg.encoder_clk),
             "encoder_dt": str(self.cfg.encoder_dt),
             "encoder_swap": "true" if self.cfg.encoder_swap else "false",
@@ -791,6 +931,23 @@ class KioskApp(tk.Tk):
         self._persist_ui_settings()
         self._arm_idle()
 
+    def _bump_machine(self, delta: int) -> None:
+        mills = self.cfg.machines
+        if len(mills) <= 1:
+            return
+        ids = [m.id for m in mills]
+        try:
+            i = ids.index(self.cfg.machine_id)
+        except ValueError:
+            i = 0
+        nxt = ids[(i + delta) % len(mills)]
+        if nxt == self.cfg.machine_id:
+            return
+        self.cfg.machine_id = nxt
+        self._refresh_gpio_labels()
+        self._persist_ui_settings()
+        self._arm_idle()
+
     def _set_encoder_swap(self, swap: bool) -> None:
         if self.cfg.encoder_swap == swap:
             return
@@ -811,6 +968,7 @@ class KioskApp(tk.Tk):
         self._config_lang_lbl.config(text=self._tr("language"))
         self._btn_pl.config(text=self._tr("lang_pl"))
         self._btn_en.config(text=self._tr("lang_en"))
+        self._config_machine_lbl.config(text=self._tr("machine"))
         self._config_gpio_lbl.config(text=self._tr("gpio_pins"))
         pin_keys = {
             "encoder_clk": "pin_clk",
@@ -1338,7 +1496,7 @@ class KioskApp(tk.Tk):
         self._set_status(self._tr("printing", kind=kind, name=path.name))
         self.update_idletasks()
         try:
-            result = parse_nc_file(path)
+            result = parse_nc_file(path, machine=self.cfg.active_machine())
             text = format_report(result, paper=paper)
             images: list[Path] = []
             if self._models is not None:

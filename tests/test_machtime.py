@@ -6,6 +6,7 @@ import unittest
 
 from fh6parse.machtime import (
     G73_PULLBACK_MM,
+    MachineProfile,
     RAPID_MM_PER_MIN,
     arc_xy_length,
     canned_cycle_seconds,
@@ -279,6 +280,45 @@ M30
 
     def test_block_is_cp852(self) -> None:
         self.assertEqual(BAR_FILL.encode("cp852"), b"\xdb")
+
+    def test_faster_rapid_shortens_g0(self) -> None:
+        src = """O1
+T1 M6
+G90 G94
+G0 X0 Y0 Z0
+G0 X20000
+M30
+"""
+        slow = parse_nc_text(src, "t.nc")
+        fast = parse_nc_text(
+            src,
+            "t.nc",
+            machine=MachineProfile(id="fast", name="Fast", rapid_mm_min=40000),
+        )
+        self.assertAlmostEqual(slow.usages[0].time_s, 60.0)
+        self.assertAlmostEqual(fast.usages[0].time_s, 30.0)
+
+    def test_tool_change_adds_once_per_txx_m6(self) -> None:
+        src = """O1
+T1 M6
+G90 G94
+G0 X0 Y0 Z0
+G1 X100 F500
+T2 M6
+G1 X200 F500
+M30
+"""
+        mill = MachineProfile(id="atc", name="ATC mill", tool_change_s=10)
+        r = parse_nc_text(src, "t.nc", machine=mill)
+        self.assertAlmostEqual(r.usages[0].time_s, 22.0)
+        self.assertAlmostEqual(r.usages[1].time_s, 22.0)
+        text = format_report(r)
+        self.assertIn("Cycle 0:44", text)
+        self.assertIn("ATC mill", text)
+        self.assertIn("tool change 10 s", text)
+        mini = format_report(r, paper=PAPER_80MM_MIN)
+        self.assertIn("ATC mill", mini)
+        self.assertIn("Tchg 10s", mini)
 
 
 if __name__ == "__main__":

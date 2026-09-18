@@ -8,8 +8,10 @@ import math
 import re
 
 from .machtime import (
+    DEFAULT_MACHINE,
     HASH_ASSIGN_RE,
     HASH_WORD_RE,
+    MachineProfile,
     apply_hash_assigns,
     arc_xy_length,
     axis_delta,
@@ -178,6 +180,7 @@ class ParseResult:
     operations: list[Operation]
     executed_lines: set[int]
     source_lines: list[str]
+    machine: MachineProfile = field(default_factory=lambda: DEFAULT_MACHINE)
 
 
 def _tokenize_line(raw: str, number: int) -> Line:
@@ -496,7 +499,10 @@ def _feed_on_line(line: Line, hash_vars: dict[int, float]) -> float | None:
     return resolve_hash_letter("F", line.hash_words, hash_vars)
 
 
-def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
+def parse_nc_text(
+    text: str, path: str | Path = "", *, machine: MachineProfile | None = None
+) -> ParseResult:
+    mill = machine or DEFAULT_MACHINE
     path_obj = Path(path) if path else Path("")
     raw_lines = text.splitlines()
     lines = [_tokenize_line(raw, i + 1) for i, raw in enumerate(raw_lines)]
@@ -589,7 +595,7 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
             elif g == 99:
                 g98 = False
 
-        machine = line.has_g(53, 28)
+        g53 = line.has_g(53, 28)
         if 80 in gs:
             cycle_active = False
             cycle_z = None
@@ -647,6 +653,8 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
             if feed_per_rev:
                 current.warnings.append(G95_NEXT_WARN)
             usages.append(current)
+            if mill.tool_change_s > 0:
+                current.add_time(mill.tool_change_s)
             cycle_active = False
             cycle_z = None
             cycle_code = None
@@ -666,12 +674,14 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
         fpm = feed_per_min(feed_val, per_rev=feed_per_rev, rpm=s_rpm)
         timed: float | None = 0.0
 
-        if machine:
+        if g53:
             g53_x, dx = axis_delta(g53_x, x_raw, incremental=False)
             g53_y, dy = axis_delta(g53_y, y_raw, incremental=False)
             g53_z, dz = axis_delta(g53_z, z_raw, incremental=False)
             move = math.hypot(dx, dy, dz)
-            timed = seconds_for_length(move, None, rapid=True, inch=inch)
+            timed = seconds_for_length(
+                move, None, rapid=True, inch=inch, profile=mill
+            )
         else:
             abs_x, dx = axis_delta(abs_x, x_raw, incremental=incremental)
             abs_y, dy = axis_delta(abs_y, y_raw, incremental=incremental)
@@ -690,7 +700,9 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
                     else:
                         cycle_z = z_raw
                 xy = math.hypot(dx, dy)
-                xy_t = seconds_for_length(xy, None, rapid=True, inch=inch)
+                xy_t = seconds_for_length(
+                    xy, None, rapid=True, inch=inch, profile=mill
+                )
                 z_t: float | None = 0.0
                 if cycle_r is not None and cycle_z is not None:
                     z_t = canned_cycle_seconds(
@@ -707,6 +719,7 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
                         j=cycle_j,
                         p=cycle_p,
                         retract_mult=cycle_retract_j,
+                        profile=mill,
                     )
                     if g98 and z_before is not None:
                         abs_z = z_before
@@ -741,13 +754,16 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
                 else:
                     length = math.hypot(dx, dy, dz)
                 timed = seconds_for_length(
-                    length, fpm, rapid=motion == 0, inch=inch
+                    length, fpm, rapid=motion == 0, inch=inch, profile=mill
                 )
 
         abs_b, db = axis_delta(abs_b, b_raw, incremental=incremental)
         abs_c, dc = axis_delta(abs_c, c_raw, incremental=incremental)
         rot = seconds_for_rotary(
-            math.hypot(db, dc), rapid=motion == 0 or machine, feed=fpm
+            math.hypot(db, dc),
+            rapid=motion == 0 or g53,
+            feed=fpm,
+            profile=mill,
         )
         if current is not None:
             current.add_time(timed)
@@ -759,16 +775,16 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
         _apply_line_to_usage(current, line, cycle_active)
 
         work_z: float | None = None
-        if not machine and cycle_active and cycle_code is not None and (
+        if not g53 and cycle_active and cycle_code is not None and (
             starting_cycle or x_word is not None or y_word is not None or z_word is not None
         ):
             work_z = cycle_z
-        elif z_word is not None and not machine:
+        elif z_word is not None and not g53:
             work_z = abs_z
 
         if work_z is not None:
             current.consider_z(work_z, line.number)
-        elif cycle_active and cycle_z is not None and not machine:
+        elif cycle_active and cycle_z is not None and not g53:
             if line.first("X") is not None or line.first("Y") is not None:
                 current.consider_z(cycle_z, line.number)
 
@@ -853,6 +869,7 @@ def parse_nc_text(text: str, path: str | Path = "") -> ParseResult:
         operations=operations,
         executed_lines={i + 1 for i in executed},
         source_lines=raw_lines,
+        machine=mill,
     )
 
 
@@ -899,7 +916,9 @@ def _summarize(usages: list[ToolUsage], called_only: bool) -> list[ToolSummary]:
     return summaries
 
 
-def parse_nc_file(path: str | Path) -> ParseResult:
+def parse_nc_file(
+    path: str | Path, *, machine: MachineProfile | None = None
+) -> ParseResult:
     path_obj = Path(path)
     data = path_obj.read_bytes()
     text: str
@@ -911,4 +930,4 @@ def parse_nc_file(path: str | Path) -> ParseResult:
             continue
     else:
         text = data.decode("latin-1", errors="replace")
-    return parse_nc_text(text, path_obj)
+    return parse_nc_text(text, path_obj, machine=machine)

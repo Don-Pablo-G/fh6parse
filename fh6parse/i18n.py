@@ -58,12 +58,15 @@ STRINGS: dict[str, dict[str, str]] = {
         "gpio_off": "GPIO off: {detail}",
         "settings": "Settings",
         "settings_blurb": (
-            "Language, BCM pins, and ticks from one tooth valley to the next. "
-            "Rest is the file; the highlight changes halfway to the next tooth."
+            "Language, mill (rapids and tool-change time), BCM pins, and ticks "
+            "from one tooth valley to the next. Rest is the file; the highlight "
+            "changes halfway to the next tooth."
         ),
         "language": "Language",
         "lang_pl": "Polski",
         "lang_en": "English",
+        "machine": "Machine",
+        "machine_detail": "Rapids {rapid}  ·  tool change {tchg}",
         "gpio_pins": "GPIO (BCM numbers, not header pins)",
         "pin_clk": "Encoder CLK",
         "pin_dt": "Encoder DT",
@@ -82,7 +85,7 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "settings_keys": (
             "F2 / C / Esc  close     arrows change language     "
-            "+ / −  pins and ticks"
+            "+ / −  mill, pins and ticks"
         ),
         "settings_saved": "Saved {path}",
         "settings_save_fail": "Could not save settings ({detail})",
@@ -173,13 +176,15 @@ STRINGS: dict[str, dict[str, str]] = {
         "gpio_off": "GPIO wyłączone: {detail}",
         "settings": "Ustawienia",
         "settings_blurb": (
-            "Język, piny BCM i impulsy od jednej doliny zęba do następnej. "
-            "Spoczynek to plik; podświetlenie zmienia się w połowie drogi "
-            "do następnego zęba."
+            "Język, obrabiarka (szybkie i czas wymiany narzędzia), piny BCM "
+            "i impulsy od jednej doliny zęba do następnej. Spoczynek to plik; "
+            "podświetlenie zmienia się w połowie drogi do następnego zęba."
         ),
         "language": "Język",
         "lang_pl": "Polski",
         "lang_en": "English",
+        "machine": "Obrabiarka",
+        "machine_detail": "Szybkie {rapid}  ·  wymiana narzędzia {tchg}",
         "gpio_pins": "GPIO (numery BCM, nie piny złącza)",
         "pin_clk": "Enkoder CLK",
         "pin_dt": "Enkoder DT",
@@ -198,7 +203,7 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "settings_keys": (
             "F2 / C / Esc  zamknij     strzałki zmieniają język     "
-            "+ / −  piny i impulsy"
+            "+ / −  obrabiarka, piny i impulsy"
         ),
         "settings_saved": "Zapisano {path}",
         "settings_save_fail": "Nie udało się zapisać ustawień ({detail})",

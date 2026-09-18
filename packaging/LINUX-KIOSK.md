@@ -241,8 +241,30 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | `extensions` | `.nc,.tap` | File types (case-insensitive) |
 | `extra_roots` | (empty) | Extra folders to list, comma-separated (for testing) |
 | `model_roots` | (empty) | Optional company `.stp` folders. USB stick is searched first. See **§3.7**. |
-| `language` | `pl` | Screen language: `pl` (default) or `en`. Change on the kiosk in **settings** (**F2** / **C**, or click **PL** / **EN**). GPIO pins and encoder ticks are on the same panel. Stored in `~/.config/fh6parse/ui.ini` (and in this ini if it is writable). |
+| `language` | `pl` | Screen language: `pl` (default) or `en`. Change on the kiosk in **settings** (**F2** / **C**, or click **PL** / **EN**). GPIO pins, mill, and encoder ticks are on the same panel. Stored in `~/.config/fh6parse/ui.ini` (and in this ini if it is writable). |
+| `machine` | `default` | Id of the mill used for cycle time (`[machine.<id>]` below). Change in **settings**. |
 | `fullscreen` | true | Shop display. Escape once exits fullscreen. |
+
+Add one `[machine.<id>]` section per mill. Built-in **Default mill** is 20 m/min rapids and 0 s tool change until you pick another. Keys:
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `name` | the id | Label on the kiosk, Windows GUI, and tickets |
+| `rapid_mm_min` | 20000 | Linear G0 rate (mm/min) for XYZ time |
+| `rotary_deg_min` | 5400 | B/C G0 rate (deg/min) |
+| `tool_change_s` | 0 | Seconds added at every Txx M6 |
+
+Example:
+
+```
+machine = vf-4ss
+
+[machine.vf-4ss]
+name = Haas VF-4SS
+rapid_mm_min = 25400
+rotary_deg_min = 5400
+tool_change_s = 2.8
+```
 
 ### 3.4 Groups and devices
 
@@ -290,7 +312,7 @@ python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 
 Without GPIO you can still use a **USB keyboard and mouse** at any time (hot-plug is fine). The kiosk keeps keyboard focus and the black screensaver wakes on a key, click, or mouse wheel.
 
-The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, BCM pin numbers for CLK / DT / FULL / MIN, knob reverse, and **ticks per tooth** (GPIO ticks from one rest valley to the next; the highlight changes halfway so a wiggle at rest does not skip files). Values are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes settings first; the next **Esc** still leaves fullscreen. Encoder or a GPIO print button closes settings without printing / skipping a file.
+The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids and tool-change time from `[machine.<id>]` in this ini), BCM pin numbers for CLK / DT / FULL / MIN, knob reverse, and **ticks per tooth** (GPIO ticks from one rest valley to the next; the highlight changes halfway so a wiggle at rest does not skip files). Language, mill, and GPIO are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes settings first; the next **Esc** still leaves fullscreen. Encoder or a GPIO print button closes settings without printing / skipping a file.
 
 | Input | While awake | While screensaver |
 | --- | --- | --- |

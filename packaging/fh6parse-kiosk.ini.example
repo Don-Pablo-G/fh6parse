@@ -40,3 +40,19 @@ extensions = .nc,.tap
 # SE0241282.nc with O-title SE0241282-0  ->  SE0241282-0.stp
 # Missing models never block print. CAD extra: pip install -e '.[models]'
 # model_roots = /mnt/cad/stp,/mnt/cad/archive
+
+# Mill used for programmed cycle time. Pick in settings (F2) or here.
+# [machine.default] is built in (20 m/min, 0 s tool change) if omitted.
+# machine = vf-4ss
+#
+# [machine.vf-4ss]
+# name = Haas VF-4SS
+# rapid_mm_min = 25400
+# rotary_deg_min = 5400
+# tool_change_s = 2.8
+#
+# [machine.vf-2]
+# name = Haas VF-2
+# rapid_mm_min = 25400
+# rotary_deg_min = 5400
+# tool_change_s = 8

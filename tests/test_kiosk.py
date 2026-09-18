@@ -195,6 +195,60 @@ class TestKioskConfig(unittest.TestCase):
                     self.assertTrue(cfg.encoder_swap)
 
 
+    def test_reads_machine_table(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "kiosk.ini"
+            path.write_text(
+                "[kiosk]\nmachine = vf-4ss\n\n"
+                "[machine.vf-4ss]\n"
+                "name = Haas VF-4SS\n"
+                "rapid_mm_min = 25400\n"
+                "rotary_deg_min = 6000\n"
+                "tool_change_s = 2.8\n",
+                encoding="utf-8",
+            )
+            cfg = load_kiosk_config(path)
+            self.assertEqual(cfg.machine_id, "vf-4ss")
+            mill = cfg.active_machine()
+            self.assertEqual(mill.id, "vf-4ss")
+            self.assertEqual(mill.name, "Haas VF-4SS")
+            self.assertEqual(mill.rapid_mm_min, 25400.0)
+            self.assertEqual(mill.rotary_deg_min, 6000.0)
+            self.assertAlmostEqual(mill.tool_change_s, 2.8)
+            self.assertEqual(cfg.machines[0].id, "default")
+
+    def test_unknown_machine_falls_back_to_default(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "kiosk.ini"
+            path.write_text("[kiosk]\nmachine = missing\n", encoding="utf-8")
+            cfg = load_kiosk_config(path)
+            self.assertEqual(cfg.machine_id, "default")
+            self.assertEqual(cfg.active_machine().rapid_mm_min, 20000.0)
+
+    def test_overlay_overrides_machine(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        from fh6parse.kiosk import save_kiosk_values, ui_overlay_path
+
+        with tempfile.TemporaryDirectory() as home:
+            with patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
+                with tempfile.TemporaryDirectory() as raw:
+                    main = Path(raw) / "kiosk.ini"
+                    main.write_text(
+                        "[kiosk]\nmachine = default\n\n"
+                        "[machine.vf-2]\n"
+                        "name = Haas VF-2\n"
+                        "rapid_mm_min = 25400\n"
+                        "tool_change_s = 8\n",
+                        encoding="utf-8",
+                    )
+                    save_kiosk_values({"machine": "vf-2"}, ui_overlay_path())
+                    cfg = load_kiosk_config(main)
+                    self.assertEqual(cfg.machine_id, "vf-2")
+                    self.assertEqual(cfg.active_machine().tool_change_s, 8.0)
+
+
 class TestEncoderClicks(unittest.TestCase):
     def test_one_tick_is_one_file_by_default(self) -> None:
         from fh6parse.kiosk import encoder_file_delta
