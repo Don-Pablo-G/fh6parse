@@ -55,9 +55,9 @@ class TestG54Window(unittest.TestCase):
             x_max=0,
             y_min=-400,
             y_max=0,
-            g54_x=-300,
-            g54_y=-200,
-            g54_z=-100,
+            offset_x=-300,
+            offset_y=-200,
+            offset_z=-100,
         )
         bbox = WorkBBox()
         bbox.add(0, 0)
@@ -71,9 +71,9 @@ class TestG54Window(unittest.TestCase):
                 x_max=0,
                 y_min=-400,
                 y_max=0,
-                g54_x=-50,
-                g54_y=-200,
-                g54_z=-100,
+                offset_x=-50,
+                offset_y=-200,
+                offset_z=-100,
             ),
             bbox,
         )
@@ -138,9 +138,9 @@ M30
             x_max=0,
             y_min=-400,
             y_max=0,
-            g54_x=-300,
-            g54_y=-200,
-            g54_z=-100,
+            offset_x=-300,
+            offset_y=-200,
+            offset_z=-100,
         )
         src = """O1
 T1 M6
@@ -153,14 +153,14 @@ M30
         assert window is not None
         self.assertTrue(window.fits)
         text = format_report(result)
-        self.assertIn("G54 origin in G53 mm", text)
+        self.assertIn("Work offset origin in G53 mm", text)
         self.assertIn("SW -500,-400", text)
         self.assertIn("SE -100,-400", text)
         self.assertIn("NE -100,-50", text)
         self.assertIn("NW -500,-50", text)
         self.assertIn("Center -300,-225", text)
         self.assertIn("Max Ø G41/G42 centred 350 mm", text)
-        self.assertIn("Stored G54 is inside this box.", text)
+        self.assertIn("Stored offset is inside this box.", text)
 
 
 if __name__ == "__main__":

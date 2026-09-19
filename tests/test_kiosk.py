@@ -374,8 +374,12 @@ class TestKioskConfig(unittest.TestCase):
                 name="Haas VF-4SS",
                 rapid_m_min="25.4",
                 tool_change_s="2.8",
-                atc_xyz="-750, -20, 0",
-                g54_xyz="-400 -250 -400",
+                atc_x="-750",
+                atc_y="-20",
+                atc_z="0",
+                offset_x="-400",
+                offset_y="-250",
+                offset_z="-400",
                 tool_length_mm="120",
             )
             self.assertTrue(mill.has_g53_frame())
@@ -385,8 +389,33 @@ class TestKioskConfig(unittest.TestCase):
             cfg = load_kiosk_config(path)
             got = cfg.active_machine()
             self.assertTrue(got.has_g53_frame())
-            self.assertAlmostEqual(got.g54_z or 0, -400)
+            self.assertAlmostEqual(got.offset_z or 0, -400)
             self.assertAlmostEqual(got.tool_length_mm, 120)
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("offset_z = -400", text)
+            self.assertNotIn("g54_z", text)
+
+    def test_legacy_g54_ini_keys_load_as_offset(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "kiosk.ini"
+            path.write_text(
+                "[machine.old]\n"
+                "name = Old mill\n"
+                "rapid_mm_min = 20000\n"
+                "atc_x = -1\n"
+                "atc_y = -2\n"
+                "atc_z = -3\n"
+                "g54_x = -10\n"
+                "g54_y = -20\n"
+                "g54_z = -30\n",
+                encoding="utf-8",
+            )
+            cfg = load_kiosk_config(path)
+            mill = cfg.machine_by_id("old")
+            assert mill is not None
+            self.assertAlmostEqual(mill.offset_x or 0, -10)
+            self.assertAlmostEqual(mill.offset_y or 0, -20)
+            self.assertAlmostEqual(mill.offset_z or 0, -30)
 
     def test_save_machine_profile_travel(self) -> None:
         from fh6parse.kiosk import parse_machine_form, save_machine_profile
@@ -396,8 +425,12 @@ class TestKioskConfig(unittest.TestCase):
             mill = parse_machine_form(
                 name="Haas VF-2",
                 rapid_m_min="25.4",
-                travel_xy="-762 0 -406 0",
-                travel_z="-508 0",
+                x_min="-762",
+                x_max="0",
+                y_min="-406",
+                y_max="0",
+                z_min="-508",
+                z_max="0",
             )
             self.assertTrue(mill.has_xy_travel())
             self.assertTrue(mill.has_z_travel())

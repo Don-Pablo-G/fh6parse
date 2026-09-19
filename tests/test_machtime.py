@@ -345,9 +345,9 @@ class TestG53FrameTime(unittest.TestCase):
         atc_x=0.0,
         atc_y=0.0,
         atc_z=0.0,
-        g54_x=0.0,
-        g54_y=0.0,
-        g54_z=0.0,
+        offset_x=0.0,
+        offset_y=0.0,
+        offset_z=0.0,
         tool_length_mm=0.0,
     )
 
@@ -366,9 +366,9 @@ class TestG53FrameTime(unittest.TestCase):
             atc_x=0,
             atc_y=0,
             atc_z=0,
-            g54_x=-400,
-            g54_y=-250,
-            g54_z=-400,
+            offset_x=-400,
+            offset_y=-250,
+            offset_z=-400,
             tool_length_mm=120,
         )
         mx, my, mz, _, _ = work_to_g53(10, 5, 10, None, None, mill, inch=False)
@@ -390,7 +390,7 @@ M30
         self.assertAlmostEqual(t1.time_s, 2.02, places=4)
         # T2: 2 s swap + 50 mm from ATC to Z50
         self.assertAlmostEqual(t2.time_s, 2.05, places=4)
-        self.assertIn("G53 ATC/G54", format_report(r))
+        self.assertIn("G53 ATC/offset", format_report(r))
 
     def test_g53_to_atc_does_not_double_count_m6_retract(self) -> None:
         with_g53 = """O1

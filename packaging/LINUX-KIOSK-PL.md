@@ -11,9 +11,9 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 1. Włącz kiosk. Na ekranie: **Włóż pendrive** (albo lista z poprzedniego kija, jeśli został w gnieździe).
 2. Włóż pendrive. Programy **`.nc` / `.tap` w katalogu głównym** kija (nie w podfolderach) pojawiają się na liście. Przy liczbie plików: **Można wyjąć** = wolno wyciągnąć kij. **Czytanie pendrive — czekaj** = kiosk jeszcze czyta (podgląd albo kopiuje STEP) — nie wyrywaj.
 3. Pokrętłem **pliku** podświetl program. Drugie pokrętło wybiera obrabiarkę (nazwa obok wersji). Pod listą widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz. Jeśli na kiju nadpiszesz ten sam `.nc`, podgląd sam się odświeży — poczekaj aż zniknie **Czytanie…**, potem LOAD / SET / RUN.
-4. Przycisk **LOAD** — bilet operatora (T, H/D/S, Min Z, kratki załadunku, ostrzeżenia). Bez wykresu, bez każdej wymiany Txx, bez G54, bez STEP.
-5. Przycisk **SET** — bilet ustawiacza (program, mill, STEP gdy gotowy, prostokąt G54, czas cyklu bez wykresu, uwagi `!`).
-6. Przycisk **RUN** — pełny bilet 80 mm (STEP, G54, operacje, czas, wykres udziału, lista narzędzi, każda wymiana, ostrzeżenia).
+4. Przycisk **LOAD** — bilet operatora (T, H/D/S, Min Z, kratki załadunku, ostrzeżenia). Bez wykresu, bez każdej wymiany Txx, bez offsetu, bez STEP.
+5. Przycisk **SET** — bilet ustawiacza (program, mill, STEP gdy gotowy, prostokąt offsetu, czas cyklu bez wykresu, uwagi `!`).
+6. Przycisk **RUN** — pełny bilet 80 mm (STEP, offset, operacje, czas, wykres udziału, lista narzędzi, każda wymiana, ostrzeżenia).
 7. Na dole **Pokrywa otwarta**, **Brak papieru** albo **Zacięcie drukarki** — nie drukuj, najpierw drukarka. Przycisk nie wytnie pustego biletu.
 8. Brak żółtej kostki 3D obok nazwy = drukuj i tak. Bilet będzie sam tekst, bez czekania. Chip przy kostce mówi dlaczego: **szuka…** / **liczy…** / **brak STEP** / **Z: wył.** / **brak CAD**.
 9. Po dobrym druku na dole: **`device:/dev/usb/lp0`**. Jeśli widać `lp:…`, wołaj serwis (kolejka CUPS zamiast USB).
@@ -50,8 +50,8 @@ Kiosk **nie zapisuje i nie kasuje** plików na pendrive ani w firmowym folderze 
 ## 3. Druk
 
 - **LOAD** — załadunek: T, H/D/S, opis, Min Z, kratki, ostrzeżenia.
-- **SET** — ustawianie: mill, STEP gdy kostka jest, prostokąt G54, czas cyklu (bez wykresu), uwagi `!`.
-- **RUN** — pełna lista narzędzi, czas, udział każdego T w cyklu, Min Z, ostrzeżenia, izometria gdy kostka już jest. Gdy obrabiarka ma skok: prostokąt punktu zerowego G54 w współrzędnych maszyny (rogi, środek, maks. Ø G41/G42 wyśrodkowane).
+- **SET** — ustawianie: mill, STEP gdy kostka jest, prostokąt offsetu, czas cyklu (bez wykresu), uwagi `!`.
+- **RUN** — pełna lista narzędzi, czas, udział każdego T w cyklu, Min Z, ostrzeżenia, izometria gdy kostka już jest. Gdy obrabiarka ma skok: prostokąt punktu zerowego offsetu w współrzędnych maszyny (rogi, środek, maks. Ø G41/G42 wyśrodkowane).
 - Papier: **80 mm**, drukarka termiczna przy kiosku. Nie skalować do A4.
 - Jeśli na dole jest **Brak papieru** / **Pokrywa otwarta** / **Zacięcie drukarki**, najpierw drukarka — kiosk nie wytnie pustej kartki.
 - Komentarze z programu (polskie opisy narzędzi) zostają jak w NC. Napisy kiosku i biletu są po polsku, gdy wybrano **Polski**.
@@ -90,7 +90,7 @@ Pokrętło **nie otwiera** ustawień.
 | --- | --- |
 | Otwórz ustawienia | **F2** albo **C**, albo kliknij **PL** / **EN** przy wersji |
 | Język | **Polski** / **English** — dotyczy ekranu **i** biletu |
-| Obrabiarka | Drugie pokrętło, **+** / **−**, albo **Dodaj obrabiarkę…** (nazwa, szybkie m/min, B/C, czas wymiany, opcjonalnie ATC/G54 i skok) — od tego liczony jest czas cyklu i prostokąt G54 |
+| Obrabiarka | Drugie pokrętło, **+** / **−**, albo **Dodaj obrabiarkę…** (nazwa, szybkie m/min, B/C, czas wymiany, opcjonalnie ATC X/Y/Z, offset X/Y/Z i skok min/max) — od tego liczony jest czas cyklu i prostokąt offsetu |
 | Zamknij | **Esc**: najpierw formularz obrabiarki, potem ustawienia |
 
 Język i obrabiarka zapamiętują się po restarcie.

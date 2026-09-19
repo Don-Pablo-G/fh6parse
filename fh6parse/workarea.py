@@ -1,4 +1,4 @@
-"""Machine travel vs programmed work: allowed G54 origin box in G53 mm."""
+"""Machine travel vs programmed work: allowed work-offset origin box in G53 mm."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ class WorkBBox:
 
 @dataclass(frozen=True)
 class G54Window:
-    """Where G54 origin may sit in G53 mm so the work AABB stays in travel."""
+    """Where work offset origin may sit in G53 mm so the work AABB stays in travel."""
 
     x_min: float
     x_max: float
@@ -139,13 +139,13 @@ def g54_window(
             fits = False
             z_min, z_max = z_max, z_min
     inside: bool | None = None
-    if mill.g54_x is not None and mill.g54_y is not None and fits:
+    if mill.offset_x is not None and mill.offset_y is not None and fits:
         inside = (
-            x_min - 1e-6 <= mill.g54_x <= x_max + 1e-6
-            and y_min - 1e-6 <= mill.g54_y <= y_max + 1e-6
+            x_min - 1e-6 <= mill.offset_x <= x_max + 1e-6
+            and y_min - 1e-6 <= mill.offset_y <= y_max + 1e-6
         )
-        if inside and z_min is not None and mill.g54_z is not None:
-            inside = z_min - 1e-6 <= mill.g54_z <= (z_max or z_min) + 1e-6
+        if inside and z_min is not None and mill.offset_z is not None:
+            inside = z_min - 1e-6 <= mill.offset_z <= (z_max or z_min) + 1e-6
     return G54Window(
         x_min=x_min,
         x_max=x_max,
@@ -180,7 +180,7 @@ def render_g54_window_png(
     *,
     dest: Path | None = None,
 ) -> Path | None:
-    """Labeled XY rectangle of allowed G54 origin. Needs Pillow."""
+    """Labeled XY rectangle of allowed work-offset origin. Needs Pillow."""
     try:
         from PIL import Image, ImageDraw, ImageFont
     except ImportError:
@@ -227,15 +227,15 @@ def render_g54_window_png(
         px, py = to_px(x, y)
         draw.text((px + dx, py + dy), _fmt_xy(x, y), fill=0, font=font)
     draw.text((pc[0] - 28, pc[1] + 10), _fmt_xy(cx, cy), fill=0, font=font)
-    if mill.g54_x is not None and mill.g54_y is not None:
-        gx, gy = to_px(mill.g54_x, mill.g54_y)
+    if mill.offset_x is not None and mill.offset_y is not None:
+        gx, gy = to_px(mill.offset_x, mill.offset_y)
         r = 4
         draw.ellipse([gx - r, gy - r, gx + r, gy + r], outline=0, width=2)
-    title = "G54 origin G53 mm"
+    title = "Offset origin G53 mm"
     if not window.fits:
         title += "  TOO BIG"
     elif window.g54_inside is False:
-        title += "  G54 OUT"
+        title += "  OFFSET OUT"
     draw.text((8, 6), title, fill=0, font=font)
     dia = window.max_tool_dia_mm
     if dia is not None:
@@ -257,8 +257,8 @@ def _cache_png_path(mill: MachineProfile, window: G54Window) -> Path:
     key = (
         f"{mill.id}|{mill.x_min}|{mill.x_max}|{mill.y_min}|{mill.y_max}|"
         f"{window.x_min}|{window.x_max}|{window.y_min}|{window.y_max}|"
-        f"{mill.g54_x}|{mill.g54_y}|{window.fits}|{window.g54_inside}|"
-        f"{window.leftover_x}|{window.leftover_y}|v2"
+        f"{mill.offset_x}|{mill.offset_y}|{window.fits}|{window.g54_inside}|"
+        f"{window.leftover_x}|{window.leftover_y}|v3"
     )
     digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:20]
     root = Path(tempfile.gettempdir()) / "fh6parse-models"
@@ -283,7 +283,7 @@ def g54_png_for_result(result: object) -> Path | None:
 
 
 def append_g54_png(result: object, images: list[Path] | None = None) -> list[Path]:
-    """STEP views first (isometric), then the labeled G54 origin rectangle."""
+    """STEP views first (isometric), then the labeled work-offset origin rectangle."""
     out = list(images or [])
     png = g54_png_for_result(result)
     if png is not None and png not in out:

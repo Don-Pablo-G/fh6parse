@@ -40,16 +40,16 @@ from G0/G1/G2/G3, F#nnn, and Haas/Fanuc canned cycles (G73 chip-break 0.2 mm,
 G83 full retract to R, G84 retract at 1.0×F).
 Rapids and tool-change time come from the mill in fh6parse-kiosk.ini
 ([machine.<id>] plus kiosk.machine). Built-in default is 20 m/min and 0 s
-tool change. Optional per mill: ATC and typical G54 in G53 mm, plus tool
-length. Then Txx M6 rapids Z then XY/BC to that mill’s ATC; work G0 is
-timed in G53. Empty tables keep the old estimate. Optional travel
-Xmin/Xmax/Ymin/Ymax (G53 mm) prints a labeled rectangle of where G54 may
-sit so programmed work stays inside the envelope; corners, center, and
-max Ø (centred outside G41/G42) are on the ticket. No accel. A trailing +
-means missing F or S.
+tool change. Optional per mill: ATC X/Y/Z and work offset X/Y/Z in G53 mm
+(B0 C0), plus tool length. Then Txx M6 rapids Z then XY to that mill’s ATC;
+work G0 is timed in G53. Empty tables keep the old estimate. Optional travel
+X/Y/Z min and max (six fields, G53 mm) prints a labeled rectangle of where
+the work offset may sit so programmed work stays inside the envelope; corners,
+center, and max Ø (centred outside G41/G42) are on the ticket. No accel.
+A trailing + means missing F or S.
 Each operation shows Cycle (that path until M30) and a share chart of each T
 on RUN / A4 (when that box is ticked). LOAD is the operator slip (T / H / D / S /
-Min Z / load boxes). SET is the setter slip (mill, STEP, G54, cycle, notes).
+Min Z / load boxes). SET is the setter slip (mill, STEP, offset, cycle, notes).
 The office GUI is one report with a section checklist (no LOAD / SET / RUN
 presets). Text/80 mm uses a solid block bar
 (CP852); A4 HTML uses a black CSS track.
@@ -71,8 +71,8 @@ preview, then Print A4 or Print 80 mm (paper size only — same ticks).
   Last NC folder, report output folder, A4 vs 80 mm preview, and the
   report section checklist are stored there too.
   Machine: combo on the preview row. Add mill… writes a [machine.<id>]
-  section (rapids, B/C, tool-change seconds, optional G53 ATC / G54 / tool
-  length / travel). The kiosk has the same form in settings (F2). You can still add
+  section (rapids, B/C rapid, tool-change seconds, optional G53 ATC X/Y/Z,
+  work offset X/Y/Z, travel min/max per axis). The kiosk has the same form in settings (F2). You can still add
   [machine.<id>] by hand. Current mill is kiosk.machine in the same files.
   Views are visible edges only (no shading). The longest axis is across the
   80 mm width; height is cropped to the part (a long shaft is a thin strip).
@@ -102,7 +102,7 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
 
   Update (git checkout only; never automatic)
     Need 1.4.0. Later 1.4.0 git commits (preview, mill table, Add mill, travel /
-    G54 box, on-screen isometric, empty-pocket) still keep that number — UPDATE then shows a hash.
+    offset box, on-screen isometric, empty-pocket) still keep that number — UPDATE then shows a hash.
     If --version is older than 1.4.0, SSH:
       cd /home/kiosk/fh6parse && git pull --ff-only && sudo systemctl restart fh6parse-kiosk
     From 1.3.2: on start the kiosk fetches origin in the background, and
@@ -158,7 +158,7 @@ STEP models on the 80 mm ticket (kiosk, optional)
   Matching starts at the NC name prefix. G-code rev must match the .stp rev.
   If the NC has no rev, the latest matching .stp is used (USB copy wins).
   Two opposite isometric line drawings, stacked, cropped to the part, at the top of
-  SET and RUN tickets. LOAD never prints STEP / G54 images. The same drawing appears on the GUI preview and under the
+  SET and RUN tickets. LOAD never prints STEP / offset images. The same drawing appears on the GUI preview and under the
   kiosk highlight when ready. A wireframe 3D cube appears when the bitmap is ready.
   Missing or still-rendering models never block print.
   Full matching table and NAS mount: packaging/LINUX-KIOSK.md §3.7

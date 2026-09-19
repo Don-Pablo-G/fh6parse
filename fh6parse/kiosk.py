@@ -280,14 +280,11 @@ def _parse_form_number(raw: str, default: float) -> float:
     return float(text)
 
 
-def _parse_optional_floats(raw: str, count: int) -> tuple[float | None, ...]:
-    text = (raw or "").strip().replace(",", " ")
+def _parse_optional_float(raw: str) -> float | None:
+    text = (raw or "").strip().replace(",", ".")
     if not text:
-        return tuple(None for _ in range(count))
-    parts = text.split()
-    if len(parts) != count:
-        raise ValueError("machine_bad_number")
-    return tuple(float(p.replace(",", ".")) for p in parts)
+        return None
+    return float(text)
 
 
 def parse_machine_form(
@@ -296,13 +293,19 @@ def parse_machine_form(
     rapid_m_min: str = "",
     rotary_deg_min: str = "",
     tool_change_s: str = "",
-    atc_xyz: str = "",
-    g54_xyz: str = "",
     tool_length_mm: str = "",
-    atc_bc: str = "",
-    g54_bc: str = "",
-    travel_xy: str = "",
-    travel_z: str = "",
+    atc_x: str = "",
+    atc_y: str = "",
+    atc_z: str = "",
+    offset_x: str = "",
+    offset_y: str = "",
+    offset_z: str = "",
+    x_min: str = "",
+    x_max: str = "",
+    y_min: str = "",
+    y_max: str = "",
+    z_min: str = "",
+    z_max: str = "",
     existing_ids: set[str] | None = None,
 ) -> MachineProfile:
     """Build a MachineProfile from the Add mill form. Raises ValueError(i18n key)."""
@@ -314,12 +317,18 @@ def parse_machine_form(
         rotary = _parse_form_number(rotary_deg_min, ROTARY_DEG_PER_MIN)
         tchg = _parse_form_number(tool_change_s, 0.0)
         tlen = _parse_form_number(tool_length_mm, 0.0)
-        atc_x, atc_y, atc_z = _parse_optional_floats(atc_xyz, 3)
-        g54_x, g54_y, g54_z = _parse_optional_floats(g54_xyz, 3)
-        atc_b, atc_c = _parse_optional_floats(atc_bc, 2)
-        g54_b, g54_c = _parse_optional_floats(g54_bc, 2)
-        x_min, x_max, y_min, y_max = _parse_optional_floats(travel_xy, 4)
-        z_min, z_max = _parse_optional_floats(travel_z, 2)
+        ax = _parse_optional_float(atc_x)
+        ay = _parse_optional_float(atc_y)
+        az = _parse_optional_float(atc_z)
+        ox = _parse_optional_float(offset_x)
+        oy = _parse_optional_float(offset_y)
+        oz = _parse_optional_float(offset_z)
+        xmin = _parse_optional_float(x_min)
+        xmax = _parse_optional_float(x_max)
+        ymin = _parse_optional_float(y_min)
+        ymax = _parse_optional_float(y_max)
+        zmin = _parse_optional_float(z_min)
+        zmax = _parse_optional_float(z_max)
     except ValueError as exc:
         raise ValueError("machine_bad_number") from exc
     if rapid_m <= 0 or rotary <= 0 or tchg < 0 or tlen < 0:
@@ -330,38 +339,41 @@ def parse_machine_form(
         rapid_mm_min=rapid_m * 1000.0,
         rotary_deg_min=rotary,
         tool_change_s=tchg,
-        atc_x=atc_x,
-        atc_y=atc_y,
-        atc_z=atc_z,
-        atc_b=atc_b,
-        atc_c=atc_c,
-        g54_x=g54_x,
-        g54_y=g54_y,
-        g54_z=g54_z,
-        g54_b=g54_b,
-        g54_c=g54_c,
+        atc_x=ax,
+        atc_y=ay,
+        atc_z=az,
+        offset_x=ox,
+        offset_y=oy,
+        offset_z=oz,
         tool_length_mm=tlen,
-        x_min=x_min,
-        x_max=x_max,
-        y_min=y_min,
-        y_max=y_max,
-        z_min=z_min,
-        z_max=z_max,
+        x_min=xmin,
+        x_max=xmax,
+        y_min=ymin,
+        y_max=ymax,
+        z_min=zmin,
+        z_max=zmax,
     )
 
 
-MILL_FORM_FIELDS = (
+MILL_FORM_SCALARS = (
     ("machine_name", ""),
     ("machine_rapid", "20"),
     ("machine_rotary", "5400"),
     ("machine_tchg", "0"),
-    ("machine_atc", ""),
-    ("machine_atc_bc", ""),
-    ("machine_g54", ""),
-    ("machine_g54_bc", ""),
     ("machine_tool_len", ""),
-    ("machine_travel_xy", ""),
-    ("machine_travel_z", ""),
+)
+MILL_FORM_ATC = ("machine_atc_x", "machine_atc_y", "machine_atc_z")
+MILL_FORM_OFFSET = ("machine_offset_x", "machine_offset_y", "machine_offset_z")
+MILL_FORM_TRAVEL = (
+    ("machine_x_min", "machine_x_max"),
+    ("machine_y_min", "machine_y_max"),
+    ("machine_z_min", "machine_z_max"),
+)
+MILL_FORM_FIELDS = (
+    *MILL_FORM_SCALARS,
+    *[(key, "") for key in MILL_FORM_ATC],
+    *[(key, "") for key in MILL_FORM_OFFSET],
+    *[(key, "") for pair in MILL_FORM_TRAVEL for key in pair],
 )
 
 
@@ -373,13 +385,19 @@ def mill_from_form_entries(
         rapid_m_min=entries["machine_rapid"].get(),
         rotary_deg_min=entries["machine_rotary"].get(),
         tool_change_s=entries["machine_tchg"].get(),
-        atc_xyz=entries["machine_atc"].get(),
-        atc_bc=entries["machine_atc_bc"].get(),
-        g54_xyz=entries["machine_g54"].get(),
-        g54_bc=entries["machine_g54_bc"].get(),
         tool_length_mm=entries["machine_tool_len"].get(),
-        travel_xy=entries["machine_travel_xy"].get(),
-        travel_z=entries["machine_travel_z"].get(),
+        atc_x=entries["machine_atc_x"].get(),
+        atc_y=entries["machine_atc_y"].get(),
+        atc_z=entries["machine_atc_z"].get(),
+        offset_x=entries["machine_offset_x"].get(),
+        offset_y=entries["machine_offset_y"].get(),
+        offset_z=entries["machine_offset_z"].get(),
+        x_min=entries["machine_x_min"].get(),
+        x_max=entries["machine_x_max"].get(),
+        y_min=entries["machine_y_min"].get(),
+        y_max=entries["machine_y_max"].get(),
+        z_min=entries["machine_z_min"].get(),
+        z_max=entries["machine_z_max"].get(),
         existing_ids=existing_ids,
     )
 
@@ -405,6 +423,14 @@ def _opt_ini_float(src: configparser.SectionProxy, key: str) -> float | None:
         return float(raw)
     except ValueError:
         return None
+
+
+def _opt_ini_float_any(src: configparser.SectionProxy, *keys: str) -> float | None:
+    for key in keys:
+        value = _opt_ini_float(src, key)
+        if value is not None:
+            return value
+    return None
 
 
 def _machine_from_section(
@@ -438,11 +464,11 @@ def _machine_from_section(
         atc_z=_opt_ini_float(src, "atc_z"),
         atc_b=_opt_ini_float(src, "atc_b"),
         atc_c=_opt_ini_float(src, "atc_c"),
-        g54_x=_opt_ini_float(src, "g54_x"),
-        g54_y=_opt_ini_float(src, "g54_y"),
-        g54_z=_opt_ini_float(src, "g54_z"),
-        g54_b=_opt_ini_float(src, "g54_b"),
-        g54_c=_opt_ini_float(src, "g54_c"),
+        offset_x=_opt_ini_float_any(src, "offset_x", "g54_x"),
+        offset_y=_opt_ini_float_any(src, "offset_y", "g54_y"),
+        offset_z=_opt_ini_float_any(src, "offset_z", "g54_z"),
+        offset_b=_opt_ini_float_any(src, "offset_b", "g54_b"),
+        offset_c=_opt_ini_float_any(src, "offset_c", "g54_c"),
         tool_length_mm=tlen,
         x_min=_opt_ini_float(src, "x_min"),
         x_max=_opt_ini_float(src, "x_max"),
@@ -557,11 +583,11 @@ def save_machine_profile(
         ("atc_z", mill.atc_z),
         ("atc_b", mill.atc_b),
         ("atc_c", mill.atc_c),
-        ("g54_x", mill.g54_x),
-        ("g54_y", mill.g54_y),
-        ("g54_z", mill.g54_z),
-        ("g54_b", mill.g54_b),
-        ("g54_c", mill.g54_c),
+        ("offset_x", mill.offset_x),
+        ("offset_y", mill.offset_y),
+        ("offset_z", mill.offset_z),
+        ("offset_b", mill.offset_b),
+        ("offset_c", mill.offset_c),
         ("x_min", mill.x_min),
         ("x_max", mill.x_max),
         ("y_min", mill.y_min),
@@ -575,6 +601,9 @@ def save_machine_profile(
                 parser.remove_option(section, key)
         else:
             parser.set(section, key, _ini_number(value))
+    for legacy in ("g54_x", "g54_y", "g54_z", "g54_b", "g54_c"):
+        if parser.has_option(section, legacy):
+            parser.remove_option(section, legacy)
     if mill.tool_length_mm:
         parser.set(section, "tool_length_mm", _ini_number(mill.tool_length_mm))
     elif parser.has_option(section, "tool_length_mm"):
@@ -1296,7 +1325,7 @@ class KioskApp(tk.Tk):
             highlightbackground=ACCENT,
             highlightthickness=2,
             padx=18,
-            pady=16,
+            pady=12,
         )
         self._mill = panel
         self._mill_title = tk.Label(
@@ -1307,31 +1336,17 @@ class KioskApp(tk.Tk):
             fg=ACCENT,
         )
         self._mill_title.pack(anchor="w")
-        self._mill_field_lbls: dict[str, tk.Label] = {}
+        self._mill_field_lbls: list[tuple[tk.Label, str]] = []
         self._mill_entries: dict[str, tk.Entry] = {}
-        for key, default in MILL_FORM_FIELDS:
-            lbl = tk.Label(
-                panel,
-                text=t(self._lang, key),
-                font=small,
-                bg="#1a1a1a",
-                fg="#eeeeee",
-            )
-            lbl.pack(anchor="w", pady=(4, 0))
-            self._mill_field_lbls[key] = lbl
-            ent = tk.Entry(
-                panel,
-                font=update_font,
-                bg="#222222",
-                fg="#eeeeee",
-                insertbackground="#eeeeee",
-                relief="flat",
-                bd=8,
-            )
-            if default:
-                ent.insert(0, default)
-            ent.pack(fill=tk.X)
-            self._mill_entries[key] = ent
+        for key, default in MILL_FORM_SCALARS:
+            self._mill_pack_field(panel, key, default, small, update_font)
+        self._mill_pack_triplet(
+            panel, "machine_atc_group", MILL_FORM_ATC, small, update_font
+        )
+        self._mill_pack_triplet(
+            panel, "machine_offset_group", MILL_FORM_OFFSET, small, update_font
+        )
+        self._mill_pack_travel(panel, small, update_font)
         self._mill_err = tk.Label(
             panel,
             text="",
@@ -1341,9 +1356,9 @@ class KioskApp(tk.Tk):
             wraplength=self.cfg.width - 80,
             justify="left",
         )
-        self._mill_err.pack(anchor="w", pady=(12, 8))
+        self._mill_err.pack(anchor="w", pady=(8, 4))
         row = tk.Frame(panel, bg="#1a1a1a")
-        row.pack(fill=tk.X, pady=(8, 0))
+        row.pack(fill=tk.X, pady=(4, 0))
         self._btn_mill_cancel = tk.Button(
             row,
             text=t(self._lang, "machine_cancel"),
@@ -1356,7 +1371,7 @@ class KioskApp(tk.Tk):
             cursor="hand2",
             command=self._hide_mill_form,
         )
-        self._btn_mill_cancel.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 6), ipady=10)
+        self._btn_mill_cancel.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 6), ipady=8)
         self._btn_mill_save = tk.Button(
             row,
             text=t(self._lang, "machine_save"),
@@ -1369,7 +1384,100 @@ class KioskApp(tk.Tk):
             cursor="hand2",
             command=self._save_mill_form,
         )
-        self._btn_mill_save.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0), ipady=10)
+        self._btn_mill_save.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0), ipady=8)
+
+    def _mill_remember_label(self, lbl: tk.Label, key: str) -> None:
+        self._mill_field_lbls.append((lbl, key))
+
+    def _mill_entry(self, parent: tk.Frame, key: str, default: str, font) -> tk.Entry:
+        ent = tk.Entry(
+            parent,
+            font=font,
+            bg="#222222",
+            fg="#eeeeee",
+            insertbackground="#eeeeee",
+            relief="flat",
+            bd=4,
+        )
+        if default:
+            ent.insert(0, default)
+        self._mill_entries[key] = ent
+        return ent
+
+    def _mill_pack_field(
+        self, panel: tk.Frame, key: str, default: str, small, update_font
+    ) -> None:
+        lbl = tk.Label(
+            panel,
+            text=t(self._lang, key),
+            font=small,
+            bg="#1a1a1a",
+            fg="#eeeeee",
+        )
+        lbl.pack(anchor="w", pady=(2, 0))
+        self._mill_remember_label(lbl, key)
+        self._mill_entry(panel, key, default, update_font).pack(fill=tk.X)
+
+    def _mill_pack_triplet(
+        self,
+        panel: tk.Frame,
+        heading: str,
+        keys: tuple[str, ...],
+        small,
+        font,
+    ) -> None:
+        head = tk.Label(
+            panel,
+            text=t(self._lang, heading),
+            font=small,
+            bg="#1a1a1a",
+            fg="#eeeeee",
+        )
+        head.pack(anchor="w", pady=(6, 0))
+        self._mill_remember_label(head, heading)
+        row = tk.Frame(panel, bg="#1a1a1a")
+        row.pack(fill=tk.X)
+        axis_keys = ("machine_ax_x", "machine_ax_y", "machine_ax_z")
+        for i, key in enumerate(keys):
+            col = tk.Frame(row, bg="#1a1a1a")
+            col.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0 if i == 0 else 4, 0))
+            lbl = tk.Label(
+                col,
+                text=t(self._lang, axis_keys[i]),
+                font=small,
+                bg="#1a1a1a",
+                fg=MUTED,
+            )
+            lbl.pack(anchor="w")
+            self._mill_remember_label(lbl, axis_keys[i])
+            self._mill_entry(col, key, "", font).pack(fill=tk.X)
+
+    def _mill_pack_travel(self, panel: tk.Frame, small, font) -> None:
+        head = tk.Label(
+            panel,
+            text=t(self._lang, "machine_travel_group"),
+            font=small,
+            bg="#1a1a1a",
+            fg="#eeeeee",
+        )
+        head.pack(anchor="w", pady=(6, 0))
+        self._mill_remember_label(head, "machine_travel_group")
+        for pair in MILL_FORM_TRAVEL:
+            row = tk.Frame(panel, bg="#1a1a1a")
+            row.pack(fill=tk.X)
+            for i, key in enumerate(pair):
+                col = tk.Frame(row, bg="#1a1a1a")
+                col.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0 if i == 0 else 4, 0))
+                lbl = tk.Label(
+                    col,
+                    text=t(self._lang, key),
+                    font=small,
+                    bg="#1a1a1a",
+                    fg=MUTED,
+                )
+                lbl.pack(anchor="w")
+                self._mill_remember_label(lbl, key)
+                self._mill_entry(col, key, "", font).pack(fill=tk.X)
 
     def _add_pin_stepper(
         self,
@@ -1596,7 +1704,7 @@ class KioskApp(tk.Tk):
         self._config_steps_blurb.config(text=self._tr("encoder_steps_blurb"))
         self._config_keys.config(text=self._tr("settings_keys"))
         self._mill_title.config(text=self._tr("machine_add_title"))
-        for key, lbl in self._mill_field_lbls.items():
+        for lbl, key in self._mill_field_lbls:
             lbl.config(text=self._tr(key))
         self._btn_mill_cancel.config(text=self._tr("machine_cancel"))
         self._btn_mill_save.config(text=self._tr("machine_save"))

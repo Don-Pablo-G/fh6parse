@@ -2,7 +2,7 @@
 
 Operator sheet (Polish, daily use only): **[LINUX-KIOSK-PL.md](LINUX-KIOSK-PL.md)**. This file is the full English install / wiring / update manual.
 
-**Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.0**). Three print buttons: **LOAD** (operator slip), **SET** (setter: mill, STEP, G54, cycle), **RUN** (full ticket). Spare GPIO is reserved (wake-only). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C, tool-change time, optional G53 ATC / G54 / travel). Tickets then show a labeled G53 rectangle of where G54 may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.0** badge; the yellow **UPDATE** button then shows a short hash. The Windows office exe is one report with a **section checklist** (no LOAD / SET / RUN presets) and the same **UPDATE** button against a GitHub Release (tag **vX.Y.Z** builds the exe).
+**Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.0**). Three print buttons: **LOAD** (operator slip), **SET** (setter: mill, STEP, offset, cycle), **RUN** (full ticket). Spare GPIO is reserved (wake-only). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C rapid, tool-change time, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Tickets then show a labeled G53 rectangle of where the work offset may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.0** badge; the yellow **UPDATE** button then shows a short hash. The Windows office exe is one report with a **section checklist** (no LOAD / SET / RUN presets) and the same **UPDATE** button against a GitHub Release (tag **vX.Y.Z** builds the exe).
 
 Python **3.10+** is required (Bookworm ships 3.11). Use **Raspberry Pi OS 64-bit Desktop** (Bookworm or later). Pi 5 has no 32-bit OS.
 
@@ -271,14 +271,14 @@ Add one `[machine.<id>]` section per mill, or use **Add mill…** on the Windows
 | `rapid_mm_min` | 20000 | Linear G0 rate (mm/min) for XYZ time |
 | `rotary_deg_min` | 5400 | B/C G0 rate (deg/min) |
 | `tool_change_s` | 0 | Seconds added at every Txx M6 (carousel swap only) |
-| `atc_x` `atc_y` `atc_z` | (omit) | That mill’s tool-change position in G53 mm. Optional `atc_b` `atc_c`. Each mill has its own numbers. |
-| `g54_x` `g54_y` `g54_z` | (omit) | Typical vise/table part zero in G53 mm for that mill. Optional `g54_b` `g54_c`. |
+| `atc_x` `atc_y` `atc_z` | (omit) | That mill’s tool-change position in G53 mm (one field per axis). B and C are **0**. Old `atc_b` / `atc_c` still read. |
+| `offset_x` `offset_y` `offset_z` | (omit) | Typical vise/table work origin in G53 mm (G54, G55, … — the same machine point). B and C are **0**. Old `g54_x` / `g54_y` / `g54_z` still read. |
 | `tool_length_mm` | 0 | Approximate stick-out (Z only). Haas H is a register, not mm. |
-| `x_min` `x_max` `y_min` `y_max` | (omit) | Machine travel envelope in G53 mm. Tickets then show where G54 may sit so programmed XY stays inside travel. Optional `z_min` `z_max`. |
+| `x_min` `x_max` `y_min` `y_max` `z_min` `z_max` | (omit) | Machine travel envelope in G53 mm, one field per axis and limit. Tickets then show where the work offset may sit so programmed XY stays inside travel. |
 
-If ATC and G54 XYZ are all set, cycle time uses one G53 pose: work rapids convert through G54+length; at Txx M6 the finishing tool rapids Z then XY/BC to that mill’s ATC, then `tool_change_s` on the new T. A program that already `G53`’s to the ATC is not charged twice. Omit the keys to keep the older estimate (Default mill).
+If ATC and offset XYZ are all set, cycle time uses one G53 pose: work rapids convert through the stored offset + tool length; at Txx M6 the finishing tool rapids Z then XY to that mill’s ATC (B0 C0), then `tool_change_s` on the new T. A program that already `G53`’s to the ATC is not charged twice. Omit the keys to keep the older estimate (Default mill).
 
-If XY travel is set, the ticket adds a labeled rectangle of allowed G54 origin (G53 mm): four corners, center, max Ø for centred outside G41/G42 (the shorter leftover), and a warning if the stored G54 is outside or the work is larger than travel. Needs Pillow for the PNG; numbers still print without it.
+If XY travel is set, the ticket adds a labeled rectangle of allowed work-offset origin (G53 mm): four corners, center, max Ø for centred outside G41/G42 (the shorter leftover), and a warning if the stored offset is outside or the work is larger than travel. Needs Pillow for the PNG; numbers still print without it.
 
 Example:
 
@@ -293,9 +293,9 @@ tool_change_s = 2.8
 atc_x = -750
 atc_y = -20
 atc_z = 0
-g54_x = -400
-g54_y = -250
-g54_z = -400
+offset_x = -400
+offset_y = -250
+offset_z = -400
 tool_length_mm = 120
 x_min = -1270
 x_max = 0
@@ -351,7 +351,7 @@ python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 
 Without GPIO you can still use a **USB keyboard and mouse** at any time (hot-plug is fine). The kiosk keeps keyboard focus and the black screensaver wakes on a key, click, or mouse wheel.
 
-The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids, tool-change time, optional G53 ATC / G54 / tool length / travel from `[machine.<id>]` in this ini; the mill name also sits next to the version chip and the mill knob cycles it), **Add mill…** to create a new mill (written to `~/.config/fh6parse/ui.ini`), BCM pin numbers for file CLK / DT, mill CLK / DT, RUN / LOAD / SET / spare, knob reverse, and **ticks per tooth** (GPIO ticks from one rest valley to the next; the highlight or mill changes halfway so a wiggle at rest does not skip). Language, mill, and GPIO are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes the mill form first, then settings; the next **Esc** still leaves fullscreen. The file encoder or a GPIO print button closes settings without printing / skipping a file. The mill encoder keeps settings open and changes the mill.
+The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids, tool-change time, optional G53 ATC / work offset / tool length / travel from `[machine.<id>]` in this ini; the mill name also sits next to the version chip and the mill knob cycles it), **Add mill…** to create a new mill (written to `~/.config/fh6parse/ui.ini`), BCM pin numbers for file CLK / DT, mill CLK / DT, RUN / LOAD / SET / spare, knob reverse, and **ticks per tooth** (GPIO ticks from one rest valley to the next; the highlight or mill changes halfway so a wiggle at rest does not skip). Language, mill, and GPIO are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes the mill form first, then settings; the next **Esc** still leaves fullscreen. The file encoder or a GPIO print button closes settings without printing / skipping a file. The mill encoder keeps settings open and changes the mill.
 
 | Input | While awake | While screensaver |
 | --- | --- | --- |
@@ -491,9 +491,9 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 1. Power on. Screen shows **Włóż pendrive** / **Insert USB** (or the last stick if it was already plugged in). The kiosk is Polish unless settings were changed.
 2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear. The count line shows **Można wyjąć** / **Safe to remove** when the kiosk is not reading the stick — wait for that before unplugging. **Czytanie pendrive — czekaj** / **Reading USB — wait** means preview parse or a STEP copy from the stick is still running.
 3. Turn the **file** encoder to highlight a file. The panel under the list shows each operation’s tool count and cycle time, and whether the STEP views are ready. A **3D cube** next to the name also means the STEP views are ready; the stacked isometric appears under the preview when it is. Check OP1 vs OP2 here before printing. If that `.nc` is overwritten on the stick (same name, new bytes), preview reloads from disk — wait for **Reading…** to finish before RUN / LOAD / SET. The mill name sits next to the version chip; turn the **mill** knob to change mill (same as **Add mill…** / settings).
-4. **LOAD** — operator slip: file / program / units, tool list with T / H / D / S / Min Z and load boxes, mismatch and empty-pocket warnings, sign-off. No cycle chart, no each-Txx-M6 dump, no G54 box, no STEP.
-5. **SET** — setter slip: file / program, mill name, STEP when ready, G54 rectangle + Ømax + Z window, cycle time (no share chart), programmer `!` notes, G54 in/out / too-big warnings.
-6. **RUN** — full slip (old FULL): STEP, G54 block, ops, cycle + share chart, tool list, each Txx M6, all warnings.
+4. **LOAD** — operator slip: file / program / units, tool list with T / H / D / S / Min Z and load boxes, mismatch and empty-pocket warnings, sign-off. No cycle chart, no each-Txx-M6 dump, no offset box, no STEP.
+5. **SET** — setter slip: file / program, mill name, STEP when ready, offset rectangle + Ømax + Z window, cycle time (no share chart), programmer `!` notes, offset in/out / too-big warnings.
+6. **RUN** — full slip (old FULL): STEP, offset block, ops, cycle + share chart, tool list, each Txx M6, all warnings.
 7. If the status line says **Pokrywa otwarta** / **Printer cover open**, **Brak papieru** / **No paper**, or **Zacięcie drukarki** / **Printer jam**, fix the P047 first. RUN / LOAD / SET will not cut a blank slip. Those messages also appear on their own while idle (polled about every 2 s).
 8. If there is no cube, print anyway. The slip is text only. The chip next to the cube legend says why: **3D ready**, **searching…** / **szuka…** (looking for a `.stp`), **rendering…** / **liczy…** (drawing a match), **no STEP** / **brak STEP**, **Z: off** / **Z: wył.** (company share down), or **no CAD** / **brak CAD** (install `[models]`).
 9. Status after a good print: **`device:/dev/usb/lp0`**. If it says `lp:…`, CUPS took the job — **§3.5**.
@@ -528,7 +528,7 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | Screen never sleeps | `idle_seconds = 0`, or encoder bouncing. Still on Wayland? Switch to X11 so `xset` works. |
 | Keyboard/mouse do nothing | Plug into the Pi USB-A; X11 picks them up. Click or press a key — the kiosk claims focus. **F2** / **C** opens settings. **Esc** closes settings, then leaves fullscreen. GPIO print buttons still do not wake the screensaver. |
 | Language resets to Polish after you picked English | Stored in `/home/kiosk/.config/fh6parse/ui.ini`. Pick **English** again in settings. **UPDATE** does not delete that file. Pins, mill, and ticks live in the same overlay. |
-| **Add mill…** missing / mill list is only Default | Clone is older than this pull. Settings → **Add mill…**. Saved in `ui.ini` (`[machine.<id>]`). Travel keys `x_min`…`y_max` print the G54 rectangle. |
+| **Add mill…** missing / mill list is only Default | Clone is older than this pull. Settings → **Add mill…**. Saved in `ui.ini` (`[machine.<id>]`). Travel keys `x_min`…`z_max` print the offset rectangle. |
 | Screen stays in English and **F2** does nothing | Wake first if the screen is black. Click the **EN** chip next to **v…**. Encoder never opens settings. |
 | Black screen immediately | Desktop blanking plus app DPMS. Disable LXDE idle blank; keep kiosk `idle_seconds = 60`. |
 | Wrong aspect / sideways UI | Rotate until `xdpyinfo` (or Screen Configuration) shows 600×800. App geometry is 600×800 fullscreen. Pi 5 output is often `HDMI-A-1`. |
@@ -578,7 +578,7 @@ python3 -m fh6parse --format 80mm --stdout /path/program.nc
 
 ## 8. Updating the kiosk
 
-This section is for **fh6parse 1.4.0** on a **git checkout** (`/home/kiosk/fh6parse`). The badge stays **1.4.0** until you tag a newer number; shop commits after that badge (preview, mill table / **Add mill…**, travel / G54 box, on-screen isometric, empty-pocket, loops / canned L) still arrive on **UPDATE** as a git hash. Confirm first:
+This section is for **fh6parse 1.4.0** on a **git checkout** (`/home/kiosk/fh6parse`). The badge stays **1.4.0** until you tag a newer number; shop commits after that badge (preview, mill table / **Add mill…**, travel / offset box, on-screen isometric, empty-pocket, loops / canned L) still arrive on **UPDATE** as a git hash. Confirm first:
 
 ```
 python3 -m fh6parse --version
@@ -689,7 +689,7 @@ sudo systemctl disable --now cups
 | Ticket text is readable (PC852 Polish comments), then cut | |
 | Open cover → status **Pokrywa otwarta**; RUN / LOAD / SET do not print | |
 | Paper out → status **Brak papieru**; RUN / LOAD / SET do not print | |
-| Cover closed, paper in → LOAD (short), SET (G54/cycle), RUN (full) print and cut | |
+| Cover closed, paper in → LOAD (short), SET (offset/cycle), RUN (full) print and cut | |
 | No CUPS garbage / doubled jobs | |
 
 **3. D and H vs tool number**
@@ -723,9 +723,9 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Settings (**F2** / **PL** chip): language, mill / **Add mill…**, file + mill pins, RUN / LOAD / SET / spare, ticks per tooth; survives restart | |
 | File knob: rest is stable; highlight changes halfway to the next tooth | |
 | Mill knob: mill name next to **v…** changes; persists like **Add mill…** | |
-| LOAD has T / H / D / S / Min Z, no STEP / G54 / chart | |
-| SET has mill, G54, cycle, no share chart / each Txx M6 | |
-| RUN has STEP (when ready), G54, chart, tool list, each change | |
+| LOAD has T / H / D / S / Min Z, no STEP / offset / chart | |
+| SET has mill, offset, cycle, no share chart / each Txx M6 | |
+| RUN has STEP (when ready), offset, chart, tool list, each change | |
 
-Windows office PC: double-click the exe (or `python -m fh6parse --gui` from a git clone). **Polski / English** radios at the top right (default English). Set **STEP folders…**. **Add mill…** next to the mill combo (name, rapids m/min, B/C, tool-change seconds, optional G53 ATC / G54 / travel). Next to the preview, tick which **report sections** to include (header, notes, STEP, G54, cycle/chart, tool list, each Txx M6, warnings, sign-off). Preview, Print A4, Print 80 mm, and Save all use the same ticks. There are no LOAD / SET / RUN buttons on the GUI — those exist only on the kiosk. Last NC folder, report folder, A4 vs 80 mm, and the section checklist are remembered. A wireframe cube means the STEP bitmap is ready; the stacked isometric also appears above the report preview. With mill travel set, the ticket includes the G54 origin rectangle in G53 mm when that box is ticked. Windows print is still the browser dialog, not `/dev/usb/lp0`. If GitHub (frozen exe) or origin (git) has a newer build, a yellow **UPDATE** button appears after launch — one click, then the window restarts. Frozen **1.4.0** office boxes only show UPDATE after you tag a **newer** version. Publish by tagging **vX.Y.Z** (GitHub Actions builds it) or `packaging\build_windows.bat` then `packaging\publish_windows.ps1`. The tag must match `_version.py`. Do not overwrite `fh6parse-kiosk.ini` next to the exe.
+Windows office PC: double-click the exe (or `python -m fh6parse --gui` from a git clone). **Polski / English** radios at the top right (default English). Set **STEP folders…**. **Add mill…** next to the mill combo (name, rapids m/min, B/C rapid, tool-change seconds, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Next to the preview, tick which **report sections** to include (header, notes, STEP, offset rectangle, cycle/chart, tool list, each Txx M6, warnings, sign-off). Preview, Print A4, Print 80 mm, and Save all use the same ticks. There are no LOAD / SET / RUN buttons on the GUI — those exist only on the kiosk. Last NC folder, report folder, A4 vs 80 mm, and the section checklist are remembered. A wireframe cube means the STEP bitmap is ready; the stacked isometric also appears above the report preview. With mill travel set, the ticket includes the work-offset origin rectangle in G53 mm when that box is ticked. Windows print is still the browser dialog, not `/dev/usb/lp0`. If GitHub (frozen exe) or origin (git) has a newer build, a yellow **UPDATE** button appears after launch — one click, then the window restarts. Frozen **1.4.0** office boxes only show UPDATE after you tag a **newer** version. Publish by tagging **vX.Y.Z** (GitHub Actions builds it) or `packaging\build_windows.bat` then `packaging\publish_windows.ps1`. The tag must match `_version.py`. Do not overwrite `fh6parse-kiosk.ini` next to the exe.
 

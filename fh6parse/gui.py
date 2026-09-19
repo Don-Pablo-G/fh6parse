@@ -20,7 +20,10 @@ from .cadmark import (
 )
 from .i18n import GUI_DEFAULT, cad_status_label, file_count, parse_language, t, update_button_label
 from .kiosk import (
-    MILL_FORM_FIELDS,
+    MILL_FORM_ATC,
+    MILL_FORM_OFFSET,
+    MILL_FORM_SCALARS,
+    MILL_FORM_TRAVEL,
     load_kiosk_config,
     machine_display_name,
     mill_from_form_entries,
@@ -394,18 +397,57 @@ class ToolReportApp(tk.Tk):
         win.resizable(False, False)
         body = ttk.Frame(win, padding=12)
         body.pack(fill=tk.BOTH, expand=True)
-        fields = MILL_FORM_FIELDS
         entries: dict[str, ttk.Entry] = {}
-        for i, (key, default) in enumerate(fields):
-            ttk.Label(body, text=self._tr(key)).grid(row=i, column=0, sticky=tk.W, pady=4)
-            ent = ttk.Entry(body, width=28)
+        row = 0
+        for key, default in MILL_FORM_SCALARS:
+            ttk.Label(body, text=self._tr(key)).grid(
+                row=row, column=0, columnspan=2, sticky=tk.W, pady=(6, 0)
+            )
+            ent = ttk.Entry(body, width=36)
             ent.insert(0, default)
-            ent.grid(row=i, column=1, sticky=tk.EW, padx=(8, 0), pady=4)
+            ent.grid(row=row + 1, column=0, columnspan=6, sticky=tk.EW, pady=(0, 4))
             entries[key] = ent
+            row += 2
+
+        def add_triplet(heading: str, keys: tuple[str, ...]) -> None:
+            nonlocal row
+            ttk.Label(body, text=self._tr(heading)).grid(
+                row=row, column=0, columnspan=6, sticky=tk.W, pady=(8, 2)
+            )
+            row += 1
+            for i, (key, ax) in enumerate(
+                zip(keys, ("machine_ax_x", "machine_ax_y", "machine_ax_z"))
+            ):
+                ttk.Label(body, text=self._tr(ax)).grid(
+                    row=row, column=i * 2, sticky=tk.W, padx=(0 if i == 0 else 8, 4)
+                )
+                ent = ttk.Entry(body, width=10)
+                ent.grid(row=row, column=i * 2 + 1, sticky=tk.EW)
+                entries[key] = ent
+            row += 1
+
+        add_triplet("machine_atc_group", MILL_FORM_ATC)
+        add_triplet("machine_offset_group", MILL_FORM_OFFSET)
+        ttk.Label(body, text=self._tr("machine_travel_group")).grid(
+            row=row, column=0, columnspan=6, sticky=tk.W, pady=(8, 2)
+        )
+        row += 1
+        for pair in MILL_FORM_TRAVEL:
+            for i, key in enumerate(pair):
+                ttk.Label(body, text=self._tr(key)).grid(
+                    row=row, column=i * 2, sticky=tk.W, padx=(0 if i == 0 else 8, 4)
+                )
+                ent = ttk.Entry(body, width=10)
+                ent.grid(row=row, column=i * 2 + 1, sticky=tk.EW)
+                entries[key] = ent
+            row += 1
+        for col in range(6):
+            body.columnconfigure(col, weight=1)
+
         err = ttk.Label(body, foreground="#a40000")
-        err.grid(row=len(fields), column=0, columnspan=2, sticky=tk.W, pady=(4, 8))
+        err.grid(row=row, column=0, columnspan=6, sticky=tk.W, pady=(8, 8))
         btns = ttk.Frame(body)
-        btns.grid(row=len(fields) + 1, column=0, columnspan=2, sticky=tk.E)
+        btns.grid(row=row + 1, column=0, columnspan=6, sticky=tk.E)
 
         def submit() -> None:
             try:

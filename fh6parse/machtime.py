@@ -1,6 +1,6 @@
 """Programmed-motion time: G0/G1/G2/G3, F#n, canned cycles, and optional G53 ATC.
 
-Approx only: no accel. Per-mill ATC + G54 tables mix work and G53 in millimetres.
+Approx only: no accel. Per-mill ATC + work-offset tables mix work and G53 in millimetres.
 """
 
 from __future__ import annotations
@@ -31,11 +31,11 @@ class MachineProfile:
     atc_z: float | None = None
     atc_b: float | None = None
     atc_c: float | None = None
-    g54_x: float | None = None
-    g54_y: float | None = None
-    g54_z: float | None = None
-    g54_b: float | None = None
-    g54_c: float | None = None
+    offset_x: float | None = None
+    offset_y: float | None = None
+    offset_z: float | None = None
+    offset_b: float | None = None
+    offset_c: float | None = None
     tool_length_mm: float = 0.0
     x_min: float | None = None
     x_max: float | None = None
@@ -54,14 +54,14 @@ class MachineProfile:
         return f"{s:g} s"
 
     def has_g53_frame(self) -> bool:
-        """True when this mill has its own ATC and typical G54 in G53 mm."""
+        """True when this mill has its own ATC and typical work offset in G53 mm."""
         return None not in (
             self.atc_x,
             self.atc_y,
             self.atc_z,
-            self.g54_x,
-            self.g54_y,
-            self.g54_z,
+            self.offset_x,
+            self.offset_y,
+            self.offset_z,
         )
 
     def atc_pose(self) -> tuple[float, float, float, float, float]:
@@ -198,26 +198,26 @@ def work_to_g53(
     *,
     inch: bool,
 ) -> Pose5:
-    """Work coordinates → G53 mm using this mill's G54 origin and tool length."""
+    """Work coordinates → G53 mm using this mill's work offset and tool length."""
     if not mill.has_g53_frame():
         return (None, None, None, None, None)
-    g54_b = 0.0 if mill.g54_b is None else mill.g54_b
-    g54_c = 0.0 if mill.g54_c is None else mill.g54_c
+    off_b = 0.0 if mill.offset_b is None else mill.offset_b
+    off_c = 0.0 if mill.offset_c is None else mill.offset_c
 
     def lin(work: float | None, origin: float | None) -> float | None:
         if work is None or origin is None:
             return None
         return origin + to_mm(work, inch=inch)
 
-    mz = lin(wz, mill.g54_z)
+    mz = lin(wz, mill.offset_z)
     if mz is not None:
         mz = mz + mill.tool_length_mm
     return (
-        lin(wx, mill.g54_x),
-        lin(wy, mill.g54_y),
+        lin(wx, mill.offset_x),
+        lin(wy, mill.offset_y),
         mz,
-        lin(wb, g54_b),
-        lin(wc, g54_c),
+        lin(wb, off_b),
+        lin(wc, off_c),
     )
 
 
