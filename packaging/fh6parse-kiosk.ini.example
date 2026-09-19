@@ -56,6 +56,13 @@ extensions = .nc,.tap
 # rapid_mm_min = 25400
 # rotary_deg_min = 5400
 # tool_change_s = 2.8
+# atc_x = -750
+# atc_y = -20
+# atc_z = 0
+# g54_x = -400
+# g54_y = -250
+# g54_z = -400
+# tool_length_mm = 120
 #
 # [machine.vf-2]
 # name = Haas VF-2

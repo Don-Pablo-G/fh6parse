@@ -360,6 +360,28 @@ class TestKioskConfig(unittest.TestCase):
             self.assertAlmostEqual(cfg.active_machine().rapid_mm_min, 25400.0)
             self.assertEqual(cfg.active_machine().tool_change_s, 8.0)
 
+    def test_save_machine_profile_g53_tables(self) -> None:
+        from fh6parse.kiosk import parse_machine_form, save_machine_profile
+
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "kiosk.ini"
+            mill = parse_machine_form(
+                name="Haas VF-4SS",
+                rapid_m_min="25.4",
+                tool_change_s="2.8",
+                atc_xyz="-750, -20, 0",
+                g54_xyz="-400 -250 -400",
+                tool_length_mm="120",
+            )
+            self.assertTrue(mill.has_g53_frame())
+            self.assertAlmostEqual(mill.atc_x or 0, -750)
+            self.assertAlmostEqual(mill.tool_length_mm, 120)
+            save_machine_profile(mill, dest=path)
+            cfg = load_kiosk_config(path)
+            got = cfg.active_machine()
+            self.assertTrue(got.has_g53_frame())
+            self.assertAlmostEqual(got.g54_z or 0, -400)
+            self.assertAlmostEqual(got.tool_length_mm, 120)
 
     def test_reads_last_folder_and_paper(self) -> None:
         from fh6parse.kiosk import parse_gui_paper

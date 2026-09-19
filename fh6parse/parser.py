@@ -17,9 +17,16 @@ from .machtime import (
     canned_cycle_seconds,
     feed_per_min,
     helical_length,
+    merge_pose,
+    pose_linear_delta,
+    pose_rotary_delta,
+    rapid_seconds_mm,
+    rapid_z_then_xy,
     resolve_hash_letter,
     seconds_for_length,
     seconds_for_rotary,
+    to_mm,
+    work_to_g53,
 )
 
 
@@ -850,6 +857,11 @@ def _run_program(
     g53_z: float | None = None
     abs_b: float | None = None
     abs_c: float | None = None
+    g53_b: float | None = None
+    g53_c: float | None = None
+    frame = mill.has_g53_frame()
+    if frame:
+        g53_x, g53_y, g53_z, g53_b, g53_c = mill.atc_pose()
     cycle_active = False
     cycle_z: float | None = None
     cycle_r: float | None = None
@@ -989,14 +1001,28 @@ def _run_program(
                 continue
             abs_x, dx = axis_delta(abs_x, gx, incremental=incremental)
             abs_y, dy = axis_delta(abs_y, gy, incremental=incremental)
-            xy_t = seconds_for_length(
-                math.hypot(dx, dy),
-                None,
-                rapid=True,
-                inch=inch_now,
-                profile=mill,
-            )
             abs_z, dz = axis_delta(abs_z, gz, incremental=incremental)
+            if frame:
+                prev = (g53_x, g53_y, g53_z, g53_b, g53_c)
+                target = merge_pose(
+                    prev,
+                    work_to_g53(
+                        abs_x, abs_y, abs_z, abs_b, abs_c, mill, inch=inch_now
+                    ),
+                )
+                xy_t = rapid_seconds_mm(pose_linear_delta(
+                    (prev[0], prev[1], prev[2], None, None),
+                    (target[0], target[1], prev[2], None, None),
+                ), mill)
+                g53_x, g53_y, g53_z, g53_b, g53_c = target
+            else:
+                xy_t = seconds_for_length(
+                    math.hypot(dx, dy),
+                    None,
+                    rapid=True,
+                    inch=inch_now,
+                    profile=mill,
+                )
             fpm_probe = feed_per_min(gf, per_rev=False, rpm=s_rpm)
             z_t = seconds_for_length(
                 abs(dz),
@@ -1084,6 +1110,15 @@ def _run_program(
                 cycle_p = p_word.value
 
         if _is_tool_change(line):
+            if frame and current is not None:
+                travel = rapid_z_then_xy(
+                    (g53_x, g53_y, g53_z, g53_b, g53_c),
+                    mill.atc_pose(),
+                    mill,
+                )
+                current.add_time(travel)
+                current.line_end = line.number
+                g53_x, g53_y, g53_z, g53_b, g53_c = mill.atc_pose()
             finish_current(line.number - 1)
             t_val, t_hash = _resolve_letter_int(line, "T", hash_vars)
             desc = _tool_description(
@@ -1136,18 +1171,49 @@ def _run_program(
         cycle_line = False
 
         if g53:
-            g53_x, dx = axis_delta(g53_x, x_raw, incremental=False)
-            g53_y, dy = axis_delta(g53_y, y_raw, incremental=False)
-            g53_z, dz = axis_delta(g53_z, z_raw, incremental=False)
-            move = math.hypot(dx, dy, dz)
-            timed = seconds_for_length(
-                move, None, rapid=True, inch=inch_now, profile=mill
-            )
+            if frame:
+                prev = (g53_x, g53_y, g53_z, g53_b, g53_c)
+                target = merge_pose(
+                    prev,
+                    (
+                        to_mm(x_raw, inch=inch_now) if has_x else None,
+                        to_mm(y_raw, inch=inch_now) if has_y else None,
+                        to_mm(z_raw, inch=inch_now) if has_z else None,
+                        b_raw,
+                        c_raw,
+                    ),
+                )
+                timed = rapid_seconds_mm(pose_linear_delta(prev, target), mill)
+                rot = seconds_for_rotary(
+                    pose_rotary_delta(prev, target),
+                    rapid=True,
+                    feed=None,
+                    profile=mill,
+                )
+                g53_x, g53_y, g53_z, g53_b, g53_c = target
+            else:
+                g53_x, dx = axis_delta(g53_x, x_raw, incremental=False)
+                g53_y, dy = axis_delta(g53_y, y_raw, incremental=False)
+                g53_z, dz = axis_delta(g53_z, z_raw, incremental=False)
+                move = math.hypot(dx, dy, dz)
+                timed = seconds_for_length(
+                    move, None, rapid=True, inch=inch_now, profile=mill
+                )
+                abs_b, db = axis_delta(abs_b, b_raw, incremental=incremental)
+                abs_c, dc = axis_delta(abs_c, c_raw, incremental=incremental)
+                rot = seconds_for_rotary(
+                    math.hypot(db, dc),
+                    rapid=True,
+                    feed=fpm,
+                    profile=mill,
+                )
         else:
             in_cycle = cycle_active and cycle_code is not None
             cycle_line = in_cycle and (
                 starting_cycle or has_x or has_y or has_z
             )
+            abs_b, db = axis_delta(abs_b, b_raw, incremental=incremental)
+            abs_c, dc = axis_delta(abs_c, c_raw, incremental=incremental)
             if cycle_line:
                 repeats = _repeat_count(line, 1)
                 total = 0.0
@@ -1168,10 +1234,23 @@ def _run_program(
                                 cycle_z = z_before + z_raw
                         else:
                             cycle_z = z_raw
-                    xy = math.hypot(dx, dy)
-                    xy_t = seconds_for_length(
-                        xy, None, rapid=True, inch=inch_now, profile=mill
-                    )
+                    if frame:
+                        prev = (g53_x, g53_y, g53_z, g53_b, g53_c)
+                        xy_tgt = merge_pose(
+                            prev,
+                            work_to_g53(
+                                abs_x, abs_y, None, abs_b, abs_c, mill, inch=inch_now
+                            ),
+                        )
+                        xy_t = rapid_seconds_mm(
+                            pose_linear_delta(prev, xy_tgt), mill
+                        )
+                        g53_x, g53_y, g53_z, g53_b, g53_c = xy_tgt
+                    else:
+                        xy = math.hypot(dx, dy)
+                        xy_t = seconds_for_length(
+                            xy, None, rapid=True, inch=inch_now, profile=mill
+                        )
                     z_t: float | None = 0.0
                     if cycle_r is not None and cycle_z is not None:
                         z_t = canned_cycle_seconds(
@@ -1200,7 +1279,21 @@ def _run_program(
                         total += xy_t + z_t
                     if current is not None and cycle_z is not None and not g53:
                         current.consider_z(cycle_z, line.number)
+                    if frame:
+                        synced = merge_pose(
+                            (g53_x, g53_y, g53_z, g53_b, g53_c),
+                            work_to_g53(
+                                abs_x, abs_y, abs_z, abs_b, abs_c, mill, inch=inch_now
+                            ),
+                        )
+                        g53_x, g53_y, g53_z, g53_b, g53_c = synced
                 timed = None if missing else total
+                rot = seconds_for_rotary(
+                    math.hypot(db, dc),
+                    rapid=True,
+                    feed=fpm,
+                    profile=mill,
+                )
             else:
                 abs_x, dx = axis_delta(abs_x, x_raw, incremental=incremental)
                 abs_y, dy = axis_delta(abs_y, y_raw, incremental=incremental)
@@ -1227,18 +1320,46 @@ def _run_program(
                     length = helical_length(xy_len, dz)
                 else:
                     length = math.hypot(dx, dy, dz)
-                timed = seconds_for_length(
-                    length, fpm, rapid=motion == 0, inch=inch_now, profile=mill
-                )
+                if frame:
+                    prev = (g53_x, g53_y, g53_z, g53_b, g53_c)
+                    target = merge_pose(
+                        prev,
+                        work_to_g53(
+                            abs_x, abs_y, abs_z, abs_b, abs_c, mill, inch=inch_now
+                        ),
+                    )
+                    if motion == 0:
+                        timed = rapid_seconds_mm(
+                            pose_linear_delta(prev, target), mill
+                        )
+                        rot = seconds_for_rotary(
+                            pose_rotary_delta(prev, target),
+                            rapid=True,
+                            feed=None,
+                            profile=mill,
+                        )
+                    else:
+                        timed = seconds_for_length(
+                            length, fpm, rapid=False, inch=inch_now, profile=mill
+                        )
+                        rot = seconds_for_rotary(
+                            math.hypot(db, dc),
+                            rapid=False,
+                            feed=fpm,
+                            profile=mill,
+                        )
+                    g53_x, g53_y, g53_z, g53_b, g53_c = target
+                else:
+                    timed = seconds_for_length(
+                        length, fpm, rapid=motion == 0, inch=inch_now, profile=mill
+                    )
+                    rot = seconds_for_rotary(
+                        math.hypot(db, dc),
+                        rapid=motion == 0,
+                        feed=fpm,
+                        profile=mill,
+                    )
 
-        abs_b, db = axis_delta(abs_b, b_raw, incremental=incremental)
-        abs_c, dc = axis_delta(abs_c, c_raw, incremental=incremental)
-        rot = seconds_for_rotary(
-            math.hypot(db, dc),
-            rapid=motion == 0 or g53,
-            feed=fpm,
-            profile=mill,
-        )
         if current is not None:
             current.add_time(timed)
             current.add_time(rot)

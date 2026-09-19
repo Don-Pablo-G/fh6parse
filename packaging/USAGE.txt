@@ -37,7 +37,10 @@ from G0/G1/G2/G3, F#nnn, and Haas/Fanuc canned cycles (G73 chip-break 0.2 mm,
 G83 full retract to R, G84 retract at 1.0×F).
 Rapids and tool-change time come from the mill in fh6parse-kiosk.ini
 ([machine.<id>] plus kiosk.machine). Built-in default is 20 m/min and 0 s
-tool change. No accel. A trailing + means missing F or S.
+tool change. Optional per mill: ATC and typical G54 in G53 mm, plus tool
+length. Then Txx M6 rapids Z then XY/BC to that mill’s ATC; work G0 is
+timed in G53. Empty tables keep the old estimate. No accel. A trailing +
+means missing F or S.
 Each operation shows Cycle (that path until M30) and a share chart of each T.
 FULL also prints % of cycle on each Txx M6. MIN adds H/D/S to load and
 H/D/G95 mismatch flags on that short slip. Text/80 mm uses a solid block bar
@@ -58,9 +61,9 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   same fh6parse-kiosk.ini as STEP folders (and in %USERPROFILE%\.config\fh6parse\ui.ini).
   Last NC folder, report output folder, and A4 vs 80 mm preview are stored there too.
   Machine: combo on the preview row. Add mill… writes a [machine.<id>]
-  section (rapids m/min, B/C deg/min, tool-change seconds). The kiosk has
-  the same form in settings (F2). You can still add [machine.<id>] by hand.
-  Current mill is kiosk.machine in the same files.
+  section (rapids, B/C, tool-change seconds, optional G53 ATC / G54 / tool
+  length). The kiosk has the same form in settings (F2). You can still add
+  [machine.<id>] by hand. Current mill is kiosk.machine in the same files.
   Views are visible edges only (no shading). The longest axis is across the
   80 mm width; height is cropped to the part (a long shaft is a thin strip).
   Update: if origin (git GUI) or GitHub Releases (frozen exe) has a newer

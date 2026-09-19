@@ -321,5 +321,83 @@ M30
         self.assertIn("Tchg 10s", mini)
 
 
+class TestG53FrameTime(unittest.TestCase):
+    mill = MachineProfile(
+        id="vf",
+        name="VF G53",
+        rapid_mm_min=60000.0,
+        tool_change_s=2.0,
+        atc_x=0.0,
+        atc_y=0.0,
+        atc_z=0.0,
+        g54_x=0.0,
+        g54_y=0.0,
+        g54_z=0.0,
+        tool_length_mm=0.0,
+    )
+
+    def test_default_mill_has_no_g53_frame(self) -> None:
+        from fh6parse.machtime import DEFAULT_MACHINE, work_to_g53
+
+        self.assertFalse(DEFAULT_MACHINE.has_g53_frame())
+        self.assertIsNone(work_to_g53(0, 0, 10, None, None, DEFAULT_MACHINE, inch=False)[2])
+
+    def test_work_to_g53_adds_origin_and_tool_length(self) -> None:
+        from fh6parse.machtime import work_to_g53
+
+        mill = MachineProfile(
+            id="vf",
+            name="VF",
+            atc_x=0,
+            atc_y=0,
+            atc_z=0,
+            g54_x=-400,
+            g54_y=-250,
+            g54_z=-400,
+            tool_length_mm=120,
+        )
+        mx, my, mz, _, _ = work_to_g53(10, 5, 10, None, None, mill, inch=False)
+        self.assertAlmostEqual(mx, -390)
+        self.assertAlmostEqual(my, -245)
+        self.assertAlmostEqual(mz, -270)
+
+    def test_m6_charges_z_then_xy_on_finishing_tool(self) -> None:
+        src = """O1
+T1 M6
+G90 G0 X0 Y0 Z10
+T2 M6
+G0 X0 Y0 Z50
+M30
+"""
+        r = parse_nc_text(src, "t.nc", machine=self.mill)
+        t1, t2 = r.usages
+        # T1: 2 s swap + 10 mm from ATC to Z10 + 10 mm Z retract to ATC
+        self.assertAlmostEqual(t1.time_s, 2.02, places=4)
+        # T2: 2 s swap + 50 mm from ATC to Z50
+        self.assertAlmostEqual(t2.time_s, 2.05, places=4)
+        self.assertIn("G53 ATC/G54", format_report(r))
+
+    def test_g53_to_atc_does_not_double_count_m6_retract(self) -> None:
+        with_g53 = """O1
+T1 M6
+G90 G0 X100 Y0 Z10
+G53 G0 Z0
+T2 M6
+M30
+"""
+        without = """O1
+T1 M6
+G90 G0 X100 Y0 Z10
+T2 M6
+M30
+"""
+        a = parse_nc_text(with_g53, "t.nc", machine=self.mill).usages[0]
+        b = parse_nc_text(without, "t.nc", machine=self.mill).usages[0]
+        # G53 Z retract replaces the M6 Z leg; a second Z charge would make `a` larger.
+        self.assertAlmostEqual(a.time_s, b.time_s, places=4)
+        approach = (100.0**2 + 10.0**2) ** 0.5 / 1000.0
+        self.assertAlmostEqual(a.time_s, 2.0 + approach + 0.01 + 0.1, places=3)
+
+
 if __name__ == "__main__":
     unittest.main()

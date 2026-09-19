@@ -91,6 +91,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "machine_rapid": "Rapids (m/min)",
         "machine_rotary": "B/C rapid (deg/min)",
         "machine_tchg": "Tool change (s)",
+        "machine_atc": "ATC G53 X Y Z",
+        "machine_atc_bc": "ATC G53 B C",
+        "machine_g54": "G54 G53 X Y Z",
+        "machine_g54_bc": "G54 G53 B C",
+        "machine_tool_len": "Tool length (mm)",
         "machine_save": "Save mill",
         "machine_cancel": "Cancel",
         "machine_name_required": "Type a mill name.",
@@ -239,8 +244,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "ticket_op_m97": "Op = change M97 P#",
         "ticket_rapids": "rapids {rapid}",
         "ticket_tchg": "tool change {tchg}",
+        "ticket_g53_frame": "G53 ATC/G54",
         "ticket_no_accel": "no accel",
         "ticket_tchg_compact": "Tchg {tchg}",
+        "ticket_g53_compact": "G53",
         "ticket_html_fine": (
             "Min Z is lowest work-coordinate Z (G53/G28 ignored). "
             "Time is programmed motion and canned cycles (approx; {assumptions}). "
@@ -344,6 +351,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "machine_rapid": "Szybkie (m/min)",
         "machine_rotary": "B/C szybkie (stopnie/min)",
         "machine_tchg": "Wymiana narzędzia (s)",
+        "machine_atc": "ATC G53 X Y Z",
+        "machine_atc_bc": "ATC G53 B C",
+        "machine_g54": "G54 G53 X Y Z",
+        "machine_g54_bc": "G54 G53 B C",
+        "machine_tool_len": "Długość narzędzia (mm)",
         "machine_save": "Zapisz obrabiarkę",
         "machine_cancel": "Anuluj",
         "machine_name_required": "Wpisz nazwę obrabiarki.",
@@ -492,8 +504,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "ticket_op_m97": "Op = zmień M97 P#",
         "ticket_rapids": "szybkie {rapid}",
         "ticket_tchg": "wymiana narzędzia {tchg}",
+        "ticket_g53_frame": "G53 ATC/G54",
         "ticket_no_accel": "bez przysp.",
         "ticket_tchg_compact": "Wym. {tchg}",
+        "ticket_g53_compact": "G53",
         "ticket_html_fine": (
             "Min Z to najniższe Z we współrzędnych detalu (G53/G28 pomijane). "
             "Czas to ruchy programowane i cykle wiertarskie (ok.; {assumptions}). "

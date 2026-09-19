@@ -20,10 +20,11 @@ from .cadmark import (
 )
 from .i18n import GUI_DEFAULT, cad_status_label, file_count, parse_language, t, update_button_label
 from .kiosk import (
+    MILL_FORM_FIELDS,
     load_kiosk_config,
     machine_display_name,
+    mill_from_form_entries,
     parse_gui_paper,
-    parse_machine_form,
     save_kiosk_values,
     save_machine_profile,
     save_model_roots,
@@ -343,12 +344,7 @@ class ToolReportApp(tk.Tk):
         win.resizable(False, False)
         body = ttk.Frame(win, padding=12)
         body.pack(fill=tk.BOTH, expand=True)
-        fields = (
-            ("machine_name", ""),
-            ("machine_rapid", "20"),
-            ("machine_rotary", "5400"),
-            ("machine_tchg", "0"),
-        )
+        fields = MILL_FORM_FIELDS
         entries: dict[str, ttk.Entry] = {}
         for i, (key, default) in enumerate(fields):
             ttk.Label(body, text=self._tr(key)).grid(row=i, column=0, sticky=tk.W, pady=4)
@@ -363,11 +359,8 @@ class ToolReportApp(tk.Tk):
 
         def submit() -> None:
             try:
-                mill = parse_machine_form(
-                    name=entries["machine_name"].get(),
-                    rapid_m_min=entries["machine_rapid"].get(),
-                    rotary_deg_min=entries["machine_rotary"].get(),
-                    tool_change_s=entries["machine_tchg"].get(),
+                mill = mill_from_form_entries(
+                    entries,
                     existing_ids={m.id for m in self._machines},
                 )
             except ValueError as exc:

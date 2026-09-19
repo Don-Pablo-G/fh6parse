@@ -259,12 +259,27 @@ def _parse_form_number(raw: str, default: float) -> float:
     return float(text)
 
 
+def _parse_optional_floats(raw: str, count: int) -> tuple[float | None, ...]:
+    text = (raw or "").strip().replace(",", " ")
+    if not text:
+        return tuple(None for _ in range(count))
+    parts = text.split()
+    if len(parts) != count:
+        raise ValueError("machine_bad_number")
+    return tuple(float(p.replace(",", ".")) for p in parts)
+
+
 def parse_machine_form(
     *,
     name: str,
     rapid_m_min: str = "",
     rotary_deg_min: str = "",
     tool_change_s: str = "",
+    atc_xyz: str = "",
+    g54_xyz: str = "",
+    tool_length_mm: str = "",
+    atc_bc: str = "",
+    g54_bc: str = "",
     existing_ids: set[str] | None = None,
 ) -> MachineProfile:
     """Build a MachineProfile from the Add mill form. Raises ValueError(i18n key)."""
@@ -275,9 +290,14 @@ def parse_machine_form(
         rapid_m = _parse_form_number(rapid_m_min, RAPID_MM_PER_MIN / 1000.0)
         rotary = _parse_form_number(rotary_deg_min, ROTARY_DEG_PER_MIN)
         tchg = _parse_form_number(tool_change_s, 0.0)
+        tlen = _parse_form_number(tool_length_mm, 0.0)
+        atc_x, atc_y, atc_z = _parse_optional_floats(atc_xyz, 3)
+        g54_x, g54_y, g54_z = _parse_optional_floats(g54_xyz, 3)
+        atc_b, atc_c = _parse_optional_floats(atc_bc, 2)
+        g54_b, g54_c = _parse_optional_floats(g54_bc, 2)
     except ValueError as exc:
         raise ValueError("machine_bad_number") from exc
-    if rapid_m <= 0 or rotary <= 0 or tchg < 0:
+    if rapid_m <= 0 or rotary <= 0 or tchg < 0 or tlen < 0:
         raise ValueError("machine_bad_number")
     return MachineProfile(
         id=unique_machine_id(label, existing_ids),
@@ -285,6 +305,47 @@ def parse_machine_form(
         rapid_mm_min=rapid_m * 1000.0,
         rotary_deg_min=rotary,
         tool_change_s=tchg,
+        atc_x=atc_x,
+        atc_y=atc_y,
+        atc_z=atc_z,
+        atc_b=atc_b,
+        atc_c=atc_c,
+        g54_x=g54_x,
+        g54_y=g54_y,
+        g54_z=g54_z,
+        g54_b=g54_b,
+        g54_c=g54_c,
+        tool_length_mm=tlen,
+    )
+
+
+MILL_FORM_FIELDS = (
+    ("machine_name", ""),
+    ("machine_rapid", "20"),
+    ("machine_rotary", "5400"),
+    ("machine_tchg", "0"),
+    ("machine_atc", ""),
+    ("machine_atc_bc", ""),
+    ("machine_g54", ""),
+    ("machine_g54_bc", ""),
+    ("machine_tool_len", ""),
+)
+
+
+def mill_from_form_entries(
+    entries: dict, existing_ids: set[str] | None = None
+) -> MachineProfile:
+    return parse_machine_form(
+        name=entries["machine_name"].get(),
+        rapid_m_min=entries["machine_rapid"].get(),
+        rotary_deg_min=entries["machine_rotary"].get(),
+        tool_change_s=entries["machine_tchg"].get(),
+        atc_xyz=entries["machine_atc"].get(),
+        atc_bc=entries["machine_atc_bc"].get(),
+        g54_xyz=entries["machine_g54"].get(),
+        g54_bc=entries["machine_g54_bc"].get(),
+        tool_length_mm=entries["machine_tool_len"].get(),
+        existing_ids=existing_ids,
     )
 
 
@@ -299,6 +360,16 @@ def _ini_number(value: float) -> str:
     if abs(value - round(value)) < 1e-9:
         return str(int(round(value)))
     return f"{value:g}"
+
+
+def _opt_ini_float(src: configparser.SectionProxy, key: str) -> float | None:
+    raw = src.get(key, fallback="").strip().replace(",", ".")
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
 
 
 def _machine_from_section(
@@ -318,12 +389,26 @@ def _machine_from_section(
     tchg = src.getfloat("tool_change_s", fallback=0.0)
     if tchg < 0:
         tchg = 0.0
+    tlen = src.getfloat("tool_length_mm", fallback=0.0)
+    if tlen < 0:
+        tlen = 0.0
     return MachineProfile(
         id=mid,
         name=name,
         rapid_mm_min=rapid,
         rotary_deg_min=rotary,
         tool_change_s=tchg,
+        atc_x=_opt_ini_float(src, "atc_x"),
+        atc_y=_opt_ini_float(src, "atc_y"),
+        atc_z=_opt_ini_float(src, "atc_z"),
+        atc_b=_opt_ini_float(src, "atc_b"),
+        atc_c=_opt_ini_float(src, "atc_c"),
+        g54_x=_opt_ini_float(src, "g54_x"),
+        g54_y=_opt_ini_float(src, "g54_y"),
+        g54_z=_opt_ini_float(src, "g54_z"),
+        g54_b=_opt_ini_float(src, "g54_b"),
+        g54_c=_opt_ini_float(src, "g54_c"),
+        tool_length_mm=tlen,
     )
 
 
@@ -425,6 +510,28 @@ def save_machine_profile(
     parser.set(section, "rapid_mm_min", _ini_number(mill.rapid_mm_min))
     parser.set(section, "rotary_deg_min", _ini_number(mill.rotary_deg_min))
     parser.set(section, "tool_change_s", _ini_number(mill.tool_change_s))
+    coords = (
+        ("atc_x", mill.atc_x),
+        ("atc_y", mill.atc_y),
+        ("atc_z", mill.atc_z),
+        ("atc_b", mill.atc_b),
+        ("atc_c", mill.atc_c),
+        ("g54_x", mill.g54_x),
+        ("g54_y", mill.g54_y),
+        ("g54_z", mill.g54_z),
+        ("g54_b", mill.g54_b),
+        ("g54_c", mill.g54_c),
+    )
+    for key, value in coords:
+        if value is None:
+            if parser.has_option(section, key):
+                parser.remove_option(section, key)
+        else:
+            parser.set(section, key, _ini_number(value))
+    if mill.tool_length_mm:
+        parser.set(section, "tool_length_mm", _ini_number(mill.tool_length_mm))
+    elif parser.has_option(section, "tool_length_mm"):
+        parser.remove_option(section, "tool_length_mm")
     if select:
         if not parser.has_section("kiosk"):
             parser.add_section("kiosk")
@@ -1068,13 +1175,7 @@ class KioskApp(tk.Tk):
         self._mill_title.pack(anchor="w")
         self._mill_field_lbls: dict[str, tk.Label] = {}
         self._mill_entries: dict[str, tk.Entry] = {}
-        specs = (
-            ("machine_name", ""),
-            ("machine_rapid", "20"),
-            ("machine_rotary", "5400"),
-            ("machine_tchg", "0"),
-        )
-        for key, default in specs:
+        for key, default in MILL_FORM_FIELDS:
             lbl = tk.Label(
                 panel,
                 text=t(self._lang, key),
@@ -1082,7 +1183,7 @@ class KioskApp(tk.Tk):
                 bg="#1a1a1a",
                 fg="#eeeeee",
             )
-            lbl.pack(anchor="w", pady=(10, 2))
+            lbl.pack(anchor="w", pady=(4, 0))
             self._mill_field_lbls[key] = lbl
             ent = tk.Entry(
                 panel,
@@ -1441,12 +1542,7 @@ class KioskApp(tk.Tk):
 
     def _show_mill_form(self) -> None:
         self._mill_err.config(text="")
-        defaults = {
-            "machine_name": "",
-            "machine_rapid": "20",
-            "machine_rotary": "5400",
-            "machine_tchg": "0",
-        }
+        defaults = {key: default for key, default in MILL_FORM_FIELDS}
         for key, value in defaults.items():
             ent = self._mill_entries[key]
             ent.delete(0, tk.END)
@@ -1467,11 +1563,8 @@ class KioskApp(tk.Tk):
 
     def _save_mill_form(self) -> None:
         try:
-            mill = parse_machine_form(
-                name=self._mill_entries["machine_name"].get(),
-                rapid_m_min=self._mill_entries["machine_rapid"].get(),
-                rotary_deg_min=self._mill_entries["machine_rotary"].get(),
-                tool_change_s=self._mill_entries["machine_tchg"].get(),
+            mill = mill_from_form_entries(
+                self._mill_entries,
                 existing_ids={m.id for m in self.cfg.machines},
             )
         except ValueError as exc:

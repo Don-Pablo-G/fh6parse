@@ -1,6 +1,6 @@
-"""Programmed-motion time: G0/G1/G2/G3, F#n, and canned cycles.
+"""Programmed-motion time: G0/G1/G2/G3, F#n, canned cycles, and optional G53 ATC.
 
-Approx only: no accel, assumed mill rapids, work XYZ not mixed with G53.
+Approx only: no accel. Per-mill ATC + G54 tables mix work and G53 in millimetres.
 """
 
 from __future__ import annotations
@@ -14,6 +14,9 @@ RAPID_MM_PER_MIN = 20000.0
 ROTARY_DEG_PER_MIN = 5400.0  # 90 deg/s B/C
 
 
+Pose5 = tuple[float | None, float | None, float | None, float | None, float | None]
+
+
 @dataclass(frozen=True)
 class MachineProfile:
     """Shop mill used for programmed-time estimates."""
@@ -23,6 +26,17 @@ class MachineProfile:
     rapid_mm_min: float = RAPID_MM_PER_MIN
     rotary_deg_min: float = ROTARY_DEG_PER_MIN
     tool_change_s: float = 0.0
+    atc_x: float | None = None
+    atc_y: float | None = None
+    atc_z: float | None = None
+    atc_b: float | None = None
+    atc_c: float | None = None
+    g54_x: float | None = None
+    g54_y: float | None = None
+    g54_z: float | None = None
+    g54_b: float | None = None
+    g54_c: float | None = None
+    tool_length_mm: float = 0.0
 
     def rapid_m_min_label(self) -> str:
         return f"{self.rapid_mm_min / 1000.0:.0f} m/min"
@@ -32,6 +46,26 @@ class MachineProfile:
         if abs(s - round(s)) < 1e-6:
             return f"{int(round(s))} s"
         return f"{s:g} s"
+
+    def has_g53_frame(self) -> bool:
+        """True when this mill has its own ATC and typical G54 in G53 mm."""
+        return None not in (
+            self.atc_x,
+            self.atc_y,
+            self.atc_z,
+            self.g54_x,
+            self.g54_y,
+            self.g54_z,
+        )
+
+    def atc_pose(self) -> tuple[float, float, float, float, float]:
+        return (
+            float(self.atc_x or 0.0),
+            float(self.atc_y or 0.0),
+            float(self.atc_z or 0.0),
+            0.0 if self.atc_b is None else self.atc_b,
+            0.0 if self.atc_c is None else self.atc_c,
+        )
 
 
 DEFAULT_MACHINE = MachineProfile()
@@ -136,6 +170,101 @@ def axis_delta(
     if prev is None:
         return word, 0.0
     return word, word - prev
+
+
+def to_mm(value: float, *, inch: bool) -> float:
+    return value * 25.4 if inch else value
+
+
+def work_to_g53(
+    wx: float | None,
+    wy: float | None,
+    wz: float | None,
+    wb: float | None,
+    wc: float | None,
+    mill: MachineProfile,
+    *,
+    inch: bool,
+) -> Pose5:
+    """Work coordinates → G53 mm using this mill's G54 origin and tool length."""
+    if not mill.has_g53_frame():
+        return (None, None, None, None, None)
+    g54_b = 0.0 if mill.g54_b is None else mill.g54_b
+    g54_c = 0.0 if mill.g54_c is None else mill.g54_c
+
+    def lin(work: float | None, origin: float | None) -> float | None:
+        if work is None or origin is None:
+            return None
+        return origin + to_mm(work, inch=inch)
+
+    mz = lin(wz, mill.g54_z)
+    if mz is not None:
+        mz = mz + mill.tool_length_mm
+    return (
+        lin(wx, mill.g54_x),
+        lin(wy, mill.g54_y),
+        mz,
+        lin(wb, g54_b),
+        lin(wc, g54_c),
+    )
+
+
+def merge_pose(prev: Pose5, target: Pose5) -> Pose5:
+    return tuple(
+        t if t is not None else p for t, p in zip(target, prev)
+    )  # type: ignore[return-value]
+
+
+def pose_linear_delta(prev: Pose5, new: Pose5) -> float:
+    total = 0.0
+    for i in range(3):
+        a, b = prev[i], new[i]
+        if a is None or b is None:
+            continue
+        total += (b - a) ** 2
+    return math.sqrt(total)
+
+
+def pose_rotary_delta(prev: Pose5, new: Pose5) -> float:
+    db = 0.0
+    dc = 0.0
+    if prev[3] is not None and new[3] is not None:
+        db = new[3] - prev[3]
+    if prev[4] is not None and new[4] is not None:
+        dc = new[4] - prev[4]
+    return math.hypot(db, dc)
+
+
+def rapid_seconds_mm(
+    length: float, mill: MachineProfile | None = None
+) -> float:
+    timed = seconds_for_length(
+        length, None, rapid=True, inch=False, profile=mill
+    )
+    return 0.0 if timed is None else timed
+
+
+def rapid_z_then_xy(
+    prev: Pose5,
+    dest: tuple[float, float, float, float, float],
+    mill: MachineProfile,
+) -> float:
+    """Tool-change path: Z retract, then XY and B/C, at mill rapids (mm)."""
+    px, py, pz, pb, pc = prev
+    dx, dy, dz, db, dc = dest
+    z_move = 0.0 if pz is None else abs(dz - pz)
+    x_move = 0.0 if px is None else dx - px
+    y_move = 0.0 if py is None else dy - py
+    b_move = 0.0 if pb is None else db - pb
+    c_move = 0.0 if pc is None else dc - pc
+    rot = seconds_for_rotary(
+        math.hypot(b_move, c_move), rapid=True, feed=None, profile=mill
+    )
+    return (
+        rapid_seconds_mm(z_move, mill)
+        + rapid_seconds_mm(math.hypot(x_move, y_move), mill)
+        + (0.0 if rot is None else rot)
+    )
 
 
 def arc_xy_length(

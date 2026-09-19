@@ -109,10 +109,14 @@ def _time_assumptions(result: ParseResult, *, compact: bool = False) -> str:
                     tchg=mill.tool_change_label().replace(" ", ""),
                 )
             )
+        if mill.has_g53_frame():
+            bits.append(_tr("ticket_g53_compact"))
         return " ".join(bits)
     bits = [_tr("ticket_rapids", rapid=rapid)]
     if tchg > 0:
         bits.append(_tr("ticket_tchg", tchg=mill.tool_change_label()))
+    if mill.has_g53_frame():
+        bits.append(_tr("ticket_g53_frame"))
     bits.append(_tr("ticket_no_accel"))
     head = f"{mill.name}, " if named else ""
     return f"{head}{', '.join(bits)}"
