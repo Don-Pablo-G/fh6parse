@@ -63,6 +63,12 @@ extensions = .nc,.tap
 # g54_y = -250
 # g54_z = -400
 # tool_length_mm = 120
+# x_min = -1270
+# x_max = 0
+# y_min = -508
+# y_max = 0
+# z_min = -635
+# z_max = 0
 #
 # [machine.vf-2]
 # name = Haas VF-2

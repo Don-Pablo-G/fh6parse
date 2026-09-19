@@ -37,6 +37,12 @@ class MachineProfile:
     g54_b: float | None = None
     g54_c: float | None = None
     tool_length_mm: float = 0.0
+    x_min: float | None = None
+    x_max: float | None = None
+    y_min: float | None = None
+    y_max: float | None = None
+    z_min: float | None = None
+    z_max: float | None = None
 
     def rapid_m_min_label(self) -> str:
         return f"{self.rapid_mm_min / 1000.0:.0f} m/min"
@@ -66,6 +72,12 @@ class MachineProfile:
             0.0 if self.atc_b is None else self.atc_b,
             0.0 if self.atc_c is None else self.atc_c,
         )
+
+    def has_xy_travel(self) -> bool:
+        return None not in (self.x_min, self.x_max, self.y_min, self.y_max)
+
+    def has_z_travel(self) -> bool:
+        return None not in (self.z_min, self.z_max)
 
 
 DEFAULT_MACHINE = MachineProfile()

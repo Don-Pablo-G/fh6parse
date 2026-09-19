@@ -45,6 +45,7 @@ from .machtime import (
 from .modelmatch import is_under
 from .modelprep import cad_status, ModelPrep
 from .parser import ParseResult, parse_nc_file
+from .workarea import append_g54_png
 from .printer import (
     PrinterStatus,
     printer_block_key,
@@ -280,6 +281,8 @@ def parse_machine_form(
     tool_length_mm: str = "",
     atc_bc: str = "",
     g54_bc: str = "",
+    travel_xy: str = "",
+    travel_z: str = "",
     existing_ids: set[str] | None = None,
 ) -> MachineProfile:
     """Build a MachineProfile from the Add mill form. Raises ValueError(i18n key)."""
@@ -295,6 +298,8 @@ def parse_machine_form(
         g54_x, g54_y, g54_z = _parse_optional_floats(g54_xyz, 3)
         atc_b, atc_c = _parse_optional_floats(atc_bc, 2)
         g54_b, g54_c = _parse_optional_floats(g54_bc, 2)
+        x_min, x_max, y_min, y_max = _parse_optional_floats(travel_xy, 4)
+        z_min, z_max = _parse_optional_floats(travel_z, 2)
     except ValueError as exc:
         raise ValueError("machine_bad_number") from exc
     if rapid_m <= 0 or rotary <= 0 or tchg < 0 or tlen < 0:
@@ -316,6 +321,12 @@ def parse_machine_form(
         g54_b=g54_b,
         g54_c=g54_c,
         tool_length_mm=tlen,
+        x_min=x_min,
+        x_max=x_max,
+        y_min=y_min,
+        y_max=y_max,
+        z_min=z_min,
+        z_max=z_max,
     )
 
 
@@ -329,6 +340,8 @@ MILL_FORM_FIELDS = (
     ("machine_g54", ""),
     ("machine_g54_bc", ""),
     ("machine_tool_len", ""),
+    ("machine_travel_xy", ""),
+    ("machine_travel_z", ""),
 )
 
 
@@ -345,6 +358,8 @@ def mill_from_form_entries(
         g54_xyz=entries["machine_g54"].get(),
         g54_bc=entries["machine_g54_bc"].get(),
         tool_length_mm=entries["machine_tool_len"].get(),
+        travel_xy=entries["machine_travel_xy"].get(),
+        travel_z=entries["machine_travel_z"].get(),
         existing_ids=existing_ids,
     )
 
@@ -409,6 +424,12 @@ def _machine_from_section(
         g54_b=_opt_ini_float(src, "g54_b"),
         g54_c=_opt_ini_float(src, "g54_c"),
         tool_length_mm=tlen,
+        x_min=_opt_ini_float(src, "x_min"),
+        x_max=_opt_ini_float(src, "x_max"),
+        y_min=_opt_ini_float(src, "y_min"),
+        y_max=_opt_ini_float(src, "y_max"),
+        z_min=_opt_ini_float(src, "z_min"),
+        z_max=_opt_ini_float(src, "z_max"),
     )
 
 
@@ -521,6 +542,12 @@ def save_machine_profile(
         ("g54_z", mill.g54_z),
         ("g54_b", mill.g54_b),
         ("g54_c", mill.g54_c),
+        ("x_min", mill.x_min),
+        ("x_max", mill.x_max),
+        ("y_min", mill.y_min),
+        ("y_max", mill.y_max),
+        ("z_min", mill.z_min),
+        ("z_max", mill.z_max),
     )
     for key, value in coords:
         if value is None:
@@ -2310,6 +2337,7 @@ class KioskApp(tk.Tk):
             images: list[Path] = []
             if self._models is not None:
                 images = self._models.ready_images(path)
+            images = append_g54_png(result, images)
             route = print_ticket(
                 text,
                 queue=self.cfg.printer_queue,

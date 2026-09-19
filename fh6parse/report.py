@@ -25,6 +25,7 @@ from .parser import (
 )
 from .machtime import DEFAULT_MACHINE, format_machine_time
 from .safepath import refuse_write
+from .workarea import append_g54_png, fmt_mm, fmt_xy, window_for_result
 
 
 _ticket_lang: ContextVar[str] = ContextVar("ticket_lang", default=GUI_DEFAULT)
@@ -372,6 +373,36 @@ def format_report(
     return _format_text_a4(result, generated=generated)
 
 
+def _g54_ticket_lines(result: ParseResult, width: int) -> list[str]:
+    window = window_for_result(result)
+    if window is None:
+        return []
+    sw, se, ne, nw = window.corners
+    cx, cy = window.center
+    raw = [
+        _tr("ticket_g54_heading"),
+        _tr("ticket_g54_sw", xy=fmt_xy(*sw)),
+        _tr("ticket_g54_se", xy=fmt_xy(*se)),
+        _tr("ticket_g54_ne", xy=fmt_xy(*ne)),
+        _tr("ticket_g54_nw", xy=fmt_xy(*nw)),
+        _tr("ticket_g54_center", xy=fmt_xy(cx, cy)),
+    ]
+    if window.z_min is not None and window.z_max is not None:
+        raw.append(
+            _tr("ticket_g54_z", z0=fmt_mm(window.z_min), z1=fmt_mm(window.z_max))
+        )
+    if not window.fits:
+        raw.append(_tr("ticket_g54_too_big"))
+    elif window.g54_inside is False:
+        raw.append(_tr("ticket_g54_out"))
+    elif window.g54_inside is True:
+        raw.append(_tr("ticket_g54_ok"))
+    lines: list[str] = []
+    for text in raw:
+        lines.extend(_wrap(text, width))
+    return lines
+
+
 def _a4_field(label: str, value: str) -> str:
     return f"{label:<14}{value}"
 
@@ -412,6 +443,8 @@ def _format_text_a4(result: ParseResult, *, generated: datetime | None) -> str:
     w(_tr("ticket_sim_legend"))
     w(_tr("ticket_m97_legend"))
     w(_tr("ticket_loaded_legend"))
+    for part in _g54_ticket_lines(result, w78):
+        w(part)
     ops = result.operations or []
     if not ops:
         w("")
@@ -510,6 +543,8 @@ def _format_text_80mm(result: ParseResult, *, generated: datetime | None) -> str
     w(_tr("ticket_time_moves", assumptions=_time_assumptions(result, compact=True)))
     w(_tr("ticket_until_m30"))
     w(_tr("ticket_op_m97"))
+    for part in _g54_ticket_lines(result, n):
+        w(part)
     for op in result.operations or []:
         w(dash)
         block(_op_heading(op))
@@ -583,6 +618,8 @@ def _format_text_80mm_min(result: ParseResult, *, generated: datetime | None) ->
     w(dash)
     w(_tr("ticket_minz_work"))
     w(_tr("ticket_time_moves", assumptions=_time_assumptions(result, compact=True)))
+    for part in _g54_ticket_lines(result, n):
+        w(part)
     for op in result.operations or []:
         w(dash)
         block(_op_heading(op))
@@ -624,6 +661,7 @@ def format_print_html(
 ) -> str:
     _set_ticket_lang(lang)
     paper = paper.lower()
+    image_paths = append_g54_png(result, image_paths)
     if paper in (PAPER_80MM, PAPER_80MM_MIN):
         return _html_80mm(
             result,
@@ -652,13 +690,21 @@ def _step_views_html(image_paths: list[Path] | None) -> str:
         if not blob:
             continue
         b64 = base64.b64encode(blob).decode("ascii")
+        alt_key = "ticket_g54_alt" if path.name.startswith("g54-") else "ticket_step_alt"
         parts.append(
-            f'<img class="step-view" alt="{escape(_tr("ticket_step_alt"))}" '
+            f'<img class="step-view" alt="{escape(_tr(alt_key))}" '
             f'src="data:image/png;base64,{b64}">'
         )
     if not parts:
         return ""
     return '<div class="step-views">' + "".join(parts) + "</div>"
+
+
+def _g54_html(result: ParseResult) -> str:
+    lines = _g54_ticket_lines(result, A4_WIDTH)
+    if not lines:
+        return ""
+    return '<p class="fine">' + "<br>".join(escape(x) for x in lines) + "</p>"
 
 
 def _html_shell(title: str, css: str, body: str, *, auto_print: bool, hint: str) -> str:
@@ -854,6 +900,7 @@ table.chart td.bar { padding-right: 0; }
 </div>
 {notes}
 <p class="fine">{escape(_tr("ticket_html_fine", assumptions=_time_assumptions(result)))}</p>
+{_g54_html(result)}
 {"".join(op_html)}
 <div class="sign">
   <div class="line">{escape(_tr("ticket_operator"))}</div>
@@ -944,6 +991,9 @@ pre.chart {
     a(
         f"<div>{escape(_tr('ticket_time_moves_html', assumptions=_time_assumptions(result, compact=True)))}</div>"
     )
+    g54 = _g54_html(result)
+    if g54:
+        a(g54)
     if not short:
         a(f"<div>{escape(_tr('ticket_until_m30'))}</div>")
         a(f"<div>{escape(_tr('ticket_op_m97'))}</div>")

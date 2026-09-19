@@ -87,7 +87,7 @@ Pokrętło **nie otwiera** ustawień.
 | --- | --- |
 | Otwórz ustawienia | **F2** albo **C**, albo kliknij **PL** / **EN** przy wersji |
 | Język | **Polski** / **English** — dotyczy ekranu **i** biletu |
-| Obrabiarka | **+** / **−** albo **Dodaj obrabiarkę…** (nazwa, szybkie m/min, B/C, czas wymiany) — od tego liczony jest czas cyklu |
+| Obrabiarka | **+** / **−** albo **Dodaj obrabiarkę…** (nazwa, szybkie m/min, B/C, czas wymiany, opcjonalnie ATC/G54 i skok) — od tego liczony jest czas cyklu i prostokąt G54 |
 | Zamknij | **Esc**: najpierw formularz obrabiarki, potem ustawienia |
 
 Język i obrabiarka zapamiętują się po restarcie.

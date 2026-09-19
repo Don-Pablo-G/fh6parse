@@ -260,8 +260,11 @@ Add one `[machine.<id>]` section per mill, or use **Add mill…** on the Windows
 | `atc_x` `atc_y` `atc_z` | (omit) | That mill’s tool-change position in G53 mm. Optional `atc_b` `atc_c`. Each mill has its own numbers. |
 | `g54_x` `g54_y` `g54_z` | (omit) | Typical vise/table part zero in G53 mm for that mill. Optional `g54_b` `g54_c`. |
 | `tool_length_mm` | 0 | Approximate stick-out (Z only). Haas H is a register, not mm. |
+| `x_min` `x_max` `y_min` `y_max` | (omit) | Machine travel envelope in G53 mm. Tickets then show where G54 may sit so programmed XY stays inside travel. Optional `z_min` `z_max`. |
 
 If ATC and G54 XYZ are all set, cycle time uses one G53 pose: work rapids convert through G54+length; at Txx M6 the finishing tool rapids Z then XY/BC to that mill’s ATC, then `tool_change_s` on the new T. A program that already `G53`’s to the ATC is not charged twice. Omit the keys to keep the older estimate (Default mill).
+
+If XY travel is set, the ticket adds a labeled rectangle of allowed G54 origin (G53 mm): four corners, center, and a warning if the stored G54 is outside or the work is larger than travel. Needs Pillow for the PNG; numbers still print without it.
 
 Example:
 
@@ -280,6 +283,12 @@ g54_x = -400
 g54_y = -250
 g54_z = -400
 tool_length_mm = 120
+x_min = -1270
+x_max = 0
+y_min = -508
+y_max = 0
+z_min = -635
+z_max = 0
 ```
 
 ### 3.4 Groups and devices
@@ -328,7 +337,7 @@ python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 
 Without GPIO you can still use a **USB keyboard and mouse** at any time (hot-plug is fine). The kiosk keeps keyboard focus and the black screensaver wakes on a key, click, or mouse wheel.
 
-The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids, tool-change time, and optional G53 ATC / G54 / tool length from `[machine.<id>]` in this ini), **Add mill…** to create a new mill (written to `~/.config/fh6parse/ui.ini`), BCM pin numbers for CLK / DT / FULL / MIN, knob reverse, and **ticks per tooth** (GPIO ticks from one rest valley to the next; the highlight changes halfway so a wiggle at rest does not skip files). Language, mill, and GPIO are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes the mill form first, then settings; the next **Esc** still leaves fullscreen. Encoder or a GPIO print button closes settings without printing / skipping a file.
+The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids, tool-change time, optional G53 ATC / G54 / tool length / travel from `[machine.<id>]` in this ini), **Add mill…** to create a new mill (written to `~/.config/fh6parse/ui.ini`), BCM pin numbers for CLK / DT / FULL / MIN, knob reverse, and **ticks per tooth** (GPIO ticks from one rest valley to the next; the highlight changes halfway so a wiggle at rest does not skip files). Language, mill, and GPIO are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes the mill form first, then settings; the next **Esc** still leaves fullscreen. Encoder or a GPIO print button closes settings without printing / skipping a file.
 
 | Input | While awake | While screensaver |
 | --- | --- | --- |

@@ -28,6 +28,7 @@ from .machtime import (
     to_mm,
     work_to_g53,
 )
+from .workarea import WorkBBox
 
 
 COMMENT_RE = re.compile(r"\([^()]*\)")
@@ -220,6 +221,7 @@ class Operation:
     executed_lines: set[int]
     summaries: list[ToolSummary]
     usages: list[ToolUsage]
+    work_bbox: WorkBBox = field(default_factory=WorkBBox)
 
 
 @dataclass
@@ -246,6 +248,7 @@ class ParseResult:
     executed_lines: set[int]
     source_lines: list[str]
     machine: MachineProfile = field(default_factory=lambda: DEFAULT_MACHINE)
+    work_bbox: WorkBBox = field(default_factory=WorkBBox)
 
 
 def _tokenize_line(raw: str, number: int) -> Line:
@@ -699,6 +702,7 @@ def _make_operation(
     n: int | None,
     title: str,
     call: str,
+    work_bbox: WorkBBox | None = None,
 ) -> Operation:
     path_usages = _usages_on_path(usages, executed)
     return Operation(
@@ -708,6 +712,7 @@ def _make_operation(
         executed_lines=executed,
         summaries=_summarize(path_usages, called_only=False),
         usages=path_usages,
+        work_bbox=work_bbox or WorkBBox(),
     )
 
 
@@ -830,7 +835,7 @@ def _run_program(
     start_at: int | None = None,
     inch: bool = False,
     o_index: dict[int, int] | None = None,
-) -> set[int]:
+) -> tuple[set[int], WorkBBox]:
     """Execute Haas/Fanuc flow and fill time / min Z on visited Txx M6.
 
     p_overrides maps 0-based line index -> P number for operator M97 P# selection.
@@ -881,11 +886,15 @@ def _run_program(
     hash_descs: dict[int, str] = {}
     inch_now = inch
     changes: list[ToolUsage] = []
+    bbox = WorkBBox()
 
     def finish_current(end_line: int) -> None:
         nonlocal current
         if current is not None:
             current.line_end = max(current.line_end, end_line)
+
+    def note_work() -> None:
+        bbox.add(abs_x, abs_y, abs_z)
 
     while 0 <= i < n and steps < max_steps:
         steps += 1
@@ -1039,6 +1048,7 @@ def _run_program(
                     current.had_work = True
                 if gz is not None and abs_z is not None:
                     current.consider_z(abs_z, line.number)
+            note_work()
             i += 1
             continue
 
@@ -1279,6 +1289,9 @@ def _run_program(
                         total += xy_t + z_t
                     if current is not None and cycle_z is not None and not g53:
                         current.consider_z(cycle_z, line.number)
+                    note_work()
+                    bbox.add(abs_x, abs_y, cycle_r)
+                    bbox.add(abs_x, abs_y, cycle_z)
                     if frame:
                         synced = merge_pose(
                             (g53_x, g53_y, g53_z, g53_b, g53_c),
@@ -1359,6 +1372,7 @@ def _run_program(
                         feed=fpm,
                         profile=mill,
                     )
+                note_work()
 
         if current is not None:
             current.add_time(timed)
@@ -1406,7 +1420,7 @@ def _run_program(
     if current is not None and feed_per_rev and G95_NEXT_WARN not in current.warnings:
         current.warnings.append(G95_END_WARN)
     _flag_empty_pockets(changes)
-    return executed
+    return executed, bbox
 
 
 def _simulate_path(
@@ -1418,10 +1432,10 @@ def _simulate_path(
     p_overrides: dict[int, int] | None = None,
     start_at: int | None = None,
     o_index: dict[int, int] | None = None,
-) -> tuple[list[ToolUsage], set[int]]:
+) -> tuple[list[ToolUsage], set[int], WorkBBox]:
     """Fresh Txx M6 list + one programmed-path walk (M97 L, WHILE, canned L)."""
     usages = _collect_tool_usages(lines)
-    executed = _run_program(
+    executed, bbox = _run_program(
         lines,
         n_index,
         usages,
@@ -1431,7 +1445,7 @@ def _simulate_path(
         inch=inch,
         o_index=o_index,
     )
-    return usages, executed
+    return usages, executed, bbox
 
 
 def parse_nc_text(
@@ -1470,7 +1484,7 @@ def parse_nc_text(
     n_index = _build_n_index(lines)
     o_index = _build_o_index(lines)
     inch = units == "inch"
-    usages, executed = _simulate_path(
+    usages, executed, bbox = _simulate_path(
         lines, n_index, mill, inch=inch, o_index=o_index
     )
 
@@ -1494,17 +1508,18 @@ def parse_nc_text(
     if declared and selectors:
         for n_num, title in declared:
             overrides = {idx: n_num for idx in selectors}
-            op_usages, op_exec = _simulate_path(
+            op_usages, op_exec, op_bbox = _simulate_path(
                 lines, n_index, mill, inch=inch, p_overrides=overrides, o_index=o_index
             )
             n_line = n_index.get(n_num)
             if n_line is not None and n_line not in op_exec:
-                op_usages, op_exec = _simulate_path(
+                op_usages, op_exec, op_bbox = _simulate_path(
                     lines, n_index, mill, inch=inch, start_at=n_line, o_index=o_index
                 )
                 call = f"start N{n_num} until M30"
             else:
                 call = f"M97 P{n_num}"
+            bbox = bbox.union(op_bbox)
             operations.append(
                 _make_operation(
                     op_usages,
@@ -1512,6 +1527,7 @@ def parse_nc_text(
                     n=n_num,
                     title=title,
                     call=call,
+                    work_bbox=op_bbox,
                 )
             )
     else:
@@ -1522,15 +1538,17 @@ def parse_nc_text(
                 n=None,
                 title="MAIN",
                 call="as written until M30",
+                work_bbox=bbox,
             )
         )
         for n_num, title in declared:
             n_line = n_index.get(n_num)
             if n_line is None:
                 continue
-            op_usages, op_exec = _simulate_path(
+            op_usages, op_exec, op_bbox = _simulate_path(
                 lines, n_index, mill, inch=inch, start_at=n_line, o_index=o_index
             )
+            bbox = bbox.union(op_bbox)
             operations.append(
                 _make_operation(
                     op_usages,
@@ -1538,6 +1556,7 @@ def parse_nc_text(
                     n=n_num,
                     title=title,
                     call=f"start N{n_num} until M30",
+                    work_bbox=op_bbox,
                 )
             )
 
@@ -1556,6 +1575,7 @@ def parse_nc_text(
         executed_lines={i + 1 for i in executed},
         source_lines=raw_lines,
         machine=mill,
+        work_bbox=bbox,
     )
 
 
