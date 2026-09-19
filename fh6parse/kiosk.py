@@ -45,7 +45,12 @@ from .machtime import (
 from .modelmatch import is_under
 from .modelprep import cad_status, ModelPrep
 from .parser import ParseResult, parse_nc_file
-from .printer import print_ticket
+from .printer import (
+    PrinterStatus,
+    printer_block_key,
+    print_ticket,
+    query_printer_status,
+)
 from .report import PAPER_80MM, PAPER_80MM_MIN, PAPER_A4, format_report
 from .safepath import is_protected
 from .update import UpdateCheck
@@ -617,6 +622,8 @@ class KioskApp(tk.Tk):
         self._preview_busy_stamp: FileStamp | None = None
         self._preview_scheduled_stamp: FileStamp | None = None
         self._print_busy = False
+        self._printer_job: str | None = None
+        self._printer_key: str | None = None
         self._iso_photo = None
         self._iso_path: Path | None = None
 
@@ -636,6 +643,7 @@ class KioskApp(tk.Tk):
         self._arm_idle()
         self.after(200, self._claim_input)
         self.after(400, self._start_update_check)
+        self.after(1500, self._poll_printer)
 
     def _build(self) -> None:
         family = "DejaVu Sans" if sys.platform.startswith("linux") else "Segoe UI"
@@ -2193,6 +2201,11 @@ class KioskApp(tk.Tk):
         if path is None:
             self._set_status(self._tr("no_file"), error=True)
             return "break"
+        block = printer_block_key(query_printer_status(self.cfg.printer_device))
+        if block:
+            self._printer_key = block
+            self._set_status(self._tr(block), error=True, hold=True)
+            return "break"
         kind = self._tr("print_kind_full" if paper == PAPER_80MM else "print_kind_min")
         self._print_busy = True
         self._refresh_hint()
@@ -2210,6 +2223,7 @@ class KioskApp(tk.Tk):
                 device=self.cfg.printer_device,
                 image_paths=images,
             )
+            self._printer_key = None
             self._set_status(self._tr("printed", name=path.name, route=route))
         except Exception as exc:  # shop-floor: stay up
             self._set_status(self._tr("print_fail", detail=exc), error=True)
@@ -2218,12 +2232,41 @@ class KioskApp(tk.Tk):
             self._refresh_hint()
         return "break"
 
-    def _set_status(self, text: str, *, error: bool = False) -> None:
+    def _poll_printer(self) -> None:
+        self._printer_job = None
+        try:
+            if (
+                not self._print_busy
+                and not self._updating
+                and not self.gate.asleep
+            ):
+                self._apply_printer_status(
+                    query_printer_status(self.cfg.printer_device)
+                )
+        except tk.TclError:
+            return
+        try:
+            self._printer_job = self.after(2000, self._poll_printer)
+        except tk.TclError:
+            pass
+
+    def _apply_printer_status(self, status: PrinterStatus) -> None:
+        key = printer_block_key(status)
+        if key:
+            if self._printer_key != key:
+                self._printer_key = key
+                self._set_status(self._tr(key), error=True, hold=True)
+            return
+        if self._printer_key:
+            self._printer_key = None
+            self.status.config(text="")
+
+    def _set_status(self, text: str, *, error: bool = False, hold: bool = False) -> None:
         self.status.config(text=text, fg=ERR if error else OK)
         if self._status_job:
             self.after_cancel(self._status_job)
             self._status_job = None
-        if self._updating:
+        if hold or self._updating:
             return
         self._status_job = self.after(8000, lambda: self.status.config(text=""))
 
@@ -2274,6 +2317,11 @@ class KioskApp(tk.Tk):
         if self._poll_job:
             try:
                 self.after_cancel(self._poll_job)
+            except tk.TclError:
+                pass
+        if self._printer_job:
+            try:
+                self.after_cancel(self._printer_job)
             except tk.TclError:
                 pass
         self._close_gpio()

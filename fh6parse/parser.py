@@ -56,6 +56,32 @@ G95_END_WARN = "G95 still active at M30; set G94"
 NO_MOTION_WARN = "no motion after tool change"
 NO_FEED_WARN = "no feed (probe/macro?)"
 
+# Fanuc/Haas G65 argument letters → local # variables (not G H L N O P).
+G65_ARG_TO_HASH = {
+    "A": 1,
+    "B": 2,
+    "C": 3,
+    "I": 4,
+    "J": 5,
+    "K": 6,
+    "D": 7,
+    "E": 8,
+    "F": 9,
+    "M": 13,
+    "Q": 17,
+    "R": 18,
+    "S": 19,
+    "T": 20,
+    "U": 21,
+    "V": 22,
+    "W": 23,
+    "X": 24,
+    "Y": 25,
+    "Z": 26,
+}
+# Haas/Renishaw Inspection Plus — on/off, no axis move.
+G65_PROBE_ON_OFF = frozenset({9832, 9833})
+
 
 def _parse_number(raw: str) -> float:
     return float(raw)
@@ -524,6 +550,61 @@ def _repeat_count(line: Line, default: int = 1) -> int:
     return max(1, min(10_000, int(round(word.value))))
 
 
+def _build_o_index(lines: list[Line]) -> dict[int, int]:
+    """First O-number on each line (user G65 P / M98 programs in this file)."""
+    index: dict[int, int] = {}
+    for i, line in enumerate(lines):
+        m = O_WORD_RE.search(strip_comments(line.raw))
+        if m:
+            num = int(m.group(1))
+            if num not in index:
+                index[num] = i
+    return index
+
+
+def _letter_value(
+    line: Line, letter: str, hash_vars: dict[int, float]
+) -> float | None:
+    w = line.first(letter)
+    if w is not None:
+        return w.value
+    return resolve_hash_letter(letter, line.hash_words, hash_vars)
+
+
+def _g65_args(line: Line, hash_vars: dict[int, float]) -> dict[int, float]:
+    args: dict[int, float] = {}
+    for letter, num in G65_ARG_TO_HASH.items():
+        val = _letter_value(line, letter, hash_vars)
+        if val is not None:
+            args[num] = val
+    return args
+
+
+def _push_g65_locals(
+    hash_vars: dict[int, float], args: dict[int, float]
+) -> dict[int, float | None]:
+    saved: dict[int, float | None] = {}
+    for n in range(1, 27):
+        saved[n] = hash_vars[n] if n in hash_vars else None
+        if n in args:
+            hash_vars[n] = args[n]
+        else:
+            hash_vars.pop(n, None)
+    return saved
+
+
+def _pop_g65_locals(
+    hash_vars: dict[int, float], saved: dict[int, float | None] | None
+) -> None:
+    if not saved:
+        return
+    for n, old in saved.items():
+        if old is None:
+            hash_vars.pop(n, None)
+        else:
+            hash_vars[n] = old
+
+
 def _matching_end(lines: list[Line], start_i: int, loop_id: int) -> int:
     depth = 1
     for j in range(start_i + 1, len(lines)):
@@ -542,6 +623,7 @@ class _CallFrame:
     return_i: int
     remaining: int
     target: int
+    locals_saved: dict[int, float | None] | None = None
 
 
 @dataclass
@@ -740,6 +822,7 @@ def _run_program(
     p_overrides: dict[int, int] | None = None,
     start_at: int | None = None,
     inch: bool = False,
+    o_index: dict[int, int] | None = None,
 ) -> set[int]:
     """Execute Haas/Fanuc flow and fill time / min Z on visited Txx M6.
 
@@ -755,6 +838,7 @@ def _run_program(
     max_steps = 2_000_000
     n = len(lines)
     overrides = p_overrides or {}
+    o_map = o_index or {}
 
     current: ToolUsage | None = None
     incremental = False
@@ -853,6 +937,7 @@ def _run_program(
                     i = frame.target
                     continue
                 calls.pop()
+                _pop_g65_locals(hash_vars, frame.locals_saved)
                 i = frame.return_i
                 continue
             break
@@ -867,12 +952,69 @@ def _run_program(
                     p_val = int(round(p.value))
             if p_val is not None:
                 target = n_index.get(p_val)
+                if target is None:
+                    target = o_map.get(p_val)
                 if target is not None:
                     calls.append(
                         _CallFrame(i + 1, _repeat_count(line), target)
                     )
                     i = target
                     continue
+
+        if line.has_g(65):
+            p_g65, _ = _resolve_letter_int(line, "P", hash_vars)
+            args = _g65_args(line, hash_vars)
+            target = o_map.get(p_g65) if p_g65 is not None else None
+            if target is not None:
+                saved = _push_g65_locals(hash_vars, args)
+                calls.append(
+                    _CallFrame(
+                        i + 1,
+                        _repeat_count(line),
+                        target,
+                        locals_saved=saved,
+                    )
+                )
+                i = target
+                continue
+            if p_g65 in G65_PROBE_ON_OFF:
+                i += 1
+                continue
+            gx = args.get(24)
+            gy = args.get(25)
+            gz = args.get(26)
+            gf = args.get(9)
+            if gx is None and gy is None and gz is None:
+                i += 1
+                continue
+            abs_x, dx = axis_delta(abs_x, gx, incremental=incremental)
+            abs_y, dy = axis_delta(abs_y, gy, incremental=incremental)
+            xy_t = seconds_for_length(
+                math.hypot(dx, dy),
+                None,
+                rapid=True,
+                inch=inch_now,
+                profile=mill,
+            )
+            abs_z, dz = axis_delta(abs_z, gz, incremental=incremental)
+            fpm_probe = feed_per_min(gf, per_rev=False, rpm=s_rpm)
+            z_t = seconds_for_length(
+                abs(dz),
+                fpm_probe,
+                rapid=False,
+                inch=inch_now,
+                profile=mill,
+            )
+            if current is not None:
+                current.add_time(xy_t)
+                current.add_time(z_t)
+                current.line_end = line.number
+                if gx is not None or gy is not None or gz is not None:
+                    current.had_work = True
+                if gz is not None and abs_z is not None:
+                    current.consider_z(abs_z, line.number)
+            i += 1
+            continue
 
         f_now = _feed_on_line(line, hash_vars)
         if f_now is not None:
@@ -980,12 +1122,12 @@ def _run_program(
             cycle_z = None
             cycle_code = None
 
-        x_word = line.first("X")
-        y_word = line.first("Y")
-        z_word = line.first("Z")
-        x_raw = x_word.value if x_word else None
-        y_raw = y_word.value if y_word else None
-        z_raw = z_word.value if z_word else None
+        x_raw = _letter_value(line, "X", hash_vars)
+        y_raw = _letter_value(line, "Y", hash_vars)
+        z_raw = _letter_value(line, "Z", hash_vars)
+        has_x = x_raw is not None
+        has_y = y_raw is not None
+        has_z = z_raw is not None
         b_raw = line.first("B").value if line.first("B") else None
         c_raw = line.first("C").value if line.first("C") else None
 
@@ -1004,10 +1146,7 @@ def _run_program(
         else:
             in_cycle = cycle_active and cycle_code is not None
             cycle_line = in_cycle and (
-                starting_cycle
-                or x_word is not None
-                or y_word is not None
-                or z_word is not None
+                starting_cycle or has_x or has_y or has_z
             )
             if cycle_line:
                 repeats = _repeat_count(line, 1)
@@ -1108,18 +1247,18 @@ def _run_program(
             if not g53:
                 g43_only = (
                     line.has_g(43)
-                    and z_word is not None
-                    and x_word is None
-                    and y_word is None
+                    and has_z
+                    and not has_x
+                    and not has_y
                     and b_raw is None
                     and c_raw is None
                     and not cycle_line
                 )
                 axis = (
                     cycle_line
-                    or x_word is not None
-                    or y_word is not None
-                    or (z_word is not None and not g43_only)
+                    or has_x
+                    or has_y
+                    or (has_z and not g43_only)
                     or b_raw is not None
                     or c_raw is not None
                 )
@@ -1129,18 +1268,15 @@ def _run_program(
                         current.had_cut = True
             work_z: float | None = None
             if not g53 and cycle_active and cycle_code is not None and (
-                starting_cycle
-                or x_word is not None
-                or y_word is not None
-                or z_word is not None
+                starting_cycle or has_x or has_y or has_z
             ):
                 work_z = cycle_z
-            elif z_word is not None and not g53:
+            elif has_z and not g53:
                 work_z = abs_z
             if work_z is not None:
                 current.consider_z(work_z, line.number)
             elif cycle_active and cycle_z is not None and not g53:
-                if line.first("X") is not None or line.first("Y") is not None:
+                if has_x or has_y:
                     current.consider_z(cycle_z, line.number)
 
         i += 1
@@ -1160,6 +1296,7 @@ def _simulate_path(
     inch: bool,
     p_overrides: dict[int, int] | None = None,
     start_at: int | None = None,
+    o_index: dict[int, int] | None = None,
 ) -> tuple[list[ToolUsage], set[int]]:
     """Fresh Txx M6 list + one programmed-path walk (M97 L, WHILE, canned L)."""
     usages = _collect_tool_usages(lines)
@@ -1171,6 +1308,7 @@ def _simulate_path(
         p_overrides=p_overrides,
         start_at=start_at,
         inch=inch,
+        o_index=o_index,
     )
     return usages, executed
 
@@ -1209,8 +1347,11 @@ def parse_nc_text(
                     header_comments.append(c)
 
     n_index = _build_n_index(lines)
+    o_index = _build_o_index(lines)
     inch = units == "inch"
-    usages, executed = _simulate_path(lines, n_index, mill, inch=inch)
+    usages, executed = _simulate_path(
+        lines, n_index, mill, inch=inch, o_index=o_index
+    )
 
     called_summaries = _summarize(usages, called_only=True)
     all_summaries = _summarize(usages, called_only=False)
@@ -1233,12 +1374,12 @@ def parse_nc_text(
         for n_num, title in declared:
             overrides = {idx: n_num for idx in selectors}
             op_usages, op_exec = _simulate_path(
-                lines, n_index, mill, inch=inch, p_overrides=overrides
+                lines, n_index, mill, inch=inch, p_overrides=overrides, o_index=o_index
             )
             n_line = n_index.get(n_num)
             if n_line is not None and n_line not in op_exec:
                 op_usages, op_exec = _simulate_path(
-                    lines, n_index, mill, inch=inch, start_at=n_line
+                    lines, n_index, mill, inch=inch, start_at=n_line, o_index=o_index
                 )
                 call = f"start N{n_num} until M30"
             else:
@@ -1267,7 +1408,7 @@ def parse_nc_text(
             if n_line is None:
                 continue
             op_usages, op_exec = _simulate_path(
-                lines, n_index, mill, inch=inch, start_at=n_line
+                lines, n_index, mill, inch=inch, start_at=n_line, o_index=o_index
             )
             operations.append(
                 _make_operation(

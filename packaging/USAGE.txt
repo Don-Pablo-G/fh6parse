@@ -26,8 +26,12 @@ G95 (feed per rev) still on at the next T or M30 prints a WARNING to set G94.
 A Txx M6 that never moves warns (empty pocket), except the last tool change —
 that is spindle prep for the next cycle. Rapids-only tools (probe / G65-style)
 warn that there is no feed.
+G65 P9810 / P9811… (Haas/Renishaw, not in the file): XY at rapid, Z at F,
+Min Z at the probe depth. G65 P9832/P9833 is probe on/off (no move).
+G65 P to an O-number in the same file sets #1–#26 from A–Z (Fanuc locals)
+and runs that sub until M99 (L repeats).
 Approx machine time and Min Z follow the programmed path: GOTO / IF GOTO,
-WHILE/DO/END, M97/M98 L repeats, and canned-cycle L (G91 steps XY between
+WHILE/DO/END, M97/M98 L repeats, G65, and canned-cycle L (G91 steps XY between
 holes; G90 repeats the same XY). Skipped tools show Min Z n/a. Time is summed
 from G0/G1/G2/G3, F#nnn, and Haas/Fanuc canned cycles (G73 chip-break 0.2 mm,
 G83 full retract to R, G84 retract at 1.0×F).
@@ -115,6 +119,9 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
   so you can see OP1 vs OP2 before print.
   FULL prints the current 80 mm ticket; MIN prints
   the short ticket (T, H/D/S to load, description, min Z, mismatch flags).
+  The kiosk asks the P047 (DLE EOT) before FULL/MIN. Cover open, no paper,
+  or a jam stays on the status line and does not cut a blank slip. No reply
+  still prints (same as before). Windows GUI print is the browser, not lp0.
   After 60 seconds idle the screen goes black. Rotary encoder, USB insert,
   keyboard, or mouse wakes it. GPIO print buttons while asleep are ignored.
   With a stick inserted the count line shows Safe to remove (Można wyjąć)

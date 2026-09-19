@@ -13,9 +13,10 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 3. Pokrętłem podświetl plik. Pod listą widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz. Jeśli na kiju nadpiszesz ten sam `.nc`, podgląd sam się odświeży — poczekaj aż zniknie **Czytanie…**, potem FULL/MIN.
 4. Przycisk **FULL** — pełny bilet 80 mm (narzędzia, czas, wykres udziału, Min Z, ostrzeżenia, rysunek 3D gdy gotowy).
 5. Przycisk **MIN** — krótki bilet (T, H/D/S do załadunku, opis, Min Z, flagi niezgodności).
-6. Brak żółtej kostki 3D obok nazwy = drukuj i tak. Bilet będzie sam tekst, bez czekania. Chip przy kostce mówi dlaczego: **szuka…** / **liczy…** / **brak STEP** / **Z: wył.** / **brak CAD**.
-7. Po dobrym druku na dole: **`device:/dev/usb/lp0`**. Jeśli widać `lp:…`, wołaj serwis (kolejka CUPS zamiast USB).
-8. Po **60 s** bez pokrętła i bez nowego USB ekran gaśnie (oszczędza panel).
+6. Na dole **Pokrywa otwarta**, **Brak papieru** albo **Zacięcie drukarki** — nie drukuj, najpierw drukarka. Przycisk nie wytnie pustego biletu.
+7. Brak żółtej kostki 3D obok nazwy = drukuj i tak. Bilet będzie sam tekst, bez czekania. Chip przy kostce mówi dlaczego: **szuka…** / **liczy…** / **brak STEP** / **Z: wył.** / **brak CAD**.
+8. Po dobrym druku na dole: **`device:/dev/usb/lp0`**. Jeśli widać `lp:…`, wołaj serwis (kolejka CUPS zamiast USB).
+9. Po **60 s** bez pokrętła i bez nowego USB ekran gaśnie (oszczędza panel).
 
 ---
 
@@ -36,6 +37,9 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 | Izometria pod podświetleniem | Ten sam rysunek co na bilecie — zły STEP widać przed drukiem |
 | **v1.4.0** u góry | Wersja programu (numer może zostać, a żółty **AKTUALIZUJ** pokazuje skrót gita) |
 | Chip **PL** / **EN** | Język ekranu i biletu. Domyślnie polski |
+| **Pokrywa otwarta** | Zamknij pokrywę P047 — FULL/MIN nic nie wyśle |
+| **Brak papieru** | Załaduj rolkę 80 mm |
+| **Zacięcie drukarki** | Sprawdź papier i nożyk; nie wciskaj FULL w kółko |
 
 Kiosk **nie zapisuje i nie kasuje** plików na pendrive ani w firmowym folderze dokumentacji (udział sieciowy / dysk Z:). Czyta `.stp` / `.step`. Rysunki trzyma w pamięci tymczasowej na kiosku.
 
@@ -46,6 +50,7 @@ Kiosk **nie zapisuje i nie kasuje** plików na pendrive ani w firmowym folderze 
 - **FULL** — pełna lista narzędzi, czas, udział każdego T w cyklu, Min Z, ostrzeżenia, izometria gdy kostka już jest.
 - **MIN** — skrót do załadunku: T, H/D/S, opis, Min Z, ostrzeżenia.
 - Papier: **80 mm**, drukarka termiczna przy kiosku. Nie skalować do A4.
+- Jeśli na dole jest **Brak papieru** / **Pokrywa otwarta** / **Zacięcie drukarki**, najpierw drukarka — kiosk nie wytnie pustej kartki.
 - Komentarze z programu (polskie opisy narzędzi) zostają jak w NC. Napisy kiosku i biletu są po polsku, gdy wybrano **Polski**.
 
 ---
@@ -114,7 +119,7 @@ Język i obrabiarka zapamiętują się po restarcie.
 | Włóż pendrive i pusto | Pliki `.nc` / `.tap` **w korzeniu** kija, FAT32. Wyjmij i włóż ponownie |
 | Podgląd nie zgadza się z plikiem | Nadpisany `.nc` o tej samej nazwie? Czekaj na koniec **Czytanie…**. Nie wyrywaj przy **Czytanie pendrive — czekaj** |
 | Pokrętło nic nie robi | Ekran czarny? Najpierw obudź. Dalej — serwis (przewody) |
-| Przycisk nie drukuje | Ekran czarny? Obudź pokrętłem. Drukarka: papier, zasilanie, USB, pokrywa |
+| Przycisk nie drukuje | Ekran czarny? Obudź pokrętłem. Na dole **Brak papieru** / **Pokrywa otwarta** / **Zacięcie**? Napraw P047. Inaczej: zasilanie, USB |
 | Bilet nie tnie | Sprawdź nożyk / kasetę. Serwis |
 | Śmieci na papierze / podwójny wydruk | Serwis (CUPS). Status ma być `device:/dev/usb/lp0` |
 | Brak kostki 3D | Patrz chip przy kostce: **szuka…** (szuka `.stp`), **liczy…** (rysuje), **brak STEP**, **Z: wył.** (udział), **brak CAD** (serwis). Druk i tak działa |

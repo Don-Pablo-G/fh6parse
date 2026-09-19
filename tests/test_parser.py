@@ -779,5 +779,77 @@ M30
             self.assertNotIn(NO_FEED_WARN, u.warnings)
 
 
+class TestG65Macros(unittest.TestCase):
+    def test_p9810_xy_rapid_z_feed_and_min_z(self) -> None:
+        from fh6parse.parser import NO_FEED_WARN, NO_MOTION_WARN
+
+        src = """O1
+T1 M6 (SONDA)
+G90 G0 X0 Y0 Z10
+G65 P9810 X100 Y0 Z-5 F300
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.min_z, -5)
+        self.assertAlmostEqual(u.time_s, 3.3, places=2)
+        self.assertTrue(u.had_work)
+        self.assertFalse(u.had_cut)
+        self.assertIn(NO_FEED_WARN, u.warnings)
+        self.assertNotIn(NO_MOTION_WARN, u.warnings)
+
+    def test_p9832_on_off_does_not_move(self) -> None:
+        src = """O1
+T1 M6
+G90 G0 X0 Y0 Z10
+G65 P9832
+G65 P9833
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.min_z, 10)
+
+    def test_g65_b_c_are_macro_args_not_rotary(self) -> None:
+        src = """O1
+T1 M6
+G90 G0 X0 Y0 Z0
+G65 P9811 X10 Y10 Z-2 F100 B1. C2.
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertIsNone(u.b)
+        self.assertIsNone(u.c)
+        self.assertEqual(u.min_z, -2)
+
+    def test_in_file_g65_sets_hash_1_to_26(self) -> None:
+        src = """O1
+T1 M6
+G90 G0 X0 Y0 Z10
+G65 P2000 X50 Z-3 F200
+M30
+O2000
+G0 X#24
+G1 Z#26 F#9
+M99
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.min_z, -3)
+        self.assertTrue(u.had_cut)
+
+    def test_g65_locals_restored_after_m99(self) -> None:
+        src = """O1
+#26=-1
+T1 M6
+G90 G0 X0 Y0 Z0
+G65 P2000 Z-8
+G1 Z#26 F100
+M30
+O2000
+G0 Z10
+M99
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.min_z, -1)
+
+
 if __name__ == "__main__":
     unittest.main()

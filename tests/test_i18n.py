@@ -90,6 +90,8 @@ class TestI18n(unittest.TestCase):
     def test_print_and_gpio_errors_are_translated(self) -> None:
         self.assertEqual(t("en", "print_fail", detail="lp0"), "Print failed: lp0")
         self.assertEqual(t("pl", "print_fail", detail="lp0"), "Druk nieudany: lp0")
+        self.assertEqual(t("pl", "print_paper"), "Brak papieru")
+        self.assertEqual(t("en", "print_cover"), "Printer cover open")
         self.assertIn("python3-lgpio", t("pl", "gpio_pi5"))
         self.assertIn("RPi.GPIO", t("en", "gpio_pi5"))
 

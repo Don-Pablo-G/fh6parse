@@ -136,6 +136,69 @@ class TestPrinter(unittest.TestCase):
         self.assertIn("missing", str(ctx.exception))
 
 
+class TestPrinterStatus(unittest.TestCase):
+    def test_ok_byte_does_not_block(self) -> None:
+        from fh6parse.printer import decode_printer_status, printer_block_key
+
+        st = decode_printer_status(0x12)
+        self.assertTrue(st.queried)
+        self.assertFalse(st.blocked)
+        self.assertIsNone(printer_block_key(st))
+
+    def test_cover_open_blocks(self) -> None:
+        from fh6parse.printer import decode_printer_status, printer_block_key
+
+        st = decode_printer_status(0x16)
+        self.assertTrue(st.cover_open)
+        self.assertEqual(printer_block_key(st), "print_cover")
+
+    def test_paper_end_blocks(self) -> None:
+        from fh6parse.printer import decode_printer_status, printer_block_key
+
+        st = decode_printer_status(0x32)
+        self.assertTrue(st.paper_out)
+        self.assertEqual(printer_block_key(st), "print_paper")
+
+    def test_cutter_from_error_byte(self) -> None:
+        from fh6parse.printer import decode_printer_status, printer_block_key
+
+        st = decode_printer_status(0x52, error=0x1A)
+        self.assertTrue(st.cutter)
+        self.assertEqual(printer_block_key(st), "print_cutter")
+
+    def test_garbage_or_silence_does_not_block(self) -> None:
+        from fh6parse.printer import (
+            decode_printer_status,
+            printer_block_key,
+            query_printer_status,
+        )
+
+        self.assertIsNone(printer_block_key(decode_printer_status(0x00)))
+        self.assertIsNone(printer_block_key(decode_printer_status(None)))
+        silent = query_printer_status("/no/such/fh6parse-lp")
+        self.assertFalse(silent.queried)
+        self.assertFalse(silent.blocked)
+
+    def test_query_uses_transact(self) -> None:
+        from fh6parse.printer import printer_block_key, query_printer_status
+
+        replies = {2: 0x16}
+
+        def transact(n: int) -> int | None:
+            return replies.get(n)
+
+        st = query_printer_status(transact=transact)
+        self.assertEqual(printer_block_key(st), "print_cover")
+
+    def test_cover_wins_over_paper(self) -> None:
+        from fh6parse.printer import decode_printer_status, printer_block_key
+
+        st = decode_printer_status(0x36)
+        self.assertTrue(st.cover_open)
+        self.assertTrue(st.paper_out)
+        self.assertEqual(printer_block_key(st), "print_cover")
+
+
 class TestKioskConfig(unittest.TestCase):
     def test_reads_idle_and_pins(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

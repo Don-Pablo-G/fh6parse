@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
+import os
+import select
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 from .report import THERMAL_WIDTH, _wrap
 
 ESC = b"\x1b"
 GS = b"\x1d"
+DLE = b"\x10"
+# DLE EOT n — real-time status (not printed). n=2 offline, 3 error, 4 paper.
 INIT = ESC + b"@"
 FONT_A = ESC + b"!\x00"
 # PC852 (Latin-2) — Polish shop comments on typical ESC/POS tables.
@@ -77,6 +84,167 @@ def encode_ticket(text: str, rasters: list[bytes] | None = None) -> bytes:
         if blob:
             pictures += blob + b"\n"
     return INIT + FONT_A + CODEPAGE_PC852 + pictures + body + b"\n\n\n" + CUT
+
+
+@dataclass(frozen=True)
+class PrinterStatus:
+    """P047 paper / cover / cutter from DLE EOT. queried=False means allow print."""
+
+    queried: bool = False
+    cover_open: bool = False
+    paper_out: bool = False
+    cutter: bool = False
+    error: bool = False
+
+    @property
+    def blocked(self) -> bool:
+        return self.queried and (
+            self.cover_open or self.paper_out or self.cutter or self.error
+        )
+
+
+def printer_block_key(status: PrinterStatus) -> str | None:
+    """i18n key when FULL/MIN must not fire. None = send the ticket."""
+    if not status.blocked:
+        return None
+    if status.cover_open:
+        return "print_cover"
+    if status.paper_out:
+        return "print_paper"
+    if status.cutter:
+        return "print_cutter"
+    if status.error:
+        return "print_error"
+    return None
+
+
+def _valid_dle(byte: int) -> bool:
+    """Epson real-time status: bit0=0, bit1=1, bit4=1, bit7=0."""
+    return (byte & 0b10010011) == 0b00010010
+
+
+def decode_printer_status(
+    offline: int | None,
+    *,
+    error: int | None = None,
+    paper: int | None = None,
+) -> PrinterStatus:
+    if offline is None or not _valid_dle(offline):
+        return PrinterStatus()
+    cover_open = bool(offline & 0x04)
+    paper_out = bool(offline & 0x20)
+    err_flag = bool(offline & 0x40)
+    cutter = False
+    error_now = err_flag
+    if error is not None and _valid_dle(error):
+        cutter = bool(error & 0x08)
+        # bit2 mechanical, bit5 unrecoverable, bit6 auto-recoverable
+        error_now = bool(error & 0x64)
+        if not cutter and not error_now:
+            error_now = err_flag
+    if paper is not None and _valid_dle(paper) and (paper & 0x60):
+        paper_out = True
+    return PrinterStatus(
+        queried=True,
+        cover_open=cover_open,
+        paper_out=paper_out,
+        cutter=cutter,
+        error=error_now,
+    )
+
+
+def _drain(fd: int) -> None:
+    while True:
+        try:
+            chunk = os.read(fd, 64)
+            if not chunk:
+                return
+        except (BlockingIOError, OSError):
+            return
+
+
+def _wait_readable(fd: int, timeout_s: float) -> bool:
+    if timeout_s <= 0:
+        return False
+    if os.name == "nt":
+        time.sleep(min(0.02, timeout_s))
+        return True
+    try:
+        ready, _, _ = select.select([fd], [], [], timeout_s)
+        return bool(ready)
+    except (OSError, ValueError, TypeError):
+        time.sleep(min(0.02, timeout_s))
+        return True
+
+
+def _first_dle_status(data: bytes) -> int | None:
+    for byte in data:
+        if _valid_dle(byte):
+            return byte
+    return None
+
+
+def _dle_eot_once(fd: int, n: int, timeout_s: float) -> int | None:
+    _drain(fd)
+    try:
+        os.write(fd, DLE + b"\x04" + bytes((n,)))
+    except OSError:
+        return None
+    deadline = time.monotonic() + timeout_s
+    buf = b""
+    while time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        if not _wait_readable(fd, remaining):
+            break
+        try:
+            chunk = os.read(fd, 16)
+        except BlockingIOError:
+            continue
+        except OSError:
+            return None
+        if not chunk:
+            continue
+        buf += chunk
+        found = _first_dle_status(buf)
+        if found is not None:
+            return found
+    return _first_dle_status(buf)
+
+
+def _collect_status(transact: Callable[[int], int | None]) -> PrinterStatus:
+    offline = transact(2)
+    error = None
+    paper = None
+    if offline is not None and _valid_dle(offline):
+        if offline & 0x40:
+            error = transact(3)
+        paper = transact(4)
+    return decode_printer_status(offline, error=error, paper=paper)
+
+
+def query_printer_status(
+    device: str = "",
+    *,
+    timeout_s: float = 0.2,
+    transact: Callable[[int], int | None] | None = None,
+) -> PrinterStatus:
+    """Read paper/cover/cutter. No reply or a bad byte → not blocked (print anyway)."""
+    if transact is not None:
+        return _collect_status(transact)
+    node = Path(device) if device else None
+    if node is None or not device or not node.exists():
+        return PrinterStatus()
+    try:
+        fd = os.open(str(node), os.O_RDWR | os.O_NONBLOCK)
+    except OSError:
+        return PrinterStatus()
+    try:
+        return _collect_status(lambda n: _dle_eot_once(fd, n, timeout_s))
+    finally:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
 
 
 def print_ticket(
