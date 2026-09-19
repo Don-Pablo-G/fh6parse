@@ -9,11 +9,11 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 ## 1. Codziennie
 
 1. Włącz kiosk. Na ekranie: **Włóż pendrive** (albo lista z poprzedniego kija, jeśli został w gnieździe).
-2. Włóż pendrive. Programy **`.nc` / `.tap` w katalogu głównym** kija (nie w podfolderach) pojawiają się na liście.
-3. Pokrętłem podświetl plik. Pod listą widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz.
+2. Włóż pendrive. Programy **`.nc` / `.tap` w katalogu głównym** kija (nie w podfolderach) pojawiają się na liście. Przy liczbie plików: **Można wyjąć** = wolno wyciągnąć kij. **Czytanie pendrive — czekaj** = kiosk jeszcze czyta (podgląd albo kopiuje STEP) — nie wyrywaj.
+3. Pokrętłem podświetl plik. Pod listą widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz. Jeśli na kiju nadpiszesz ten sam `.nc`, podgląd sam się odświeży — poczekaj aż zniknie **Czytanie…**, potem FULL/MIN.
 4. Przycisk **FULL** — pełny bilet 80 mm (narzędzia, czas, wykres udziału, Min Z, ostrzeżenia, rysunek 3D gdy gotowy).
 5. Przycisk **MIN** — krótki bilet (T, H/D/S do załadunku, opis, Min Z, flagi niezgodności).
-6. Brak żółtej kostki 3D obok nazwy = drukuj i tak. Bilet będzie sam tekst, bez czekania.
+6. Brak żółtej kostki 3D obok nazwy = drukuj i tak. Bilet będzie sam tekst, bez czekania. Chip przy kostce mówi dlaczego: **szuka…** / **liczy…** / **brak STEP** / **Z: wył.** / **brak CAD**.
 7. Po dobrym druku na dole: **`device:/dev/usb/lp0`**. Jeśli widać `lp:…`, wołaj serwis (kolejka CUPS zamiast USB).
 8. Po **60 s** bez pokrętła i bez nowego USB ekran gaśnie (oszczędza panel).
 
@@ -24,7 +24,15 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 | Widok | Znaczenie |
 | --- | --- |
 | **Włóż pendrive** | Brak kija albo brak `.nc` / `.tap` w korzeniu kija |
+| **Można wyjąć** przy liczbie plików | Kiosk nie czyta kija — wolno wyciągnąć |
+| **Czytanie pendrive — czekaj** | Podgląd albo kopia STEP z kija — nie wyrywaj |
 | Żółta **kostka 3D** przy pliku | Widok izometryczny gotowy do druku |
+| **3D gotowe** przy kostce | Ten plik ma rysunek — można drukować z izometrią |
+| **szuka…** | Szuka pasującego `.stp` na kiju albo udziale — poczekaj albo drukuj tekst |
+| **liczy…** | Znalazł model, rysuje izometrię — poczekaj albo drukuj tekst |
+| **brak STEP** | Brak pasującego `.stp` (kij i udział). Drukuj tekst |
+| **Z: wył.** | Firmowy udział (dysk Z:) nieosiągalny. Kij bez `.stp` = tylko tekst |
+| **brak CAD** | Na kiosku nie ma bibliotek 3D — serwis (`pip … [models]`). Drukuj tekst |
 | Izometria pod podświetleniem | Ten sam rysunek co na bilecie — zły STEP widać przed drukiem |
 | **v1.4.0** u góry | Wersja programu (numer może zostać, a żółty **AKTUALIZUJ** pokazuje skrót gita) |
 | Chip **PL** / **EN** | Język ekranu i biletu. Domyślnie polski |
@@ -104,11 +112,12 @@ Język i obrabiarka zapamiętują się po restarcie.
 | Objaw | Co spróbować |
 | --- | --- |
 | Włóż pendrive i pusto | Pliki `.nc` / `.tap` **w korzeniu** kija, FAT32. Wyjmij i włóż ponownie |
+| Podgląd nie zgadza się z plikiem | Nadpisany `.nc` o tej samej nazwie? Czekaj na koniec **Czytanie…**. Nie wyrywaj przy **Czytanie pendrive — czekaj** |
 | Pokrętło nic nie robi | Ekran czarny? Najpierw obudź. Dalej — serwis (przewody) |
 | Przycisk nie drukuje | Ekran czarny? Obudź pokrętłem. Drukarka: papier, zasilanie, USB, pokrywa |
 | Bilet nie tnie | Sprawdź nożyk / kasetę. Serwis |
 | Śmieci na papierze / podwójny wydruk | Serwis (CUPS). Status ma być `device:/dev/usb/lp0` |
-| Brak kostki 3D | Brak pasującego `.stp`, albo jeszcze liczy (poczekaj chwilę). Druk i tak działa |
+| Brak kostki 3D | Patrz chip przy kostce: **szuka…** (szuka `.stp`), **liczy…** (rysuje), **brak STEP**, **Z: wył.** (udział), **brak CAD** (serwis). Druk i tak działa |
 | Izometria „szara / wypełniona” | Stary rysunek w pamięci — serwis wyczyści `/tmp/fh6parse-models` |
 | Ekran po angielsku | **F2** → **Polski**. Najpierw obudź, jeśli czarny |
 | **AKTUALIZUJ** „nieudane” | Druk nadal działa. Wołaj serwis — nie instaluj nic z pendrive |

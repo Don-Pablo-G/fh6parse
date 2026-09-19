@@ -386,6 +386,181 @@ class TestModelPrepDoesNotBlock(unittest.TestCase):
             finally:
                 prep.close()
 
+    def test_usb_busy_clears_after_local_index(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            stick = Path(raw)
+            nc = stick / "a.nc"
+            nc.write_text("O1\nM30\n", encoding="utf-8")
+            prep = ModelPrep([])
+            try:
+                prep.set_files([nc])
+                deadline = time.time() + 3
+                while time.time() < deadline:
+                    if not prep.usb_busy():
+                        break
+                    time.sleep(0.02)
+                else:
+                    self.fail("usb_busy stayed set after local index")
+                self.assertTrue(prep._path_is_local(nc))
+            finally:
+                prep.close()
+
+    def test_invalidate_drops_ready_bitmap(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            nc = Path(raw) / "a.nc"
+            nc.write_text("O1\nM30\n", encoding="utf-8")
+            png = Path(raw) / "a.png"
+            png.write_bytes(b"\x89PNG")
+            prep = ModelPrep([])
+            try:
+                key = str(nc.resolve())
+                with prep._lock:
+                    prep._ready[key] = png
+                    prep._tried.add(key)
+                self.assertTrue(prep.is_ready(nc))
+                prep.invalidate(nc)
+                self.assertFalse(prep.is_ready(nc))
+            finally:
+                prep.close()
+
+
+class TestCadStatus(unittest.TestCase):
+    def test_company_share_up(self) -> None:
+        from fh6parse.modelprep import company_share_up
+
+        self.assertIsNone(company_share_up([]))
+        self.assertIsNone(company_share_up(None))
+        with tempfile.TemporaryDirectory() as raw:
+            self.assertTrue(company_share_up([Path(raw)]))
+        missing = Path("/no/such/fh6parse-cad-folder")
+        self.assertFalse(company_share_up([missing]))
+
+    def test_ready_wins_over_missing_cad(self) -> None:
+        from fh6parse.modelprep import CAD_READY, cad_status
+
+        class Ready:
+            def is_ready(self, path: Path) -> bool:
+                return True
+
+            def file_cad_state(self, path: Path) -> str:
+                return CAD_READY
+
+        self.assertEqual(
+            cad_status(Path("a.nc"), prep=Ready(), cad_ok=False),  # type: ignore[arg-type]
+            CAD_READY,
+        )
+
+    def test_cad_missing_when_no_bitmap(self) -> None:
+        from fh6parse.modelprep import CAD_MISSING, cad_status
+
+        self.assertEqual(
+            cad_status(Path("a.nc"), prep=None, cad_ok=False), CAD_MISSING
+        )
+
+    def test_share_down_after_no_match(self) -> None:
+        from fh6parse.modelprep import CAD_NO_STEP, CAD_SHARE_DOWN, cad_status
+
+        class Done:
+            def is_ready(self, path: Path) -> bool:
+                return False
+
+            def file_cad_state(self, path: Path) -> str:
+                return CAD_NO_STEP
+
+        self.assertEqual(
+            cad_status(
+                Path("a.nc"),
+                prep=Done(),  # type: ignore[arg-type]
+                model_roots=[Path("/no/such/fh6parse-cad-folder")],
+                cad_ok=True,
+            ),
+            CAD_SHARE_DOWN,
+        )
+
+    def test_rendering_and_no_step(self) -> None:
+        from fh6parse.modelprep import (
+            CAD_NO_STEP,
+            CAD_RENDERING,
+            CAD_SEARCHING,
+            cad_status,
+        )
+
+        class Pending:
+            def is_ready(self, path: Path) -> bool:
+                return False
+
+            def file_cad_state(self, path: Path) -> str:
+                return CAD_SEARCHING
+
+        self.assertEqual(
+            cad_status(Path("a.nc"), prep=Pending(), cad_ok=True),  # type: ignore[arg-type]
+            CAD_SEARCHING,
+        )
+
+        class Drawing:
+            def is_ready(self, path: Path) -> bool:
+                return False
+
+            def file_cad_state(self, path: Path) -> str:
+                return CAD_RENDERING
+
+        self.assertEqual(
+            cad_status(Path("a.nc"), prep=Drawing(), cad_ok=True),  # type: ignore[arg-type]
+            CAD_RENDERING,
+        )
+
+        class Miss:
+            def is_ready(self, path: Path) -> bool:
+                return False
+
+            def file_cad_state(self, path: Path) -> str:
+                return CAD_NO_STEP
+
+        with tempfile.TemporaryDirectory() as raw:
+            self.assertEqual(
+                cad_status(
+                    Path("a.nc"),
+                    prep=Miss(),  # type: ignore[arg-type]
+                    model_roots=[Path(raw)],
+                    cad_ok=True,
+                ),
+                CAD_NO_STEP,
+            )
+
+    def test_idle_without_file(self) -> None:
+        from fh6parse.modelprep import CAD_IDLE, CAD_SHARE_DOWN, cad_status
+
+        self.assertEqual(
+            cad_status(None, prep=None, model_roots=[], cad_ok=True), CAD_IDLE
+        )
+        self.assertEqual(
+            cad_status(
+                None,
+                prep=None,
+                model_roots=[Path("/no/such/fh6parse-cad-folder")],
+                cad_ok=True,
+            ),
+            CAD_SHARE_DOWN,
+        )
+
+    def test_file_cad_state_pending_then_none(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            nc = Path(raw) / "a.nc"
+            nc.write_text("O1\nM30\n", encoding="utf-8")
+            prep = ModelPrep([])
+            try:
+                self.assertEqual(prep.file_cad_state(nc), "searching")
+                key = str(nc.resolve())
+                with prep._lock:
+                    prep._work_key = key
+                    prep._work_phase = "rendering"
+                self.assertEqual(prep.file_cad_state(nc), "rendering")
+                with prep._lock:
+                    prep._tried.add(key)
+                self.assertEqual(prep.file_cad_state(nc), "no_step")
+            finally:
+                prep.close()
+
 
 if __name__ == "__main__":
     unittest.main()

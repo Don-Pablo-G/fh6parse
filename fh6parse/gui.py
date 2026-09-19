@@ -18,7 +18,7 @@ from .cadmark import (
     row_is_ready,
     step_photo,
 )
-from .i18n import GUI_DEFAULT, file_count, parse_language, t, update_button_label
+from .i18n import GUI_DEFAULT, cad_status_label, file_count, parse_language, t, update_button_label
 from .kiosk import (
     load_kiosk_config,
     machine_display_name,
@@ -29,7 +29,7 @@ from .kiosk import (
     save_model_roots,
     ui_overlay_path,
 )
-from .modelprep import ModelPrep
+from .modelprep import ModelPrep, cad_status
 from .modelrender import render_available
 from .parser import ParseResult, parse_nc_file
 from .report import (
@@ -422,6 +422,22 @@ class ToolReportApp(tk.Tk):
     def _cad_ready_for(self, path: Path) -> bool:
         return self._models is not None and self._models.is_ready(path)
 
+    def _cad_status_extra(self) -> str:
+        selected = self._selected_result()
+        path = selected[0] if selected is not None else None
+        if path is None and self._order:
+            path = Path(self._order[0])
+        reason = cad_status(
+            path, prep=self._models, model_roots=self._model_roots
+        )
+        if reason == "ready":
+            return ""
+        if reason == "idle" and not self._model_roots:
+            return f"  ·  {self._tr('step_hint')}"
+        if reason == "idle":
+            return ""
+        return f"  ·  {cad_status_label(self._lang, reason)}"
+
     def _images_for(self, path: Path) -> list[Path]:
         if self._models is None:
             return []
@@ -495,11 +511,7 @@ class ToolReportApp(tk.Tk):
                 )
                 changed = True
         if changed:
-            extra = ""
-            if not render_available():
-                extra = f"  ·  {self._tr('cad_not_in_build')}"
-            elif not self._model_roots:
-                extra = f"  ·  {self._tr('step_hint')}"
+            extra = self._cad_status_extra()
             self._status_loaded(extra)
             self._refresh_iso()
 
@@ -564,11 +576,7 @@ class ToolReportApp(tk.Tk):
             self._on_select()
         if errors:
             messagebox.showerror(self._tr("parse_error"), "\n".join(errors))
-        extra = ""
-        if not render_available():
-            extra = f"  ·  {self._tr('cad_not_in_build')}"
-        elif not self._model_roots:
-            extra = f"  ·  {self._tr('step_hint')}"
+        extra = self._cad_status_extra()
         self._status_loaded(extra)
 
     def _refresh_list(self) -> None:

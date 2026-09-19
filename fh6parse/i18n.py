@@ -26,6 +26,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "app_title_gui": "CNC Tool Report {version}",
         "brand": "CNC TOOLS",
         "insert_usb": "Insert USB",
+        "usb_safe": "Safe to remove",
+        "usb_busy": "Reading USB — wait",
         "local_extra": "+{n} local",
         "cad_legend": "3D view ready to print",
         "keys_hint": (
@@ -62,6 +64,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "preview_no_tools": "no tools",
         "preview_step_yes": "3D ready",
         "preview_step_no": "no 3D",
+        "cad_chip_ready": "3D ready",
+        "cad_chip_searching": "searching…",
+        "cad_chip_rendering": "rendering…",
+        "cad_chip_no_step": "no STEP",
+        "cad_chip_missing": "no CAD",
+        "cad_chip_share_down": "Z: off",
         "settings": "Settings",
         "settings_blurb": (
             "Language, mill (rapids and tool-change time), BCM pins, and ticks "
@@ -258,6 +266,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "app_title_gui": "Raport narzędzi CNC {version}",
         "brand": "NARZĘDZIA CNC",
         "insert_usb": "Włóż pendrive",
+        "usb_safe": "Można wyjąć",
+        "usb_busy": "Czytanie pendrive — czekaj",
         "local_extra": "+{n} lokalne",
         "cad_legend": "Widok 3D gotowy do druku",
         "keys_hint": (
@@ -303,6 +313,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "preview_no_tools": "brak narzędzi",
         "preview_step_yes": "3D gotowe",
         "preview_step_no": "brak 3D",
+        "cad_chip_ready": "3D gotowe",
+        "cad_chip_searching": "szuka…",
+        "cad_chip_rendering": "liczy…",
+        "cad_chip_no_step": "brak STEP",
+        "cad_chip_missing": "brak CAD",
+        "cad_chip_share_down": "Z: wył.",
         "settings": "Ustawienia",
         "settings_blurb": (
             "Język, obrabiarka (szybkie i czas wymiany narzędzia), piny BCM "
@@ -518,6 +534,22 @@ def t(lang: str, key: str, **kwargs: Any) -> str:
     if kwargs:
         return text.format(**kwargs)
     return text
+
+
+CAD_STATUS_KEYS = {
+    "ready": "cad_chip_ready",
+    "searching": "cad_chip_searching",
+    "rendering": "cad_chip_rendering",
+    "no_step": "cad_chip_no_step",
+    "cad_missing": "cad_chip_missing",
+    "share_down": "cad_chip_share_down",
+    "idle": "cad_legend",
+}
+
+
+def cad_status_label(lang: str, status: str) -> str:
+    key = CAD_STATUS_KEYS.get(status, "cad_chip_no_step")
+    return t(lang, key)
 
 
 def file_count(lang: str, n: int) -> str:

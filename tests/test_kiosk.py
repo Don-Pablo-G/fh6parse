@@ -349,13 +349,19 @@ class TestKioskPreview(unittest.TestCase):
         self.assertIn("OP1", text)
         self.assertIn("OP2", text)
         self.assertIn("tools", text)
-        self.assertIn("no 3D", text)
+        self.assertIn("no STEP", text)
         self.assertNotIn("3D ready", text)
         ready = format_kiosk_preview(r, lang="en", step_ready=True)
         self.assertIn("3D ready", ready)
         pl = format_kiosk_preview(r, lang="pl", step_ready=False)
         self.assertIn("narzęd", pl)
-        self.assertIn("brak 3D", pl)
+        self.assertIn("brak STEP", pl)
+        rendering = format_kiosk_preview(r, lang="en", cad_reason="rendering")
+        self.assertIn("rendering…", rendering)
+        searching = format_kiosk_preview(r, lang="pl", cad_reason="searching")
+        self.assertIn("szuka…", searching)
+        share = format_kiosk_preview(r, lang="pl", cad_reason="share_down")
+        self.assertIn("Z: wył.", share)
 
     def test_single_op_shows_cycle(self) -> None:
         from fh6parse.kiosk import format_kiosk_preview
@@ -431,6 +437,48 @@ class TestEncoderClicks(unittest.TestCase):
         self.assertEqual(next_unused_bcm(17, {18, 19}, 1), 20)
         self.assertEqual(next_unused_bcm(17, {16}, -1), 15)
         self.assertEqual(next_unused_bcm(27, {0}, 1), 1)
+
+
+class TestUsbReload(unittest.TestCase):
+    def test_file_stamp_changes_with_size(self) -> None:
+        from fh6parse.kiosk import file_stamp, preview_cache_stale
+
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "a.nc"
+            path.write_bytes(b"O1\nM30\n")
+            first = file_stamp(path)
+            self.assertIsNotNone(first)
+            path.write_bytes(b"O1\nT1 M6\nG0 X0\nM30\n")
+            second = file_stamp(path)
+            self.assertIsNotNone(second)
+            self.assertNotEqual(first, second)
+            self.assertTrue(preview_cache_stale(first, second))
+            self.assertFalse(preview_cache_stale(second, second))
+            self.assertTrue(preview_cache_stale(None, second))
+            self.assertFalse(preview_cache_stale(first, None))
+
+    def test_usb_remove_hint(self) -> None:
+        from fh6parse.kiosk import usb_remove_hint
+
+        self.assertEqual(usb_remove_hint("en", has_usb=False, busy=True), "")
+        self.assertEqual(
+            usb_remove_hint("en", has_usb=True, busy=True), "Reading USB — wait"
+        )
+        self.assertEqual(
+            usb_remove_hint("pl", has_usb=True, busy=False), "Można wyjąć"
+        )
+
+    def test_path_on_usb(self) -> None:
+        from fh6parse.kiosk import path_on_usb
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            nested = root / "op1"
+            nested.mkdir()
+            nc = nested / "a.nc"
+            nc.write_text("O1\nM30\n", encoding="utf-8")
+            self.assertTrue(path_on_usb(nc, [root]))
+            self.assertFalse(path_on_usb(nc, [root / "other"]))
 
 
 class TestPi5GpioFactory(unittest.TestCase):

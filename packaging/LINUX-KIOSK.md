@@ -451,11 +451,11 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 ## 5. Daily use
 
 1. Power on. Screen shows **Włóż pendrive** / **Insert USB** (or the last stick if it was already plugged in). The kiosk is Polish unless settings were changed.
-2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear.
-3. Turn the encoder to highlight a file. The panel under the list shows each operation’s tool count and cycle time, and whether the STEP views are ready. A **3D cube** next to the name also means the STEP views are ready; the stacked isometric appears under the preview when it is. Check OP1 vs OP2 here before printing.
+2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear. The count line shows **Można wyjąć** / **Safe to remove** when the kiosk is not reading the stick — wait for that before unplugging. **Czytanie pendrive — czekaj** / **Reading USB — wait** means preview parse or a STEP copy from the stick is still running.
+3. Turn the encoder to highlight a file. The panel under the list shows each operation’s tool count and cycle time, and whether the STEP views are ready. A **3D cube** next to the name also means the STEP views are ready; the stacked isometric appears under the preview when it is. Check OP1 vs OP2 here before printing. If that `.nc` is overwritten on the stick (same name, new bytes), preview reloads from disk — wait for **Reading…** to finish before FULL/MIN.
 4. **FULL** — 80 mm ticket: stacked line-art isometrics when ready, then operations, cycle time, a share chart of each T, tool list, each tool change (time and % of cycle), warnings, min Z.
 5. **MIN** — short ticket: stacked line-art isometrics when ready, then per operation cycle time, share chart of each T, then T, H/D/S to load, description, min Z, and H/D/G95 mismatch flags.
-6. If there is no cube, print anyway. The slip is text only.
+6. If there is no cube, print anyway. The slip is text only. The chip next to the cube legend says why: **3D ready**, **searching…** / **szuka…** (looking for a `.stp`), **rendering…** / **liczy…** (drawing a match), **no STEP** / **brak STEP**, **Z: off** / **Z: wył.** (company share down), or **no CAD** / **brak CAD** (install `[models]`).
 7. Status after a good print: **`device:/dev/usb/lp0`**. If it says `lp:…`, CUPS took the job — **§3.5**.
 8. **WARNING:** lines: `H{n} does not match T{tool}` on G43, `D{n} does not match T{tool}` on any D, `G95 still active…` if feed-per-rev was not cancelled with G94 before the next tool (or M30), and empty-pocket (`Txx M6` with no motion) except the **last** tool change (spindle prep). Matching H/D stay quiet. Comments with `!` print as **Programmer notes**.
 9. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
@@ -477,6 +477,8 @@ Preview parse runs when a file is highlighted (idle, not on FULL/MIN). STEP matc
 | Knob skips or jitters at rest | Raise **Ticks per tooth** so the valley is several GPIO ticks wide; highlight only changes halfway to the next tooth. Shorter wires; module decoupling. The kiosk also sets a short encoder `bounce_time` for Pi 5. |
 | Buttons print on press and release | Use momentary NO to GND, not a latching switch. |
 | List stays on Insert USB / Włóż pendrive | Stick mounted? `ls /media` / `ls /run/media`. Format FAT32. Files ending `.nc` or `.tap`. |
+| Preview does not match the stick file | Same name overwritten? Wait until **Reading…** clears. Reload uses mtime **and** size (FAT 2 s). Do not yank during **Reading USB — wait**. |
+| Yanked stick, list frozen / cube stuck | Wait for **Safe to remove** next time. Plug back in. `rm -rf /tmp/fh6parse-models` if pictures are from a half-copy. |
 | `printer failed` | `ls -l /dev/usb/lp0`; user `kiosk` in group `lp`; test the Python write in **§3.5**. *Permission denied* → log out after `usermod`. *Busy* → CUPS still owns the printer (`sudo systemctl disable --now cups`). |
 | Garbage on the slip | CUPS grabbed the job. The kiosk writes `/dev/usb/lp0` first; disable CUPS (**§3.5**). Status must show `device:/dev/usb/lp0`, not `lp:…`. |
 | Ticket does not cut | Cutter empty/jammed. App already sends ESC/POS cut (`GS V`). |
@@ -495,7 +497,7 @@ Preview parse runs when a file is highlighted (idle, not on FULL/MIN). STEP matc
 | `--update` / **UPDATE** pulled but UI unchanged | `sudo systemctl restart fh6parse-kiosk`. Missing sudoers: **§3.2**. |
 | **UPDATE** button never appears | Offline, one-file tarball, already up to date. Check is only at kiosk start. Screen should show **v1.4.0**. |
 | **UPDATE** says failed / kiosk did not restart | `sudo -n systemctl restart fh6parse-kiosk` from user `kiosk` should succeed after **§3.2**. Then `sudo systemctl restart fh6parse-kiosk`. |
-| No **3D cube** next to files | No matching `.stp` on the stick (or in `model_roots`). CAD extra missing (`pip3 install -e '.[models]'`). Still rendering (wait). G-code rev does not match any `.stp`. |
+| No **3D cube** next to files | Read the chip next to the cube legend: **searching…** (looking for `.stp`), **rendering…** (drawing a hit — wait), **no STEP** (no matching `.stp` on stick or `model_roots`), **Z: off** (company share not mounted), **no CAD** (`pip3 install -e '.[models]'`). Rev mismatch counts as no STEP. Print still works. |
 | Cube shows, ticket has no picture | Status not `device:/dev/usb/lp0` (CUPS intercepted). Printer rejected `GS v 0`. Test text-only first (**§3.5**). |
 | Pictures vanished after `--update` | `--update` runs `pip install -e .` **without** `[models]` when `pyproject.toml` changes. Re-run `sudo pip3 install -e '.[models]' --break-system-packages`. |
 | Pictures still shaded / grey mush | Old cache. `rm -rf /tmp/fh6parse-models` and wait for the cube again. The current renderer is black edges on white only. |

@@ -26,6 +26,7 @@ from .cadmark import (
 )
 from .i18n import (
     KIOSK_DEFAULT,
+    cad_status_label,
     file_count,
     parse_language,
     t,
@@ -41,7 +42,8 @@ from .machtime import (
     ROTARY_DEG_PER_MIN,
     format_machine_time,
 )
-from .modelprep import ModelPrep
+from .modelmatch import is_under
+from .modelprep import cad_status, ModelPrep
 from .parser import ParseResult, parse_nc_file
 from .printer import print_ticket
 from .report import PAPER_80MM, PAPER_80MM_MIN, PAPER_A4, format_report
@@ -59,6 +61,8 @@ BCM_MAX = 27
 ENCODER_STEPS_MAX = 16
 PREVIEW_DEBOUNCE_MS = 180
 PREVIEW_CACHE_MAX = 40
+FileStamp = tuple[float, int]
+PreviewCacheEntry = tuple[FileStamp, str, ParseResult]
 UI_OVERLAY_KEYS = (
     "language",
     "encoder_clk",
@@ -69,6 +73,46 @@ UI_OVERLAY_KEYS = (
     "button_min",
     "machine",
 )
+
+
+def file_stamp(path: Path) -> FileStamp | None:
+    """mtime + size so a FAT overwrite (2 s mtime) still busts the preview cache."""
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return (st.st_mtime, int(st.st_size))
+
+
+def preview_cache_stale(
+    cached: FileStamp | None, disk: FileStamp | None
+) -> bool:
+    """True when the highlighted NC exists and does not match the cached stamp."""
+    if disk is None:
+        return False
+    return cached != disk
+
+
+def usb_remove_hint(lang: str, *, has_usb: bool, busy: bool) -> str:
+    """Status chip: wait while the stick is being read, else safe to unplug."""
+    if not has_usb:
+        return ""
+    return t(lang, "usb_busy" if busy else "usb_safe")
+
+
+def path_on_usb(path: Path, mounts: list[Path] | set[Path]) -> bool:
+    try:
+        target = path.resolve()
+    except OSError:
+        return False
+    for root in mounts:
+        try:
+            base = Path(root).resolve()
+        except OSError:
+            continue
+        if target == base or is_under(target, base):
+            return True
+    return False
 
 
 def next_unused_bcm(current: int, used: set[int], delta: int) -> int:
@@ -299,9 +343,13 @@ def merge_machines(
 
 
 def format_kiosk_preview(
-    result: ParseResult, *, lang: str, step_ready: bool
+    result: ParseResult,
+    *,
+    lang: str,
+    step_ready: bool = False,
+    cad_reason: str | None = None,
 ) -> str:
-    """One screen block: each op's tool count and cycle, then STEP ready."""
+    """One screen block: each op's tool count and cycle, then why 3D is missing."""
     lines: list[str] = []
     ops = result.operations or []
     if not ops:
@@ -311,7 +359,8 @@ def format_kiosk_preview(
         incomplete = any(u.time_incomplete for u in op.usages)
         time = format_machine_time(seconds, incomplete=incomplete)
         lines.append(f"{op.title}  {tool_count(lang, len(op.summaries))}  {time}")
-    lines.append(t(lang, "preview_step_yes" if step_ready else "preview_step_no"))
+    reason = cad_reason or ("ready" if step_ready else "no_step")
+    lines.append(cad_status_label(lang, reason))
     return "\n".join(lines)
 
 
@@ -562,7 +611,12 @@ class KioskApp(tk.Tk):
         self._enc_leftover = 0
         self._preview_job: str | None = None
         self._preview_gen = 0
-        self._preview_cache: dict[str, tuple[float, str, ParseResult]] = {}
+        self._preview_cache: dict[str, PreviewCacheEntry] = {}
+        self._preview_inflight = 0
+        self._preview_busy_key: str | None = None
+        self._preview_busy_stamp: FileStamp | None = None
+        self._preview_scheduled_stamp: FileStamp | None = None
+        self._print_busy = False
         self._iso_photo = None
         self._iso_path: Path | None = None
 
@@ -1246,7 +1300,7 @@ class KioskApp(tk.Tk):
         self.title(self._tr("app_title_kiosk", version=__version__))
         self.brand_lbl.config(text=self._tr("brand"))
         self.lang_chip.config(text=self._tr("lang_chip"))
-        self.cad_legend_lbl.config(text=f"  {self._tr('cad_legend')}")
+        self._refresh_cad_chip()
         self._keys_hint.config(text=self._tr("keys_hint"))
         self._config_title.config(text=self._tr("settings"))
         self._config_blurb.config(text=self._tr("settings_blurb"))
@@ -1284,9 +1338,22 @@ class KioskApp(tk.Tk):
         elif not self._updating:
             self.update_btn.config(text=self._tr("update"))
 
+    def _usb_stick_busy(self) -> bool:
+        if not self._mounts:
+            return False
+        path = self._selected()
+        if self._print_busy and path is not None and path_on_usb(path, self._mounts):
+            return True
+        if self._preview_inflight and path is not None and path_on_usb(
+            path, self._mounts
+        ):
+            return True
+        return self._models is not None and self._models.usb_busy()
+
     def _refresh_hint(self) -> None:
         if not self._files:
             self.hint.config(text=self._tr("insert_usb"))
+            self._refresh_cad_chip()
             return
         n = len(self._files)
         usb_n = len(self._mounts)
@@ -1295,8 +1362,38 @@ class KioskApp(tk.Tk):
             if self.cfg.extra_roots
             else ""
         )
+        remove = usb_remove_hint(
+            self._lang, has_usb=bool(self._mounts), busy=self._usb_stick_busy()
+        )
+        chip = f"   {remove}" if remove else ""
         self.hint.config(
-            text=f"{file_count(self._lang, n)}   {usb_count(usb_n)}{extra}"
+            text=f"{file_count(self._lang, n)}   {usb_count(usb_n)}{extra}{chip}"
+        )
+        self._refresh_cad_chip()
+
+    def _cad_reason(self, path: Path | None = None) -> str:
+        if path is None:
+            path = self._selected()
+        return cad_status(
+            path, prep=self._models, model_roots=self.cfg.model_roots
+        )
+
+    def _cad_chip_color(self, reason: str) -> str:
+        if reason == "ready":
+            return OK
+        if reason == "searching":
+            return ACCENT
+        if reason == "rendering":
+            return ACCENT
+        if reason in {"cad_missing", "share_down"}:
+            return ERR
+        return MUTED
+
+    def _refresh_cad_chip(self) -> None:
+        reason = self._cad_reason()
+        self.cad_legend_lbl.config(
+            text=f"  {cad_status_label(self._lang, reason)}",
+            fg=self._cad_chip_color(reason),
         )
 
     def _set_language(self, lang: str) -> None:
@@ -1679,7 +1776,9 @@ class KioskApp(tk.Tk):
         elif files != self._files:
             self._set_files(files, keep_highlight=True)
         else:
+            self._reload_highlighted()
             self._sync_model_labels()
+            self._refresh_hint()
         self._poll_job = self.after(max(200, self.cfg.usb_poll_ms), self._poll_usb)
 
     def _label_for(self, path: Path, names: list[str]) -> str:
@@ -1772,33 +1871,56 @@ class KioskApp(tk.Tk):
         except OSError:
             return None
 
-    def _file_mtime(self, path: Path) -> float | None:
-        try:
-            return path.stat().st_mtime
-        except OSError:
-            return None
-
     def _cached_result(self, path: Path) -> ParseResult | None:
         key = self._path_key(path)
-        mtime = self._file_mtime(path)
-        if key is None or mtime is None:
+        stamp = file_stamp(path)
+        if key is None or stamp is None:
             return None
         hit = self._preview_cache.get(key)
         if hit is None:
             return None
-        stored_mtime, mill, result = hit
-        if stored_mtime != mtime or mill != self.cfg.machine_id:
+        stored, mill, result = hit
+        if stored != stamp or mill != self.cfg.machine_id:
             return None
         return result
 
     def _store_result(self, path: Path, result: ParseResult) -> None:
         key = self._path_key(path)
-        mtime = self._file_mtime(path)
-        if key is None or mtime is None:
+        stamp = file_stamp(path)
+        if key is None or stamp is None:
             return
-        self._preview_cache[key] = (mtime, self.cfg.machine_id, result)
+        self._preview_cache[key] = (stamp, self.cfg.machine_id, result)
         while len(self._preview_cache) > PREVIEW_CACHE_MAX:
             self._preview_cache.pop(next(iter(self._preview_cache)))
+
+    def _reload_highlighted(self) -> None:
+        """Re-parse if the highlighted .nc was overwritten while the stick is in."""
+        path = self._selected()
+        if path is None:
+            return
+        key = self._path_key(path)
+        stamp = file_stamp(path)
+        hit = self._preview_cache.get(key) if key else None
+        cached_stamp = hit[0] if hit is not None else None
+        if not preview_cache_stale(cached_stamp, stamp):
+            return
+        if cached_stamp is not None and key is not None:
+            self._preview_cache.pop(key, None)
+            if self._models is not None:
+                self._models.invalidate(path)
+        if (
+            self._preview_inflight
+            and self._preview_busy_key == key
+            and self._preview_busy_stamp == stamp
+        ):
+            return
+        if (
+            self._preview_job is not None
+            and self._preview_busy_key == key
+            and self._preview_scheduled_stamp == stamp
+        ):
+            return
+        self._schedule_preview()
 
     def _parse_path(self, path: Path) -> ParseResult:
         hit = self._cached_result(path)
@@ -1845,16 +1967,19 @@ class KioskApp(tk.Tk):
         if self._preview_job:
             self.after_cancel(self._preview_job)
             self._preview_job = None
+        self._preview_scheduled_stamp = None
         self.preview.config(text="", fg=ACCENT)
         self._hide_iso()
 
     def _show_preview(self, result: ParseResult, path: Path) -> None:
+        reason = self._cad_reason(path)
         self.preview.config(
             text=format_kiosk_preview(
-                result, lang=self._lang, step_ready=self._cad_ready_for(path)
+                result, lang=self._lang, cad_reason=reason
             ),
             fg=ACCENT,
         )
+        self._refresh_cad_chip()
         self._refresh_iso(path)
 
     def _schedule_preview(self) -> None:
@@ -1864,9 +1989,13 @@ class KioskApp(tk.Tk):
             self._preview_job = None
         path = self._selected()
         if path is None:
+            self._preview_scheduled_stamp = None
+            self._preview_busy_key = None
             self.preview.config(text="", fg=ACCENT)
             self._hide_iso()
             return
+        self._preview_busy_key = self._path_key(path)
+        self._preview_scheduled_stamp = file_stamp(path)
         self._refresh_iso(path)
         hit = self._cached_result(path)
         if hit is not None:
@@ -1889,6 +2018,10 @@ class KioskApp(tk.Tk):
             self._show_preview(hit, path)
             return
         self.preview.config(text=self._tr("preview_reading"), fg=MUTED)
+        self._preview_inflight += 1
+        self._preview_busy_key = self._path_key(path)
+        self._preview_busy_stamp = file_stamp(path)
+        self._refresh_hint()
         threading.Thread(
             target=self._preview_worker, args=(path, gen), daemon=True
         ).start()
@@ -1909,6 +2042,10 @@ class KioskApp(tk.Tk):
         result: ParseResult | None,
         err: str | None,
     ) -> None:
+        self._preview_inflight = max(0, self._preview_inflight - 1)
+        if self._preview_inflight == 0:
+            self._preview_busy_stamp = None
+        self._refresh_hint()
         if gen != self._preview_gen:
             return
         selected = self._selected()
@@ -2057,6 +2194,8 @@ class KioskApp(tk.Tk):
             self._set_status(self._tr("no_file"), error=True)
             return "break"
         kind = self._tr("print_kind_full" if paper == PAPER_80MM else "print_kind_min")
+        self._print_busy = True
+        self._refresh_hint()
         self._set_status(self._tr("printing", kind=kind, name=path.name))
         self.update_idletasks()
         try:
@@ -2074,6 +2213,9 @@ class KioskApp(tk.Tk):
             self._set_status(self._tr("printed", name=path.name, route=route))
         except Exception as exc:  # shop-floor: stay up
             self._set_status(self._tr("print_fail", detail=exc), error=True)
+        finally:
+            self._print_busy = False
+            self._refresh_hint()
         return "break"
 
     def _set_status(self, text: str, *, error: bool = False) -> None:

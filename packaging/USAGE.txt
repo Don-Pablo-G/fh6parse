@@ -44,7 +44,9 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   80 mm:  thermal printer, 80 mm paper, 100%, do not fit to A4
   STEP views: click STEP folders… and pick the company .stp/.step share
   (several folders allowed; saved in fh6parse-kiosk.ini next to the exe).
-  A wireframe 3D cube appears when the stacked isometrics are ready. The same
+  A wireframe 3D cube appears when the stacked isometrics are ready. The
+  chip next to it (kiosk) / status extra (GUI) says why a cube is missing:
+  searching…, rendering…, no STEP, Z: off (company share down), or no CAD. The same
   stacked views appear above the report preview (GUI) and under the highlight
   (kiosk) so a wrong STEP can be caught before print. Print never
   waits — if the model is missing the report is text only.
@@ -115,6 +117,9 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
   the short ticket (T, H/D/S to load, description, min Z, mismatch flags).
   After 60 seconds idle the screen goes black. Rotary encoder, USB insert,
   keyboard, or mouse wakes it. GPIO print buttons while asleep are ignored.
+  With a stick inserted the count line shows Safe to remove (Można wyjąć)
+  when idle, or Reading USB — wait while preview/STEP copy runs. Overwriting
+  the highlighted .nc on the stick reloads preview (mtime and size).
 
 STEP models on the 80 mm ticket (kiosk, optional)
   Put a matching .stp / .step on the USB stick (next to the .nc or in a
@@ -125,6 +130,7 @@ STEP models on the 80 mm ticket (kiosk, optional)
   ro, automount when Ethernet is plugged. Windows GUI: STEP folders… —
   prefer \\server\share so the letter need not stay Z:.
   pip install -e '.[models]'   (git checkout; not in the one-file Pi tarball)
+  No cube: kiosk chip searching… / rendering… / no STEP / Z: off / no CAD (print anyway).
   Matching starts at the NC name prefix. G-code rev must match the .stp rev.
   If the NC has no rev, the latest matching .stp is used (USB copy wins).
   Two opposite isometric line drawings, stacked, cropped to the part, at the top of
