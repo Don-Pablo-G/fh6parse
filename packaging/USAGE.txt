@@ -44,9 +44,11 @@ Xmin/Xmax/Ymin/Ymax (G53 mm) prints a labeled rectangle of where G54 may
 sit so programmed work stays inside the envelope; corners, center, and
 max Ø (centred outside G41/G42) are on the ticket. No accel. A trailing +
 means missing F or S.
-Each operation shows Cycle (that path until M30) and a share chart of each T.
-FULL also prints % of cycle on each Txx M6. MIN adds H/D/S to load and
-H/D/G95 mismatch flags on that short slip. Text/80 mm uses a solid block bar
+Each operation shows Cycle (that path until M30) and a share chart of each T
+on RUN / A4 (when that box is ticked). LOAD is the operator slip (T / H / D / S /
+Min Z / load boxes). SET is the setter slip (mill, STEP, G54, cycle, notes).
+The office GUI is one report with a section checklist (no LOAD / SET / RUN
+presets). Text/80 mm uses a solid block bar
 (CP852); A4 HTML uses a black CSS track.
 
 Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
@@ -62,7 +64,8 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
   waits — if the model is missing the report is text only.
   Language: Polski / English radios (top right). Default English. Saved in the
   same fh6parse-kiosk.ini as STEP folders (and in %USERPROFILE%\.config\fh6parse\ui.ini).
-  Last NC folder, report output folder, and A4 vs 80 mm preview are stored there too.
+  Last NC folder, report output folder, A4 vs 80 mm preview, and the
+  report section checklist are stored there too.
   Machine: combo on the preview row. Add mill… writes a [machine.<id>]
   section (rapids, B/C, tool-change seconds, optional G53 ATC / G54 / tool
   length / travel). The kiosk has the same form in settings (F2). You can still add
@@ -94,8 +97,8 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
     sudo chmod 440 /etc/sudoers.d/fh6parse-kiosk
 
   Update (git checkout only; never automatic)
-    Need 1.4.0. Later 1.4.0 git commits (preview, mill table, Add mill, on-screen
-    isometric, empty-pocket) still keep that number — UPDATE then shows a hash.
+    Need 1.4.0. Later 1.4.0 git commits (preview, mill table, Add mill, travel /
+    G54 box, on-screen isometric, empty-pocket) still keep that number — UPDATE then shows a hash.
     If --version is older than 1.4.0, SSH:
       cd /home/kiosk/fh6parse && git pull --ff-only && sudo systemctl restart fh6parse-kiosk
     From 1.3.2: on start the kiosk fetches origin in the background.
@@ -114,18 +117,20 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
     One-file ARM tarball cannot --update and shows no button; copy a new
     tarball or switch to git (LINUX-KIOSK.md §3.2 / §8.4).
 
-  Keyboard/mouse (troubleshooting, hot-plug OK): arrows, click, wheel, F, M, U.
+  Keyboard/mouse (troubleshooting, hot-plug OK): arrows, click, wheel, F, M, S, U.
   F2 or C (or click PL/EN) opens settings: Polish default, mill, Add mill…,
-  GPIO pins, ticks per tooth. Language and mill are saved in
+  GPIO pins (file knob, mill knob, RUN / LOAD / SET, spare), ticks per tooth.
+  Language and mill are saved in
   ~/.config/fh6parse/ui.ini (survives UPDATE).
   Escape closes the mill form first, then settings, then leaves fullscreen.
 
-  Encoder highlights a file. The panel under the list shows each operation
+  File encoder highlights a file. Mill encoder cycles mills (name next to
+  version). The panel under the list shows each operation
   (tool count, cycle time, 3D ready) and the stacked isometric when ready
   so you can see OP1 vs OP2 before print.
-  FULL prints the current 80 mm ticket; MIN prints
-  the short ticket (T, H/D/S to load, description, min Z, mismatch flags).
-  The kiosk asks the P047 (DLE EOT) before FULL/MIN. Cover open, no paper,
+  RUN / F prints the full 80 mm ticket; LOAD / M the operator slip;
+  SET / S the setter slip. Spare GPIO is reserved (wake-only if asleep).
+  The kiosk asks the P047 (DLE EOT) before RUN / LOAD / SET. Cover open, no paper,
   or a jam stays on the status line and does not cut a blank slip. No reply
   still prints (same as before). Windows GUI print is the browser, not lp0.
   After 60 seconds idle the screen goes black. Rotary encoder, USB insert,
@@ -147,7 +152,7 @@ STEP models on the 80 mm ticket (kiosk, optional)
   Matching starts at the NC name prefix. G-code rev must match the .stp rev.
   If the NC has no rev, the latest matching .stp is used (USB copy wins).
   Two opposite isometric line drawings, stacked, cropped to the part, at the top of
-  FULL and MIN tickets. The same drawing appears on the GUI preview and under the
+  SET and RUN tickets. LOAD never prints STEP / G54 images. The same drawing appears on the GUI preview and under the
   kiosk highlight when ready. A wireframe 3D cube appears when the bitmap is ready.
   Missing or still-rendering models never block print.
   Full matching table and NAS mount: packaging/LINUX-KIOSK.md §3.7

@@ -10,13 +10,14 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 
 1. Włącz kiosk. Na ekranie: **Włóż pendrive** (albo lista z poprzedniego kija, jeśli został w gnieździe).
 2. Włóż pendrive. Programy **`.nc` / `.tap` w katalogu głównym** kija (nie w podfolderach) pojawiają się na liście. Przy liczbie plików: **Można wyjąć** = wolno wyciągnąć kij. **Czytanie pendrive — czekaj** = kiosk jeszcze czyta (podgląd albo kopiuje STEP) — nie wyrywaj.
-3. Pokrętłem podświetl plik. Pod listą widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz. Jeśli na kiju nadpiszesz ten sam `.nc`, podgląd sam się odświeży — poczekaj aż zniknie **Czytanie…**, potem FULL/MIN.
-4. Przycisk **FULL** — pełny bilet 80 mm (narzędzia, czas, wykres udziału, Min Z, ostrzeżenia, rysunek 3D gdy gotowy).
-5. Przycisk **MIN** — krótki bilet (T, H/D/S do załadunku, opis, Min Z, flagi niezgodności).
-6. Na dole **Pokrywa otwarta**, **Brak papieru** albo **Zacięcie drukarki** — nie drukuj, najpierw drukarka. Przycisk nie wytnie pustego biletu.
-7. Brak żółtej kostki 3D obok nazwy = drukuj i tak. Bilet będzie sam tekst, bez czekania. Chip przy kostce mówi dlaczego: **szuka…** / **liczy…** / **brak STEP** / **Z: wył.** / **brak CAD**.
-8. Po dobrym druku na dole: **`device:/dev/usb/lp0`**. Jeśli widać `lp:…`, wołaj serwis (kolejka CUPS zamiast USB).
-9. Po **60 s** bez pokrętła i bez nowego USB ekran gaśnie (oszczędza panel).
+3. Pokrętłem **pliku** podświetl program. Drugie pokrętło wybiera obrabiarkę (nazwa obok wersji). Pod listą widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz. Jeśli na kiju nadpiszesz ten sam `.nc`, podgląd sam się odświeży — poczekaj aż zniknie **Czytanie…**, potem LOAD / SET / RUN.
+4. Przycisk **LOAD** — bilet operatora (T, H/D/S, Min Z, kratki załadunku, ostrzeżenia). Bez wykresu, bez każdej wymiany Txx, bez G54, bez STEP.
+5. Przycisk **SET** — bilet ustawiacza (program, mill, STEP gdy gotowy, prostokąt G54, czas cyklu bez wykresu, uwagi `!`).
+6. Przycisk **RUN** — pełny bilet 80 mm (STEP, G54, operacje, czas, wykres udziału, lista narzędzi, każda wymiana, ostrzeżenia).
+7. Na dole **Pokrywa otwarta**, **Brak papieru** albo **Zacięcie drukarki** — nie drukuj, najpierw drukarka. Przycisk nie wytnie pustego biletu.
+8. Brak żółtej kostki 3D obok nazwy = drukuj i tak. Bilet będzie sam tekst, bez czekania. Chip przy kostce mówi dlaczego: **szuka…** / **liczy…** / **brak STEP** / **Z: wył.** / **brak CAD**.
+9. Po dobrym druku na dole: **`device:/dev/usb/lp0`**. Jeśli widać `lp:…`, wołaj serwis (kolejka CUPS zamiast USB).
+10. Po **60 s** bez pokrętła i bez nowego USB ekran gaśnie (oszczędza panel).
 
 ---
 
@@ -37,9 +38,9 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 | Izometria pod podświetleniem | Ten sam rysunek co na bilecie — zły STEP widać przed drukiem |
 | **v1.4.0** u góry | Wersja programu (numer może zostać, a żółty **AKTUALIZUJ** pokazuje skrót gita) |
 | Chip **PL** / **EN** | Język ekranu i biletu. Domyślnie polski |
-| **Pokrywa otwarta** | Zamknij pokrywę P047 — FULL/MIN nic nie wyśle |
+| **Pokrywa otwarta** | Zamknij pokrywę P047 — LOAD / SET / RUN nic nie wyśle |
 | **Brak papieru** | Załaduj rolkę 80 mm |
-| **Zacięcie drukarki** | Sprawdź papier i nożyk; nie wciskaj FULL w kółko |
+| **Zacięcie drukarki** | Sprawdź papier i nożyk; nie wciskaj RUN w kółko |
 
 Kiosk **nie zapisuje i nie kasuje** plików na pendrive ani w firmowym folderze dokumentacji (udział sieciowy / dysk Z:). Czyta `.stp` / `.step`. Rysunki trzyma w pamięci tymczasowej na kiosku.
 
@@ -47,8 +48,9 @@ Kiosk **nie zapisuje i nie kasuje** plików na pendrive ani w firmowym folderze 
 
 ## 3. Druk
 
-- **FULL** — pełna lista narzędzi, czas, udział każdego T w cyklu, Min Z, ostrzeżenia, izometria gdy kostka już jest.
-- **MIN** — skrót do załadunku: T, H/D/S, opis, Min Z, ostrzeżenia.
+- **LOAD** — załadunek: T, H/D/S, opis, Min Z, kratki, ostrzeżenia.
+- **SET** — ustawianie: mill, STEP gdy kostka jest, prostokąt G54, czas cyklu (bez wykresu), uwagi `!`.
+- **RUN** — pełna lista narzędzi, czas, udział każdego T w cyklu, Min Z, ostrzeżenia, izometria gdy kostka już jest. Gdy obrabiarka ma skok: prostokąt punktu zerowego G54 w współrzędnych maszyny (rogi, środek, maks. Ø G41/G42 wyśrodkowane).
 - Papier: **80 mm**, drukarka termiczna przy kiosku. Nie skalować do A4.
 - Jeśli na dole jest **Brak papieru** / **Pokrywa otwarta** / **Zacięcie drukarki**, najpierw drukarka — kiosk nie wytnie pustej kartki.
 - Komentarze z programu (polskie opisy narzędzi) zostają jak w NC. Napisy kiosku i biletu są po polsku, gdy wybrano **Polski**.
@@ -75,7 +77,7 @@ Pasujące H/D (= numer T) nie dają ostrzeżenia.
 - Gaśnie po minucie bez pokrętła i bez nowego USB.
 - Budzi: **pokrętło**, **włożenie pendrive**, klawiatura lub mysz.
 - **Pierwszy** ruch pokrętła / klawisz / klik tylko budzi — nie przeskakuje pliku i nie drukuje.
-- Przyciski **FULL / MIN przy śpiącym ekranie nic nie robią** (żeby nie strzelić biletu w ciemności). Najpierw obudź pokrętłem.
+- Przyciski **LOAD / SET / RUN przy śpiącym ekranie nic nie robią** (żeby nie strzelić biletu w ciemności). Najpierw obudź pokrętłem. Czwarty przycisk (zapasowy) tylko budzi.
 
 ---
 

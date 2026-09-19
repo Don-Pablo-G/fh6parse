@@ -31,7 +31,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "local_extra": "+{n} local",
         "cad_legend": "3D view ready to print",
         "keys_hint": (
-            "FULL / F  full ticket     MIN / M  short ticket     "
+            "RUN / F  full     LOAD / M  tools     SET / S  setter     "
             "F2  settings     Esc  window"
         ),
         "update": "UPDATE",
@@ -52,8 +52,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "update_available_gui": "Update available  ·  click UPDATE to install and restart",
         "update_status_gui": "v{current} → {new}  ·  click UPDATE to install and restart",
         "printing": "Printing {kind}: {name}…",
-        "print_kind_full": "full",
-        "print_kind_min": "min",
+        "print_kind_run": "RUN",
+        "print_kind_load": "LOAD",
+        "print_kind_set": "SET",
+        "print_kind_full": "RUN",
+        "print_kind_min": "LOAD",
         "printed": "Printed {name}  ({route})",
         "print_fail": "Print failed: {detail}",
         "print_cover": "Printer cover open",
@@ -76,9 +79,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "cad_chip_share_down": "Z: off",
         "settings": "Settings",
         "settings_blurb": (
-            "Language, mill (rapids and tool-change time), BCM pins, and ticks "
-            "from one tooth valley to the next. Rest is the file; the highlight "
-            "changes halfway to the next tooth."
+            "Language, mill, BCM pins (file knob, mill knob, RUN / LOAD / SET, "
+            "spare), and ticks from one tooth valley to the next. Rest is the "
+            "file; the highlight changes halfway to the next tooth."
         ),
         "language": "Language",
         "lang_pl": "Polski",
@@ -106,11 +109,18 @@ STRINGS: dict[str, dict[str, str]] = {
         "machine_default": "Default mill",
         "gpio_pins": "GPIO (BCM numbers, not header pins)",
         "gpio_pi5": "Pi 5 needs python3-lgpio; RPi.GPIO is not supported",
-        "pin_clk": "Encoder CLK",
-        "pin_dt": "Encoder DT",
-        "pin_full": "FULL button",
-        "pin_min": "MIN button",
-        "encoder_knob": "Knob",
+        "pin_clk": "File CLK",
+        "pin_dt": "File DT",
+        "pin_mill_clk": "Mill CLK",
+        "pin_mill_dt": "Mill DT",
+        "pin_run": "RUN button",
+        "pin_load": "LOAD button",
+        "pin_set": "SET button",
+        "pin_spare": "Spare (reserved)",
+        "pin_full": "RUN button",
+        "pin_min": "LOAD button",
+        "encoder_knob": "File knob",
+        "encoder_knob_mill": "Mill knob",
         "encoder_swap_off": "Normal direction",
         "encoder_swap_on": "Reverse",
         "encoder_steps": "Ticks per tooth",
@@ -171,9 +181,21 @@ STRINGS: dict[str, dict[str, str]] = {
             "fh6parse never writes or deletes files in the company STEP folder. "
             "Choose a different output folder, or open NC files that are not on that share."
         ),
+        "report_sections": "Report content",
+        "section_header": "File / program / units",
+        "section_notes": "Programmer notes",
+        "section_step": "STEP views",
+        "section_g54": "G54 rectangle + Ømax",
+        "section_cycle": "Cycle time / share chart",
+        "section_tools": "Tool list (T / H / D / S / Min Z)",
+        "section_changes": "Each Txx M6",
+        "section_warnings": "Warnings",
+        "section_sign": "Sign-off",
         "ticket_title_a4": "CNC TOOL REPORT  |  A4",
         "ticket_title_80": "CNC TOOL REPORT",
-        "ticket_title_min": "CNC TOOLS MIN",
+        "ticket_title_load": "CNC TOOLS LOAD",
+        "ticket_title_set": "CNC TOOLS SET",
+        "ticket_title_min": "CNC TOOLS LOAD",
         "ticket_title_html": "CNC tool report",
         "ticket_title_html_doc": "Tool report {prog}",
         "ticket_80mm": "80 mm",
@@ -296,7 +318,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "local_extra": "+{n} lokalne",
         "cad_legend": "Widok 3D gotowy do druku",
         "keys_hint": (
-            "FULL / F  pełny wydruk     MIN / M  krótki     "
+            "RUN / F  pełny     LOAD / M  załadunek     SET / S  ustawianie     "
             "F2  ustawienia     Esc  okno"
         ),
         "update": "AKTUALIZUJ",
@@ -326,8 +348,11 @@ STRINGS: dict[str, dict[str, str]] = {
             "v{current} → {new}  ·  kliknij AKTUALIZUJ, potem restart"
         ),
         "printing": "Drukowanie ({kind}): {name}…",
-        "print_kind_full": "pełny",
-        "print_kind_min": "skrót",
+        "print_kind_run": "RUN",
+        "print_kind_load": "LOAD",
+        "print_kind_set": "SET",
+        "print_kind_full": "RUN",
+        "print_kind_min": "LOAD",
         "printed": "Wydrukowano {name}  ({route})",
         "print_fail": "Druk nieudany: {detail}",
         "print_cover": "Pokrywa otwarta",
@@ -350,9 +375,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "cad_chip_share_down": "Z: wył.",
         "settings": "Ustawienia",
         "settings_blurb": (
-            "Język, obrabiarka (szybkie i czas wymiany narzędzia), piny BCM "
-            "i impulsy od jednej doliny zęba do następnej. Spoczynek to plik; "
-            "podświetlenie zmienia się w połowie drogi do następnego zęba."
+            "Język, obrabiarka, piny BCM (pokrętło pliku, pokrętło mill, "
+            "RUN / LOAD / SET, zapasowy) i impulsy od jednej doliny zęba do "
+            "następnej. Spoczynek to plik; podświetlenie zmienia się w połowie "
+            "drogi do następnego zęba."
         ),
         "language": "Język",
         "lang_pl": "Polski",
@@ -380,11 +406,18 @@ STRINGS: dict[str, dict[str, str]] = {
         "machine_default": "Domyślna obrabiarka",
         "gpio_pins": "GPIO (numery BCM, nie piny złącza)",
         "gpio_pi5": "Pi 5 wymaga python3-lgpio; RPi.GPIO nie jest obsługiwane",
-        "pin_clk": "Enkoder CLK",
-        "pin_dt": "Enkoder DT",
-        "pin_full": "Przycisk FULL",
-        "pin_min": "Przycisk MIN",
-        "encoder_knob": "Pokrętło",
+        "pin_clk": "Plik CLK",
+        "pin_dt": "Plik DT",
+        "pin_mill_clk": "Mill CLK",
+        "pin_mill_dt": "Mill DT",
+        "pin_run": "Przycisk RUN",
+        "pin_load": "Przycisk LOAD",
+        "pin_set": "Przycisk SET",
+        "pin_spare": "Zapasowy (zarezerwowany)",
+        "pin_full": "Przycisk RUN",
+        "pin_min": "Przycisk LOAD",
+        "encoder_knob": "Pokrętło pliku",
+        "encoder_knob_mill": "Pokrętło mill",
         "encoder_swap_off": "Kierunek normalny",
         "encoder_swap_on": "Odwróć",
         "encoder_steps": "Impulsy na ząb",
@@ -445,9 +478,21 @@ STRINGS: dict[str, dict[str, str]] = {
             "fh6parse nigdy nie zapisuje ani nie usuwa plików w firmowym folderze STEP. "
             "Wybierz inny folder zapisu albo otwórz NC spoza tego udziału."
         ),
+        "report_sections": "Treść raportu",
+        "section_header": "Plik / program / jednostki",
+        "section_notes": "Uwagi programisty",
+        "section_step": "Widoki STEP",
+        "section_g54": "Prostokąt G54 + Ømax",
+        "section_cycle": "Czas cyklu / wykres udziału",
+        "section_tools": "Lista narzędzi (T / H / D / S / Min Z)",
+        "section_changes": "Każde Txx M6",
+        "section_warnings": "Ostrzeżenia",
+        "section_sign": "Podpis",
         "ticket_title_a4": "RAPORT NARZĘDZI CNC  |  A4",
         "ticket_title_80": "RAPORT NARZĘDZI CNC",
-        "ticket_title_min": "NARZĘDZIA CNC MIN",
+        "ticket_title_load": "NARZĘDZIA CNC ZAŁADUNEK",
+        "ticket_title_set": "NARZĘDZIA CNC USTAWIANIE",
+        "ticket_title_min": "NARZĘDZIA CNC ZAŁADUNEK",
         "ticket_title_html": "Raport narzędzi CNC",
         "ticket_title_html_doc": "Raport narzędzi {prog}",
         "ticket_80mm": "80 mm",

@@ -9,6 +9,7 @@ from fh6parse.parser import parse_nc_file, parse_nc_text
 from fh6parse.report import (
     PAPER_80MM,
     PAPER_80MM_MIN,
+    PAPER_80MM_SET,
     PAPER_A4,
     THERMAL_WIDTH,
     format_print_html,
@@ -386,9 +387,11 @@ M30
         a4 = format_report(r)
         self.assertIn("Programmer notes (!):", a4)
         self.assertIn("! CHECK CLAMP", a4)
-        mm = format_report(r, paper=PAPER_80MM_MIN)
+        mm = format_report(r, paper=PAPER_80MM_SET)
         self.assertIn("! NOTES", mm)
         self.assertIn("! OIL HOLE", mm)
+        load = format_report(r, paper=PAPER_80MM_MIN)
+        self.assertNotIn("! NOTES", load)
 
     def test_g95_warns_on_next_tool_until_g94(self) -> None:
         src = """O1
@@ -486,7 +489,7 @@ class TestReport(unittest.TestCase):
     def test_80mm_min_is_short_and_fits_width(self) -> None:
         r = parse_nc_file(SAMPLES / "000814086.nc")
         text = format_report(r, paper=PAPER_80MM_MIN)
-        self.assertIn("CNC TOOLS MIN", text)
+        self.assertIn("CNC TOOLS LOAD", text)
         self.assertIn("OP1  (N10)", text)
         self.assertIn("OP2  (N20)", text)
         self.assertIn("MinZ", text)
@@ -521,6 +524,23 @@ M30
         self.assertIn("D99", html)
         self.assertIn("S1200", html)
         self.assertIn("D99 does not match T1", html)
+
+    def test_80mm_set_and_run_section_sets(self) -> None:
+        r = parse_nc_file(SAMPLES / "000814086.nc")
+        sett = format_report(r, paper=PAPER_80MM_SET)
+        run = format_report(r, paper=PAPER_80MM)
+        load = format_report(r, paper=PAPER_80MM_MIN)
+        self.assertIn("CNC TOOLS SET", sett)
+        self.assertNotIn("EACH CHANGE", sett)
+        self.assertNotIn("SHARE", sett)
+        self.assertIn("Cycle", sett)
+        self.assertIn("EACH CHANGE", run)
+        self.assertIn("SHARE", run)
+        self.assertNotIn("Cycle", load)
+        self.assertNotIn("EACH CHANGE", load)
+        for paper_text in (sett, run, load):
+            for line in paper_text.splitlines():
+                self.assertLessEqual(len(line), THERMAL_WIDTH, msg=repr(line))
 
     def test_80mm_min_flags_g95_left_on(self) -> None:
         src = """O1

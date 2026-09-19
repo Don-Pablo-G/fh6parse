@@ -46,5 +46,5 @@ class ScreensaverGate:
         return "ok"
 
     def allow_print(self) -> bool:
-        """False while asleep (GPIO / F / M ignored, screen stays black)."""
+        """False while asleep (GPIO / F / M / S ignored, screen stays black)."""
         return not self.asleep

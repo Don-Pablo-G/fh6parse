@@ -34,10 +34,14 @@ from .modelprep import ModelPrep, cad_status
 from .modelrender import render_available
 from .parser import ParseResult, parse_nc_file
 from .report import (
+    GUI_SECTION_KEYS,
     PAPER_80MM,
     PAPER_A4,
     format_report,
     open_print_html,
+    parse_report_sections,
+    ReportSections,
+    ticket_image_paths,
     write_report,
 )
 from .safepath import ProtectedWriteError, is_protected
@@ -64,6 +68,7 @@ class ToolReportApp(tk.Tk):
         self._model_roots = list(cfg.model_roots)
         self._last_nc_dir = cfg.last_nc_dir
         self._paper = tk.StringVar(value=parse_gui_paper(cfg.last_paper))
+        self._section_seed = parse_report_sections(cfg.report_sections)
         if cfg.last_out_dir:
             out = Path(cfg.last_out_dir)
             if out.is_dir():
@@ -186,9 +191,26 @@ class ToolReportApp(tk.Tk):
 
         right = ttk.Frame(body)
         self.iso_label = ttk.Label(right)
-        self.lbl_report = ttk.Label(right)
+        self._preview_row = ttk.Frame(right)
+        self._preview_row.pack(fill=tk.BOTH, expand=True)
+        self.section_frame = ttk.LabelFrame(self._preview_row)
+        self.section_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 8))
+        self._section_vars: dict[str, tk.BooleanVar] = {}
+        self._section_checks: dict[str, ttk.Checkbutton] = {}
+        seed = self._section_seed
+        for key in GUI_SECTION_KEYS:
+            var = tk.BooleanVar(value=getattr(seed, key))
+            self._section_vars[key] = var
+            cb = ttk.Checkbutton(
+                self.section_frame, variable=var, command=self._on_sections
+            )
+            cb.pack(anchor=tk.W)
+            self._section_checks[key] = cb
+        preview_col = ttk.Frame(self._preview_row)
+        preview_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.lbl_report = ttk.Label(preview_col)
         self.lbl_report.pack(anchor=tk.W)
-        text_frame = ttk.Frame(right)
+        text_frame = ttk.Frame(preview_col)
         text_frame.pack(fill=tk.BOTH, expand=True)
         scroll = ttk.Scrollbar(text_frame)
         scroll.pack(side=tk.RIGHT, fill=tk.Y)
@@ -199,7 +221,9 @@ class ToolReportApp(tk.Tk):
             undo=False,
             width=82,
         )
-        xscroll = ttk.Scrollbar(right, orient=tk.HORIZONTAL, command=self.preview.xview)
+        xscroll = ttk.Scrollbar(
+            preview_col, orient=tk.HORIZONTAL, command=self.preview.xview
+        )
         self.preview.configure(yscrollcommand=scroll.set, xscrollcommand=xscroll.set)
         self.preview.pack(in_=text_frame, side=tk.LEFT, fill=tk.BOTH, expand=True)
         scroll.config(command=self.preview.yview)
@@ -234,6 +258,9 @@ class ToolReportApp(tk.Tk):
         else:
             self.btn_update.config(text=self._tr("update"))
         self.cad_legend_lbl.config(text=f"  {self._tr('cad_legend')}")
+        self.section_frame.config(text=self._tr("report_sections"))
+        for key, cb in self._section_checks.items():
+            cb.config(text=self._tr(f"section_{key}"))
         self.lbl_report.config(text=self._tr("report_preview"))
         if not self._results:
             self.status.config(text=self._tr("gui_idle"))
@@ -286,7 +313,10 @@ class ToolReportApp(tk.Tk):
         )
 
     def _persist_gui_prefs(self) -> None:
-        updates = {"last_paper": parse_gui_paper(self._paper.get())}
+        updates = {
+            "last_paper": parse_gui_paper(self._paper.get()),
+            "report_sections": self._gui_sections().to_csv(),
+        }
         if self._last_nc_dir:
             updates["last_nc_dir"] = self._last_nc_dir
         if self._out_dir is not None:
@@ -300,6 +330,26 @@ class ToolReportApp(tk.Tk):
 
     def _on_paper(self) -> None:
         self._paper.set(parse_gui_paper(self._paper.get()))
+        self._persist_gui_prefs()
+        self._on_select()
+
+    def _gui_sections(self) -> ReportSections:
+        ticks = {key: var.get() for key, var in self._section_vars.items()}
+        cycle = ticks.get("cycle", True)
+        return ReportSections(
+            header=ticks.get("header", True),
+            notes=ticks.get("notes", True),
+            step=ticks.get("step", True),
+            g54=ticks.get("g54", True),
+            cycle=cycle,
+            chart=cycle,
+            tools=ticks.get("tools", True),
+            changes=ticks.get("changes", True),
+            warnings=ticks.get("warnings", True),
+            sign=ticks.get("sign", True),
+        )
+
+    def _on_sections(self) -> None:
         self._persist_gui_prefs()
         self._on_select()
 
@@ -463,7 +513,7 @@ class ToolReportApp(tk.Tk):
         self._iso_path = png
         self.iso_label.configure(image=photo)
         if not self.iso_label.winfo_ismapped():
-            self.iso_label.pack(anchor=tk.N, pady=(0, 8), before=self.lbl_report)
+            self.iso_label.pack(anchor=tk.N, pady=(0, 8), before=self._preview_row)
 
     def _start_models(self) -> None:
         if self._models is not None:
@@ -605,7 +655,8 @@ class ToolReportApp(tk.Tk):
             return
         _path, result = selected
         paper = self._paper.get()
-        text = format_report(result, paper=paper, lang=self._lang)
+        sections = self._gui_sections()
+        text = format_report(result, paper=paper, lang=self._lang, sections=sections)
         self.preview.insert("1.0", text)
         if paper == PAPER_80MM:
             self.preview.configure(width=50, font=("Consolas", 11), wrap=tk.NONE)
@@ -640,9 +691,12 @@ class ToolReportApp(tk.Tk):
             dests = write_report(
                 result,
                 out_dir=self._out_dir,
-                image_paths=self._images_for(path),
+                image_paths=ticket_image_paths(
+                    result, self._images_for(path), self._gui_sections()
+                ),
                 lang=self._lang,
                 protected_roots=self._model_roots,
+                sections=self._gui_sections(),
             )
         except ProtectedWriteError:
             messagebox.showerror(
@@ -663,9 +717,12 @@ class ToolReportApp(tk.Tk):
                 write_report(
                     result,
                     out_dir=self._out_dir,
-                    image_paths=self._images_for(path),
+                    image_paths=ticket_image_paths(
+                        result, self._images_for(path), self._gui_sections()
+                    ),
                     lang=self._lang,
                     protected_roots=self._model_roots,
+                    sections=self._gui_sections(),
                 )
             except ProtectedWriteError:
                 messagebox.showerror(
@@ -684,12 +741,16 @@ class ToolReportApp(tk.Tk):
             messagebox.showinfo(self._tr("print_title"), self._tr("select_first"))
             return
         path, result = selected
+        sections = self._gui_sections()
         html = open_print_html(
             result,
             paper=paper,
             auto_print=True,
-            image_paths=self._images_for(path),
+            image_paths=ticket_image_paths(
+                result, self._images_for(path), sections
+            ),
             lang=self._lang,
+            sections=sections,
         )
         label = "A4" if paper == PAPER_A4 else "80 mm"
         self.status.config(

@@ -19,6 +19,7 @@ from fh6parse.report import (
     BAR_FILL,
     PAPER_80MM,
     PAPER_80MM_MIN,
+    PAPER_80MM_SET,
     PAPER_A4,
     THERMAL_WIDTH,
     format_print_html,
@@ -222,12 +223,18 @@ M30
 
     def test_cycle_on_short_and_full(self) -> None:
         r = self._equal_tools()
-        for paper in (PAPER_A4, PAPER_80MM, PAPER_80MM_MIN):
+        for paper in (PAPER_A4, PAPER_80MM):
             text = format_report(r, paper=paper)
             self.assertIn("Cycle 0:24", text, msg=paper)
             self.assertIn(" 50%", text, msg=paper)
             self.assertIn(BAR_FILL, text, msg=paper)
             self.assertTrue("SHARE" in text or "Share of cycle" in text, msg=paper)
+        sett = format_report(r, paper=PAPER_80MM_SET)
+        self.assertIn("Cycle 0:24", sett)
+        self.assertNotIn(BAR_FILL, sett)
+        load = format_report(r, paper=PAPER_80MM_MIN)
+        self.assertNotIn("Cycle 0:24", load)
+        self.assertNotIn(BAR_FILL, load)
 
     def test_full_each_change_has_share_not_a_second_chart(self) -> None:
         r = self._equal_tools()
@@ -259,11 +266,16 @@ M30
         self.assertIn(BAR_FILL, mm)
         self.assertIn("EACH CHANGE", mm)
         mini = format_print_html(r, paper=PAPER_80MM_MIN)
-        self.assertIn("CNC TOOLS MIN", mini)
-        self.assertIn("Cycle 0:24", mini)
-        self.assertIn("SHARE", mini)
-        self.assertIn(BAR_FILL, mini)
+        self.assertIn("CNC TOOLS LOAD", mini)
+        self.assertNotIn("Cycle 0:24", mini)
+        self.assertNotIn("SHARE", mini)
+        self.assertNotIn(BAR_FILL, mini)
         self.assertNotIn("EACH CHANGE", mini)
+        sett = format_print_html(r, paper=PAPER_80MM_SET)
+        self.assertIn("Cycle 0:24", sett)
+        self.assertNotIn("SHARE", sett)
+        self.assertNotIn(BAR_FILL, sett)
+        self.assertNotIn("EACH CHANGE", sett)
 
     def test_single_tool_is_100_percent(self) -> None:
         src = """O1
@@ -316,9 +328,12 @@ M30
         self.assertIn("Cycle 0:44", text)
         self.assertIn("ATC mill", text)
         self.assertIn("tool change 10 s", text)
-        mini = format_report(r, paper=PAPER_80MM_MIN)
-        self.assertIn("ATC mill", mini)
-        self.assertIn("Tchg 10s", mini)
+        sett = format_report(r, paper=PAPER_80MM_SET)
+        self.assertIn("ATC mill", sett)
+        self.assertIn("Tchg 10s", sett)
+        load = format_report(r, paper=PAPER_80MM_MIN)
+        self.assertNotIn("ATC mill", load)
+        self.assertNotIn("Tchg 10s", load)
 
 
 class TestG53FrameTime(unittest.TestCase):

@@ -210,7 +210,12 @@ class TestKioskConfig(unittest.TestCase):
             cfg = load_kiosk_config(path)
             self.assertEqual(cfg.idle_seconds, 60.0)
             self.assertEqual(cfg.encoder_clk, 5)
-            self.assertEqual(cfg.button_full, 6)
+            self.assertEqual(cfg.button_run, 6)
+            self.assertEqual(cfg.button_load, 23)
+            self.assertEqual(cfg.encoder_mill_clk, 5)
+            self.assertEqual(cfg.encoder_mill_dt, 6)
+            self.assertEqual(cfg.button_set, 24)
+            self.assertEqual(cfg.button_spare, 25)
             self.assertEqual(cfg.encoder_steps, 1)
             self.assertEqual(cfg.printer_queue, "")
             self.assertEqual(str(cfg.printer_device), "/dev/usb/lp0")
@@ -442,6 +447,73 @@ class TestKioskConfig(unittest.TestCase):
                     save_kiosk_values({"last_paper": "80mm"}, ui_overlay_path())
                     cfg = load_kiosk_config(main)
                     self.assertEqual(cfg.last_paper, PAPER_80MM)
+
+    def test_new_gpio_keys_and_old_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "kiosk.ini"
+            path.write_text(
+                "[kiosk]\n"
+                "button_run = 10\n"
+                "button_load = 11\n"
+                "button_set = 12\n"
+                "button_spare = 13\n"
+                "encoder_mill_clk = 5\n"
+                "encoder_mill_dt = 6\n"
+                "encoder_mill_swap = true\n",
+                encoding="utf-8",
+            )
+            cfg = load_kiosk_config(path)
+            self.assertEqual(cfg.button_run, 10)
+            self.assertEqual(cfg.button_load, 11)
+            self.assertEqual(cfg.button_set, 12)
+            self.assertEqual(cfg.button_spare, 13)
+            self.assertEqual(cfg.encoder_mill_clk, 5)
+            self.assertEqual(cfg.encoder_mill_dt, 6)
+            self.assertTrue(cfg.encoder_mill_swap)
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "kiosk.ini"
+            path.write_text(
+                "[kiosk]\nbutton_full = 8\nbutton_min = 9\n",
+                encoding="utf-8",
+            )
+            cfg = load_kiosk_config(path)
+            self.assertEqual(cfg.button_run, 8)
+            self.assertEqual(cfg.button_load, 9)
+
+    def test_report_sections_round_trip(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        from fh6parse.kiosk import save_kiosk_values, ui_overlay_path
+        from fh6parse.report import (
+            SECTIONS_LOAD,
+            normalize_paper,
+            parse_report_sections,
+        )
+
+        self.assertEqual(normalize_paper("80mm-min"), "80mm-load")
+        self.assertEqual(normalize_paper("80mm"), "80mm-run")
+        csv = SECTIONS_LOAD.to_csv()
+        self.assertIn("header", csv)
+        self.assertNotIn("chart", csv.split(","))
+        self.assertFalse(parse_report_sections(csv).cycle)
+        with tempfile.TemporaryDirectory() as home:
+            with patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
+                with tempfile.TemporaryDirectory() as raw:
+                    main = Path(raw) / "kiosk.ini"
+                    main.write_text("[kiosk]\n", encoding="utf-8")
+                    save_kiosk_values(
+                        {"report_sections": "header,tools,sign"},
+                        ui_overlay_path(),
+                    )
+                    cfg = load_kiosk_config(main)
+                    got = parse_report_sections(cfg.report_sections)
+                    self.assertTrue(got.header)
+                    self.assertTrue(got.tools)
+                    self.assertTrue(got.sign)
+                    self.assertFalse(got.notes)
+                    self.assertFalse(got.g54)
+                    self.assertFalse(got.cycle)
 
 
 class TestKioskPreview(unittest.TestCase):

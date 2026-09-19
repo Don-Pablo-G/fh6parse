@@ -1,4 +1,4 @@
-"""Portrait USB kiosk for Raspberry Pi 5: encoder, two print buttons, screensaver."""
+"""Portrait USB kiosk for Raspberry Pi 5: file + mill encoders, three print buttons, screensaver."""
 
 from __future__ import annotations
 
@@ -45,14 +45,23 @@ from .machtime import (
 from .modelmatch import is_under
 from .modelprep import cad_status, ModelPrep
 from .parser import ParseResult, parse_nc_file
-from .workarea import append_g54_png
 from .printer import (
     PrinterStatus,
     printer_block_key,
     print_ticket,
     query_printer_status,
 )
-from .report import PAPER_80MM, PAPER_80MM_MIN, PAPER_A4, format_report
+from .report import (
+    PAPER_80MM,
+    PAPER_80MM_LOAD,
+    PAPER_80MM_SET,
+    PAPER_A4,
+    format_report,
+    normalize_paper,
+    parse_report_sections,
+    sections_for_paper,
+    ticket_image_paths,
+)
 from .safepath import is_protected
 from .update import UpdateCheck
 
@@ -75,8 +84,13 @@ UI_OVERLAY_KEYS = (
     "encoder_dt",
     "encoder_swap",
     "encoder_steps",
-    "button_full",
-    "button_min",
+    "encoder_mill_clk",
+    "encoder_mill_dt",
+    "encoder_mill_swap",
+    "button_run",
+    "button_load",
+    "button_set",
+    "button_spare",
     "machine",
 )
 
@@ -168,8 +182,13 @@ class KioskConfig:
     encoder_dt: int = 27
     encoder_swap: bool = False
     encoder_steps: int = 1
-    button_full: int = 22
-    button_min: int = 23
+    encoder_mill_clk: int = 5
+    encoder_mill_dt: int = 6
+    encoder_mill_swap: bool = False
+    button_run: int = 22
+    button_load: int = 23
+    button_set: int = 24
+    button_spare: int = 25
     printer_queue: str = ""
     printer_device: str = "/dev/usb/lp0"
     usb_poll_ms: int = 500
@@ -182,6 +201,7 @@ class KioskConfig:
     last_nc_dir: str = ""
     last_out_dir: str = ""
     last_paper: str = PAPER_A4
+    report_sections: str = ""
     machines: list[MachineProfile] = field(default_factory=lambda: [DEFAULT_MACHINE])
     source: Path | None = None
 
@@ -586,6 +606,9 @@ def _apply_gui_memory(cfg: KioskConfig, src: configparser.SectionProxy) -> None:
     paper = src.get("last_paper", fallback="").strip()
     if paper:
         cfg.last_paper = parse_gui_paper(paper)
+    sections = src.get("report_sections", fallback="").strip()
+    if sections:
+        cfg.report_sections = parse_report_sections(sections).to_csv()
 
 
 def _clamp_bcm(value: int) -> int:
@@ -594,6 +617,13 @@ def _clamp_bcm(value: int) -> int:
 
 def _clamp_encoder_steps(value: int) -> int:
     return max(1, min(ENCODER_STEPS_MAX, int(value)))
+
+
+def _ini_bcm(src: configparser.SectionProxy, *keys: str, default: int) -> int:
+    for key in keys:
+        if key in src:
+            return _clamp_bcm(src.getint(key, fallback=default))
+    return default
 
 
 def _apply_gpio_section(cfg: KioskConfig, src: configparser.SectionProxy) -> None:
@@ -607,10 +637,30 @@ def _apply_gpio_section(cfg: KioskConfig, src: configparser.SectionProxy) -> Non
         cfg.encoder_steps = _clamp_encoder_steps(
             src.getint("encoder_steps", fallback=cfg.encoder_steps)
         )
-    if "button_full" in src:
-        cfg.button_full = _clamp_bcm(src.getint("button_full", fallback=cfg.button_full))
-    if "button_min" in src:
-        cfg.button_min = _clamp_bcm(src.getint("button_min", fallback=cfg.button_min))
+    if "encoder_mill_clk" in src:
+        cfg.encoder_mill_clk = _clamp_bcm(
+            src.getint("encoder_mill_clk", fallback=cfg.encoder_mill_clk)
+        )
+    if "encoder_mill_dt" in src:
+        cfg.encoder_mill_dt = _clamp_bcm(
+            src.getint("encoder_mill_dt", fallback=cfg.encoder_mill_dt)
+        )
+    if "encoder_mill_swap" in src:
+        cfg.encoder_mill_swap = src.getboolean(
+            "encoder_mill_swap", fallback=cfg.encoder_mill_swap
+        )
+    cfg.button_run = _ini_bcm(
+        src, "button_run", "button_full", default=cfg.button_run
+    )
+    cfg.button_load = _ini_bcm(
+        src, "button_load", "button_min", default=cfg.button_load
+    )
+    if "button_set" in src:
+        cfg.button_set = _clamp_bcm(src.getint("button_set", fallback=cfg.button_set))
+    if "button_spare" in src:
+        cfg.button_spare = _clamp_bcm(
+            src.getint("button_spare", fallback=cfg.button_spare)
+        )
 
 
 def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
@@ -748,6 +798,7 @@ class KioskApp(tk.Tk):
         self._config_open = False
         self._mill_open = False
         self._enc_leftover = 0
+        self._mill_leftover = 0
         self._preview_job: str | None = None
         self._preview_gen = 0
         self._preview_cache: dict[str, PreviewCacheEntry] = {}
@@ -817,6 +868,16 @@ class KioskApp(tk.Tk):
             fg=MUTED,
         )
         self.version_lbl.pack(side=tk.RIGHT, pady=(6, 0))
+        self.mill_chip = tk.Label(
+            title_row,
+            text=machine_display_name(self.cfg.active_machine(), self._lang),
+            font=small,
+            bg="#2a2a2a",
+            fg=ACCENT,
+            padx=8,
+            pady=2,
+        )
+        self.mill_chip.pack(side=tk.RIGHT, pady=(6, 0), padx=(0, 8))
         self.hint = tk.Label(
             head,
             text=t(self._lang, "insert_usb"),
@@ -1066,8 +1127,16 @@ class KioskApp(tk.Tk):
         pins.columnconfigure(1, weight=1)
         self._add_pin_stepper(pins, 0, 0, "encoder_clk", "pin_clk", small, update_font)
         self._add_pin_stepper(pins, 0, 1, "encoder_dt", "pin_dt", small, update_font)
-        self._add_pin_stepper(pins, 1, 0, "button_full", "pin_full", small, update_font)
-        self._add_pin_stepper(pins, 1, 1, "button_min", "pin_min", small, update_font)
+        self._add_pin_stepper(
+            pins, 1, 0, "encoder_mill_clk", "pin_mill_clk", small, update_font
+        )
+        self._add_pin_stepper(
+            pins, 1, 1, "encoder_mill_dt", "pin_mill_dt", small, update_font
+        )
+        self._add_pin_stepper(pins, 2, 0, "button_run", "pin_run", small, update_font)
+        self._add_pin_stepper(pins, 2, 1, "button_load", "pin_load", small, update_font)
+        self._add_pin_stepper(pins, 3, 0, "button_set", "pin_set", small, update_font)
+        self._add_pin_stepper(pins, 3, 1, "button_spare", "pin_spare", small, update_font)
 
         self._config_knob_lbl = tk.Label(
             panel,
@@ -1101,6 +1170,43 @@ class KioskApp(tk.Tk):
             command=lambda: self._set_encoder_swap(True),
         )
         self._btn_swap_on.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0), ipady=8)
+
+        self._config_mill_knob_lbl = tk.Label(
+            panel,
+            text=t(self._lang, "encoder_knob_mill"),
+            font=small,
+            bg="#1a1a1a",
+            fg="#eeeeee",
+        )
+        self._config_mill_knob_lbl.pack(anchor="w", pady=(4, 4))
+        mill_swap_row = tk.Frame(panel, bg="#1a1a1a")
+        mill_swap_row.pack(fill=tk.X, pady=(0, 8))
+        self._btn_mill_swap_off = tk.Button(
+            mill_swap_row,
+            text=t(self._lang, "encoder_swap_off"),
+            font=small,
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+            cursor="hand2",
+            command=lambda: self._set_encoder_mill_swap(False),
+        )
+        self._btn_mill_swap_off.pack(
+            side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 6), ipady=8
+        )
+        self._btn_mill_swap_on = tk.Button(
+            mill_swap_row,
+            text=t(self._lang, "encoder_swap_on"),
+            font=small,
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+            cursor="hand2",
+            command=lambda: self._set_encoder_mill_swap(True),
+        )
+        self._btn_mill_swap_on.pack(
+            side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0), ipady=8
+        )
 
         self._config_steps_lbl = tk.Label(
             panel,
@@ -1335,12 +1441,13 @@ class KioskApp(tk.Tk):
                 btn.config(bg="#333333", fg="#eeeeee", activebackground="#444444")
 
     def _style_swap_buttons(self) -> None:
-        on = self.cfg.encoder_swap
-        pair = (
-            (self._btn_swap_off, not on),
-            (self._btn_swap_on, on),
+        pairs = (
+            (self._btn_swap_off, not self.cfg.encoder_swap),
+            (self._btn_swap_on, self.cfg.encoder_swap),
+            (self._btn_mill_swap_off, not self.cfg.encoder_mill_swap),
+            (self._btn_mill_swap_on, self.cfg.encoder_mill_swap),
         )
-        for btn, active in pair:
+        for btn, active in pairs:
             if active:
                 btn.config(bg=ACCENT, fg="#111111", activebackground="#ffd54a")
             else:
@@ -1352,6 +1459,7 @@ class KioskApp(tk.Tk):
         self._steps_value_lbl.config(text=str(self.cfg.encoder_steps))
         mill = self.cfg.active_machine()
         self._machine_value_lbl.config(text=machine_display_name(mill, self._lang))
+        self.mill_chip.config(text=machine_display_name(mill, self._lang))
         self._machine_detail_lbl.config(
             text=self._tr(
                 "machine_detail",
@@ -1369,16 +1477,25 @@ class KioskApp(tk.Tk):
             "encoder_dt": str(self.cfg.encoder_dt),
             "encoder_swap": "true" if self.cfg.encoder_swap else "false",
             "encoder_steps": str(self.cfg.encoder_steps),
-            "button_full": str(self.cfg.button_full),
-            "button_min": str(self.cfg.button_min),
+            "encoder_mill_clk": str(self.cfg.encoder_mill_clk),
+            "encoder_mill_dt": str(self.cfg.encoder_mill_dt),
+            "encoder_mill_swap": "true" if self.cfg.encoder_mill_swap else "false",
+            "button_run": str(self.cfg.button_run),
+            "button_load": str(self.cfg.button_load),
+            "button_set": str(self.cfg.button_set),
+            "button_spare": str(self.cfg.button_spare),
         }
 
     def _assigned_pins(self, *, except_attr: str = "") -> set[int]:
         mapping = {
             "encoder_clk": self.cfg.encoder_clk,
             "encoder_dt": self.cfg.encoder_dt,
-            "button_full": self.cfg.button_full,
-            "button_min": self.cfg.button_min,
+            "encoder_mill_clk": self.cfg.encoder_mill_clk,
+            "encoder_mill_dt": self.cfg.encoder_mill_dt,
+            "button_run": self.cfg.button_run,
+            "button_load": self.cfg.button_load,
+            "button_set": self.cfg.button_set,
+            "button_spare": self.cfg.button_spare,
         }
         return {pin for attr, pin in mapping.items() if attr != except_attr}
 
@@ -1400,6 +1517,7 @@ class KioskApp(tk.Tk):
             return
         self.cfg.encoder_steps = nxt
         self._enc_leftover = 0
+        self._mill_leftover = 0
         self._refresh_gpio_labels()
         self._persist_ui_settings()
         self._arm_idle()
@@ -1432,6 +1550,15 @@ class KioskApp(tk.Tk):
         self._persist_ui_settings()
         self._arm_idle()
 
+    def _set_encoder_mill_swap(self, swap: bool) -> None:
+        if self.cfg.encoder_mill_swap == swap:
+            return
+        self.cfg.encoder_mill_swap = swap
+        self._mill_leftover = 0
+        self._refresh_gpio_labels()
+        self._persist_ui_settings()
+        self._arm_idle()
+
     def _apply_language(self) -> None:
         self.title(self._tr("app_title_kiosk", version=__version__))
         self.brand_lbl.config(text=self._tr("brand"))
@@ -1449,14 +1576,21 @@ class KioskApp(tk.Tk):
         pin_keys = {
             "encoder_clk": "pin_clk",
             "encoder_dt": "pin_dt",
-            "button_full": "pin_full",
-            "button_min": "pin_min",
+            "encoder_mill_clk": "pin_mill_clk",
+            "encoder_mill_dt": "pin_mill_dt",
+            "button_run": "pin_run",
+            "button_load": "pin_load",
+            "button_set": "pin_set",
+            "button_spare": "pin_spare",
         }
         for attr, key in pin_keys.items():
             self._pin_captions[attr].config(text=self._tr(key))
         self._config_knob_lbl.config(text=self._tr("encoder_knob"))
         self._btn_swap_off.config(text=self._tr("encoder_swap_off"))
         self._btn_swap_on.config(text=self._tr("encoder_swap_on"))
+        self._config_mill_knob_lbl.config(text=self._tr("encoder_knob_mill"))
+        self._btn_mill_swap_off.config(text=self._tr("encoder_swap_off"))
+        self._btn_mill_swap_on.config(text=self._tr("encoder_swap_on"))
         self._config_steps_lbl.config(text=self._tr("encoder_steps"))
         self._config_steps_blurb.config(text=self._tr("encoder_steps_blurb"))
         self._config_keys.config(text=self._tr("settings_keys"))
@@ -1697,8 +1831,10 @@ class KioskApp(tk.Tk):
             ("<Next>", lambda e: self._on_nav(1)),
             ("<Key-f>", lambda e: self._on_print(PAPER_80MM)),
             ("<Key-F>", lambda e: self._on_print(PAPER_80MM)),
-            ("<Key-m>", lambda e: self._on_print(PAPER_80MM_MIN)),
-            ("<Key-M>", lambda e: self._on_print(PAPER_80MM_MIN)),
+            ("<Key-m>", lambda e: self._on_print(PAPER_80MM_LOAD)),
+            ("<Key-M>", lambda e: self._on_print(PAPER_80MM_LOAD)),
+            ("<Key-s>", lambda e: self._on_print(PAPER_80MM_SET)),
+            ("<Key-S>", lambda e: self._on_print(PAPER_80MM_SET)),
             ("<Key-u>", lambda e: self._on_update()),
             ("<Key-U>", lambda e: self._on_update()),
             ("<F2>", lambda e: self._on_config_key()),
@@ -1818,6 +1954,7 @@ class KioskApp(tk.Tk):
     def _reload_gpio(self) -> None:
         self._close_gpio()
         self._enc_leftover = 0
+        self._mill_leftover = 0
         self._setup_gpio()
 
     def _setup_gpio(self) -> None:
@@ -1841,15 +1978,37 @@ class KioskApp(tk.Tk):
             enc.when_rotated_counter_clockwise = lambda: self._queue(
                 lambda: self._on_encoder_gpio(-1)
             )
-            full = Button(self.cfg.button_full, pull_up=True, bounce_time=0.08)
-            mini = Button(self.cfg.button_min, pull_up=True, bounce_time=0.08)
-            full.when_pressed = lambda: self._queue(
+            try:
+                mill_enc = RotaryEncoder(
+                    self.cfg.encoder_mill_clk,
+                    self.cfg.encoder_mill_dt,
+                    bounce_time=0.005,
+                )
+            except TypeError:
+                mill_enc = RotaryEncoder(
+                    self.cfg.encoder_mill_clk, self.cfg.encoder_mill_dt
+                )
+            mill_enc.when_rotated_clockwise = lambda: self._queue(
+                lambda: self._on_mill_encoder_gpio(1)
+            )
+            mill_enc.when_rotated_counter_clockwise = lambda: self._queue(
+                lambda: self._on_mill_encoder_gpio(-1)
+            )
+            run = Button(self.cfg.button_run, pull_up=True, bounce_time=0.08)
+            load = Button(self.cfg.button_load, pull_up=True, bounce_time=0.08)
+            sett = Button(self.cfg.button_set, pull_up=True, bounce_time=0.08)
+            spare = Button(self.cfg.button_spare, pull_up=True, bounce_time=0.08)
+            run.when_pressed = lambda: self._queue(
                 lambda: self._on_print(PAPER_80MM)
             )
-            mini.when_pressed = lambda: self._queue(
-                lambda: self._on_print(PAPER_80MM_MIN)
+            load.when_pressed = lambda: self._queue(
+                lambda: self._on_print(PAPER_80MM_LOAD)
             )
-            self._gpio.extend([enc, full, mini])
+            sett.when_pressed = lambda: self._queue(
+                lambda: self._on_print(PAPER_80MM_SET)
+            )
+            spare.when_pressed = lambda: self._queue(self._on_spare)
+            self._gpio.extend([enc, mill_enc, run, load, sett, spare])
         except Exception as exc:  # GPIO missing or pin busy
             self._set_status(
                 self._tr("gpio_off", detail=_gpio_fail_hint(exc, self._lang)),
@@ -1862,6 +2021,7 @@ class KioskApp(tk.Tk):
         action = self.gate.encoder()
         if action == "wake":
             self._enc_leftover = 0
+            self._mill_leftover = 0
             self._hide_saver()
             self._arm_idle()
             self._claim_input()
@@ -1877,6 +2037,39 @@ class KioskApp(tk.Tk):
             self._on_encoder(moved)
         else:
             self._arm_idle()
+
+    def _on_mill_encoder_gpio(self, delta: int) -> None:
+        if self.cfg.encoder_mill_swap:
+            delta = -delta
+        action = self.gate.encoder()
+        if action == "wake":
+            self._mill_leftover = 0
+            self._enc_leftover = 0
+            self._hide_saver()
+            self._arm_idle()
+            self._claim_input()
+            return
+        if self._mill_open:
+            self._mill_leftover = 0
+            self._arm_idle()
+            return
+        moved, self._mill_leftover = encoder_file_delta(
+            delta, self._mill_leftover, self.cfg.encoder_steps
+        )
+        if moved:
+            self._bump_machine(moved)
+        else:
+            self._arm_idle()
+
+    def _on_spare(self) -> str | None:
+        if self.gate.asleep:
+            self.gate.encoder()
+            self._hide_saver()
+            self._arm_idle()
+            self._claim_input()
+            return "break"
+        self._arm_idle()
+        return "break"
 
     def _roots(self) -> list[Path]:
         return list(self._mounts) + list(self.cfg.extra_roots)
@@ -2326,7 +2519,11 @@ class KioskApp(tk.Tk):
             self._printer_key = block
             self._set_status(self._tr(block), error=True, hold=True)
             return "break"
-        kind = self._tr("print_kind_full" if paper == PAPER_80MM else "print_kind_min")
+        kind_key = {
+            PAPER_80MM_LOAD: "print_kind_load",
+            PAPER_80MM_SET: "print_kind_set",
+        }.get(normalize_paper(paper), "print_kind_run")
+        kind = self._tr(kind_key)
         self._print_busy = True
         self._refresh_hint()
         self._set_status(self._tr("printing", kind=kind, name=path.name))
@@ -2337,7 +2534,7 @@ class KioskApp(tk.Tk):
             images: list[Path] = []
             if self._models is not None:
                 images = self._models.ready_images(path)
-            images = append_g54_png(result, images)
+            images = ticket_image_paths(result, images, sections_for_paper(paper))
             route = print_ticket(
                 text,
                 queue=self.cfg.printer_queue,

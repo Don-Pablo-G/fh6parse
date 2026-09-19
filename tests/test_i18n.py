@@ -141,7 +141,7 @@ M30
         self.assertIn("UDZIAŁ", mm)
         self.assertIn("KAŻDA WYMIANA", mm)
         mini = format_report(r, paper=PAPER_80MM_MIN, lang="pl")
-        self.assertIn("NARZĘDZIA CNC MIN", mini)
+        self.assertIn("NARZĘDZIA CNC ZAŁADUNEK", mini)
         html = format_print_html(r, lang="pl")
         self.assertIn('lang="pl"', html)
         self.assertIn("Drukuj", html)
@@ -201,4 +201,5 @@ class TestLanguageIni(unittest.TestCase):
 
         self.assertIn("encoder_clk", UI_OVERLAY_KEYS)
         self.assertIn("encoder_steps", UI_OVERLAY_KEYS)
-        self.assertIn("button_min", UI_OVERLAY_KEYS)
+        self.assertIn("button_load", UI_OVERLAY_KEYS)
+        self.assertIn("encoder_mill_clk", UI_OVERLAY_KEYS)

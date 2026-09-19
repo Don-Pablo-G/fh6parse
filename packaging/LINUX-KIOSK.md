@@ -2,7 +2,7 @@
 
 Operator sheet (Polish, daily use only): **[LINUX-KIOSK-PL.md](LINUX-KIOSK-PL.md)**. This file is the full English install / wiring / update manual.
 
-**Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C, tool-change time). Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. The screen shows **v1.4.0** (later git commits keep that number; the yellow **UPDATE** button then shows a short hash). The Windows office exe uses the same button against a GitHub Release (tag **vX.Y.Z** builds the exe).
+**Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C, tool-change time, optional G53 ATC / G54 / travel). Tickets then show a labeled G53 rectangle of where G54 may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. The screen shows **v1.4.0** (later git commits keep that number; the yellow **UPDATE** button then shows a short hash). The Windows office exe uses the same button against a GitHub Release (tag **vX.Y.Z** builds the exe).
 
 Python **3.10+** is required (Bookworm ships 3.11). Use **Raspberry Pi OS 64-bit Desktop** (Bookworm or later). Pi 5 has no 32-bit OS.
 
@@ -27,8 +27,10 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 | Raspberry Pi 5 | Official **27 W USB-C** PSU (5 V / 5 A). Do not use a Pi 3 2.5 A supply. Do not power the printer from the Pi USB. Active cooler recommended in a closed enclosure. |
 | micro-HDMI cable | Pi 5 has two **micro-HDMI** ports. Use **HDMI0** (the port next to USB-C power) for the kiosk panel. |
 | 800×600 LCD, mounted vertically | After rotation the framebuffer is **600×800**. That is what the app uses. |
-| KY-040 rotary encoder | CLK and DT only. The shaft push-switch is unused. |
-| Two momentary buttons | Normally-open, wired to GPIO and GND. |
+| KY-040 rotary encoder (file) | CLK and DT only. The shaft push-switch is unused. Selects the NC file. |
+| KY-040 rotary encoder (mill) | Second knob, same wiring pattern. Cycles mills in settings / `kiosk.machine`. |
+| Three momentary print buttons | Normally-open, wired to GPIO and GND: **RUN**, **LOAD**, **SET**. |
+| Spare momentary button | Wired and reserved. Wakes the screen if it is asleep; otherwise ignored (does not print). |
 | USB stick | FAT/exFAT/NTFS. Programs as `.nc` / `.NC` / `.tap` in the **stick root** only (not subfolders). |
 | MUNBYN P047 (ITPP047) | USB, 80 mm ESC/POS, auto-cutter. Own mains PSU. |
 | Company STEP folder (optional) | NAS of `.stp` / `.step` if the stick has none. See **§3.7**. Stick copy is enough. |
@@ -39,12 +41,16 @@ Default GPIO (**BCM** numbers, not header pin numbers):
 
 | Function | BCM GPIO | Header pin |
 | --- | --- | --- |
-| Encoder CLK | 17 | 11 |
-| Encoder DT | 27 | 13 |
-| Full-report button | 22 | 15 |
-| Minimal-report button | 23 | 16 |
+| File encoder CLK | 17 | 11 |
+| File encoder DT | 27 | 13 |
+| Mill encoder CLK | 5 | 29 |
+| Mill encoder DT | 6 | 31 |
+| RUN button | 22 | 15 |
+| LOAD button | 23 | 16 |
+| SET button | 24 | 18 |
+| Spare button (reserved) | 25 | 22 |
 | 3.3 V for encoder VCC | — | 1 or 17 |
-| GND | — | 6, 9, or 14 |
+| GND | — | 6, 9, 14, 20, or 30 |
 
 Change pins in **settings** (**F2** / **C** / **PL**·**EN**) or in `/etc/fh6parse-kiosk.ini`. Settings write `~/.config/fh6parse/ui.ini` (and the main ini if it is writable).
 
@@ -75,12 +81,18 @@ Pi 5 40-pin header (same BCM layout as Pi 3/4), looking at the board with the US
 ```
  3.3V  (1)  (2)  5V          ← encoder VCC to pin 1 only
  GPIO2 (3)  (4)  5V
- GPIO3 (5)  (6)  GND         ← shared GND (encoder GND + both buttons)
+ GPIO3 (5)  (6)  GND         ← shared GND (encoders + buttons)
  GPIO4 (7)  (8)  GPIO14
   GND  (9)  (10) GPIO15
-GPIO17 (11) (12) GPIO18      ← encoder CLK
-GPIO27 (13) (14) GND         ← encoder DT
-GPIO22 (15) (16) GPIO23      ← FULL button     MIN button
+GPIO17 (11) (12) GPIO18      ← file encoder CLK
+GPIO27 (13) (14) GND         ← file encoder DT
+GPIO22 (15) (16) GPIO23      ← RUN button     LOAD button
+  3.3V (17) (18) GPIO24      ← SET button
+GPIO10 (19) (20) GND
+ GPIO9 (21) (22) GPIO25      ← spare (reserved; wake-only)
+ …
+ GPIO5 (29) (30) GND         ← mill encoder CLK
+ GPIO6 (31) (32) GPIO12      ← mill encoder DT
 ```
 
 KY-040 typical labels:
@@ -90,8 +102,8 @@ KY-040 typical labels:
 | GND | pin 6 (GND) |
 | + | pin 1 (3.3 V) |
 | SW | not used |
-| DT | pin 13 (GPIO 27) |
-| CLK | pin 11 (GPIO 17) |
+| DT | pin 13 (GPIO 27) file, or pin 31 (GPIO 6) mill |
+| CLK | pin 11 (GPIO 17) file, or pin 29 (GPIO 5) mill |
 
 Each print button:
 
@@ -99,7 +111,7 @@ Each print button:
 GPIO ── button ── GND
 ```
 
-If turning the knob moves the highlight the wrong way, use **Reverse** in settings (or `encoder_swap = true`, or swap CLK and DT). **Ticks per tooth** is GPIO ticks from one rest valley to the next. The list changes halfway (a 36-tooth knob is 10° per file, ~5° to change the highlight), so a small wiggle at rest does not skip files.
+If turning the **file** knob moves the highlight the wrong way, use **Reverse** on the file knob in settings (or `encoder_swap = true`, or swap that CLK and DT). Same for the mill knob (`encoder_mill_swap`). **Ticks per tooth** is shared unless you change it: GPIO ticks from one rest valley to the next. The list (or mill) changes halfway, so a small wiggle at rest does not skip.
 
 ### 2.4 Screen orientation
 
@@ -139,7 +151,7 @@ The app writes that blob to **`/dev/usb/lp0`** first (same as `open("/dev/usb/lp
 
 If CUPS has already claimed the printer, the USB write fails with *Device or resource busy*. Stop or disable that queue (or CUPS) so `usblp` owns `/dev/usb/lp0`.
 
-Before FULL/MIN the kiosk sends **DLE EOT** (real-time status, not printed) on that same node. Cover open, paper end, or cutter error stay on the status line (**Pokrywa otwarta** / **Brak papieru** / **Zacięcie drukarki**) and the ticket is not sent. If the firmware does not answer, print goes ahead as before.
+Before RUN / LOAD / SET the kiosk sends **DLE EOT** (real-time status, not printed) on that same node. Cover open, paper end, or cutter error stay on the status line (**Pokrywa otwarta** / **Brak papieru** / **Zacięcie drukarki**) and the ticket is not sent. If the firmware does not answer, print goes ahead as before.
 
 ---
 
@@ -235,10 +247,12 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `idle_seconds` | 60 | Black screen after this many seconds. `0` disables. |
-| `encoder_clk` / `encoder_dt` | 17 / 27 | BCM pins. Change in **settings** or here. |
-| `button_full` / `button_min` | 22 / 23 | BCM pins for FULL / MIN. Change in **settings** or here. |
-| `encoder_swap` | false | Reverse knob direction |
-| `encoder_steps` | 1 | GPIO ticks from one tooth valley to the next. Highlight changes at half a tooth so rest is stable. |
+| `encoder_clk` / `encoder_dt` | 17 / 27 | File knob BCM pins. Change in **settings** or here. |
+| `encoder_mill_clk` / `encoder_mill_dt` | 5 / 6 | Mill knob BCM pins (header 29 / 31). |
+| `button_run` / `button_load` / `button_set` | 22 / 23 / 24 | RUN / LOAD / SET print. Old `button_full` / `button_min` still read. |
+| `button_spare` | 25 | Reserved. Wake-only if the screen is asleep; otherwise ignored. |
+| `encoder_swap` / `encoder_mill_swap` | false | Reverse file knob / mill knob |
+| `encoder_steps` | 1 | GPIO ticks from one tooth valley to the next (shared). Highlight / mill changes at half a tooth so rest is stable. |
 | `printer_device` | /dev/usb/lp0 | USB printer node (**tried first**) |
 | `printer_queue` | (empty) | Optional CUPS name; used only if the USB node fails. Empty = never call `lp`. |
 | `scan_depth` | 1 | USB root only. Raise to search subfolders. |
@@ -337,13 +351,14 @@ python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 
 Without GPIO you can still use a **USB keyboard and mouse** at any time (hot-plug is fine). The kiosk keeps keyboard focus and the black screensaver wakes on a key, click, or mouse wheel.
 
-The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids, tool-change time, optional G53 ATC / G54 / tool length / travel from `[machine.<id>]` in this ini), **Add mill…** to create a new mill (written to `~/.config/fh6parse/ui.ini`), BCM pin numbers for CLK / DT / FULL / MIN, knob reverse, and **ticks per tooth** (GPIO ticks from one rest valley to the next; the highlight changes halfway so a wiggle at rest does not skip files). Language, mill, and GPIO are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes the mill form first, then settings; the next **Esc** still leaves fullscreen. Encoder or a GPIO print button closes settings without printing / skipping a file.
+The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids, tool-change time, optional G53 ATC / G54 / tool length / travel from `[machine.<id>]` in this ini; the mill name also sits next to the version chip and the mill knob cycles it), **Add mill…** to create a new mill (written to `~/.config/fh6parse/ui.ini`), BCM pin numbers for file CLK / DT, mill CLK / DT, RUN / LOAD / SET / spare, knob reverse, and **ticks per tooth** (GPIO ticks from one rest valley to the next; the highlight or mill changes halfway so a wiggle at rest does not skip). Language, mill, and GPIO are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes the mill form first, then settings; the next **Esc** still leaves fullscreen. The file encoder or a GPIO print button closes settings without printing / skipping a file. The mill encoder keeps settings open and changes the mill.
 
 | Input | While awake | While screensaver |
 | --- | --- | --- |
 | Arrows, mouse wheel, click a file | Move highlight | First event only wakes |
-| **F** / **M** | Print full / min | Ignored (no ticket); another key or click wakes |
-| GPIO FULL / MIN | Print | Ignored (no ticket, stays black) |
+| **F** / **M** / **S** | Print RUN / LOAD / SET | Ignored (no ticket); another key or click wakes |
+| GPIO RUN / LOAD / SET | Print | Ignored (no ticket, stays black) |
+| GPIO spare | Ignored | Wake only |
 | Yellow **UPDATE to …** / **U** | One tap: pull, then restart kiosk | Wake first, then tap |
 | **F2** / **C** / click **PL**·**EN** | Open or close settings (language, pins, encoder ticks) | Wake first |
 | In settings: arrows / wheel / **Polski**·**English** | Switch language | — |
@@ -358,7 +373,7 @@ Desktop autostart of the kiosk is in the next section. Until then, Escape leaves
 
 Optional. The kiosk looks for a matching `.stp` / `.step` **on the USB stick first** (same folder as the `.nc`, then subfolders on that stick). No NAS is required. Company folders in `model_roots` are a fallback if the stick has no match.
 
-FULL and MIN tickets can show two opposite **true isometric** views (45° then ~35.3° — look along the cube diagonal), as **visible edges only** (silhouette + sharp creases, no shading). Through-holes draw as ellipses (near rim, and the far rim only where you can see through). The longest 3D axis is laid across the 80 mm width (~512 dots); height is cropped to the part, so a long thin shaft is a thin strip, not a metre of paper. A bulky part is capped (~30 mm of paper per view). Print never waits for a model. After an update, delete `/tmp/fh6parse-models` so old shaded bitmaps are not reused.
+SET and RUN tickets can show two opposite **true isometric** views (45° then ~35.3° — look along the cube diagonal), as **visible edges only** (silhouette + sharp creases, no shading). Through-holes draw as ellipses (near rim, and the far rim only where you can see through). The longest 3D axis is laid across the 80 mm width (~512 dots); height is cropped to the part, so a long thin shaft is a thin strip, not a metre of paper. A bulky part is capped (~30 mm of paper per view). Print never waits for a model. After an update, delete `/tmp/fh6parse-models` so old shaded bitmaps are not reused.
 
 **1. USB (usual shop path).** Put the STEP file next to the program, or in a subfolder on the same stick:
 
@@ -475,20 +490,21 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 
 1. Power on. Screen shows **Włóż pendrive** / **Insert USB** (or the last stick if it was already plugged in). The kiosk is Polish unless settings were changed.
 2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear. The count line shows **Można wyjąć** / **Safe to remove** when the kiosk is not reading the stick — wait for that before unplugging. **Czytanie pendrive — czekaj** / **Reading USB — wait** means preview parse or a STEP copy from the stick is still running.
-3. Turn the encoder to highlight a file. The panel under the list shows each operation’s tool count and cycle time, and whether the STEP views are ready. A **3D cube** next to the name also means the STEP views are ready; the stacked isometric appears under the preview when it is. Check OP1 vs OP2 here before printing. If that `.nc` is overwritten on the stick (same name, new bytes), preview reloads from disk — wait for **Reading…** to finish before FULL/MIN.
-4. **FULL** — 80 mm ticket: stacked line-art isometrics when ready, then operations, cycle time, a share chart of each T, tool list, each tool change (time and % of cycle), warnings, min Z.
-5. **MIN** — short ticket: stacked line-art isometrics when ready, then per operation cycle time, share chart of each T, then T, H/D/S to load, description, min Z, and H/D/G95 mismatch flags.
-6. If the status line says **Pokrywa otwarta** / **Printer cover open**, **Brak papieru** / **No paper**, or **Zacięcie drukarki** / **Printer jam**, fix the P047 first. FULL/MIN will not cut a blank slip. Those messages also appear on their own while idle (polled about every 2 s).
-7. If there is no cube, print anyway. The slip is text only. The chip next to the cube legend says why: **3D ready**, **searching…** / **szuka…** (looking for a `.stp`), **rendering…** / **liczy…** (drawing a match), **no STEP** / **brak STEP**, **Z: off** / **Z: wył.** (company share down), or **no CAD** / **brak CAD** (install `[models]`).
-8. Status after a good print: **`device:/dev/usb/lp0`**. If it says `lp:…`, CUPS took the job — **§3.5**.
-9. **WARNING:** lines: `H{n} does not match T{tool}` on G43, `D{n} does not match T{tool}` on any D, `G95 still active…` if feed-per-rev was not cancelled with G94 before the next tool (or M30), and empty-pocket (`Txx M6` with no motion) except the **last** tool change (spindle prep). Matching H/D stay quiet. Comments with `!` print as **Programmer notes**.
-10. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
-11. Wake: encoder, inserting a USB stick, or a **keyboard / mouse**. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored.
-12. Settings: **F2** / **C** or the **PL**/**EN** chip (mouse) — **§3.6**. Encoder does not open settings. Mill picker, **Add mill…**, pins, and ticks per tooth are on that panel.
-13. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
-14. Current version is **v…** at the top right. If the Pi is on the network and origin is ahead, a yellow **UPDATE to x.y.z** (or a git hash if the number is still 1.4.0) appears **after this boot’s check**. It does **not** update by itself. One tap installs and **restarts** the kiosk (sudoers in **§3.2**). Print still works until you tap it.
+3. Turn the **file** encoder to highlight a file. The panel under the list shows each operation’s tool count and cycle time, and whether the STEP views are ready. A **3D cube** next to the name also means the STEP views are ready; the stacked isometric appears under the preview when it is. Check OP1 vs OP2 here before printing. If that `.nc` is overwritten on the stick (same name, new bytes), preview reloads from disk — wait for **Reading…** to finish before RUN / LOAD / SET. The mill name sits next to the version chip; turn the **mill** knob to change mill (same as **Add mill…** / settings).
+4. **LOAD** — operator slip: file / program / units, tool list with T / H / D / S / Min Z and load boxes, mismatch and empty-pocket warnings, sign-off. No cycle chart, no each-Txx-M6 dump, no G54 box, no STEP.
+5. **SET** — setter slip: file / program, mill name, STEP when ready, G54 rectangle + Ømax + Z window, cycle time (no share chart), programmer `!` notes, G54 in/out / too-big warnings.
+6. **RUN** — full slip (old FULL): STEP, G54 block, ops, cycle + share chart, tool list, each Txx M6, all warnings.
+7. If the status line says **Pokrywa otwarta** / **Printer cover open**, **Brak papieru** / **No paper**, or **Zacięcie drukarki** / **Printer jam**, fix the P047 first. RUN / LOAD / SET will not cut a blank slip. Those messages also appear on their own while idle (polled about every 2 s).
+8. If there is no cube, print anyway. The slip is text only. The chip next to the cube legend says why: **3D ready**, **searching…** / **szuka…** (looking for a `.stp`), **rendering…** / **liczy…** (drawing a match), **no STEP** / **brak STEP**, **Z: off** / **Z: wył.** (company share down), or **no CAD** / **brak CAD** (install `[models]`).
+9. Status after a good print: **`device:/dev/usb/lp0`**. If it says `lp:…`, CUPS took the job — **§3.5**.
+10. **WARNING:** lines: `H{n} does not match T{tool}` on G43, `D{n} does not match T{tool}` on any D, `G95 still active…` if feed-per-rev was not cancelled with G94 before the next tool (or M30), and empty-pocket (`Txx M6` with no motion) except the **last** tool change (spindle prep). Matching H/D stay quiet. Comments with `!` print as **Programmer notes**.
+11. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
+12. Wake: either encoder, inserting a USB stick, a **keyboard / mouse**, or the spare GPIO. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored. Spare while awake does nothing.
+13. Settings: **F2** / **C** or the **PL**/**EN** chip (mouse) — **§3.6**. The file encoder does not open settings. Mill picker, **Add mill…**, pins, and ticks per tooth are on that panel.
+14. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
+15. Current version is **v…** at the top right (mill name is next to it). If the Pi is on the network and origin is ahead, a yellow **UPDATE to x.y.z** (or a git hash if the number is still 1.4.0) appears **after this boot’s check**. It does **not** update by itself. One tap installs and **restarts** the kiosk (sudoers in **§3.2**). Print still works until you tap it.
 
-Preview parse runs when a file is highlighted (idle, not on FULL/MIN). STEP matching and rendering run in the background and must not delay the ticket.
+Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). STEP matching and rendering run in the background and must not delay the ticket.
 
 ---
 
@@ -504,14 +520,14 @@ Preview parse runs when a file is highlighted (idle, not on FULL/MIN). STEP matc
 | Preview does not match the stick file | Same name overwritten? Wait until **Reading…** clears. Reload uses mtime **and** size (FAT 2 s). Do not yank during **Reading USB — wait**. |
 | Yanked stick, list frozen / cube stuck | Wait for **Safe to remove** next time. Plug back in. `rm -rf /tmp/fh6parse-models` if pictures are from a half-copy. |
 | `printer failed` | `ls -l /dev/usb/lp0`; user `kiosk` in group `lp`; test the Python write in **§3.5**. *Permission denied* → log out after `usermod`. *Busy* → CUPS still owns the printer (`sudo systemctl disable --now cups`). |
-| **Brak papieru** / **Pokrywa otwarta** / **Zacięcie drukarki** | Load paper, close the cover, or clear the cutter. FULL/MIN is blocked on purpose. If the P047 never answers DLE EOT, print still goes through (no false alarm). |
+| **Brak papieru** / **Pokrywa otwarta** / **Zacięcie drukarki** | Load paper, close the cover, or clear the cutter. RUN / LOAD / SET is blocked on purpose. If the P047 never answers DLE EOT, print still goes through (no false alarm). |
 | Blank slip / cut with no text | Paper was likely already out or the cover was open *before* this build. Confirm the status line. |
 | Garbage on the slip | CUPS grabbed the job. The kiosk writes `/dev/usb/lp0` first; disable CUPS (**§3.5**). Status must show `device:/dev/usb/lp0`, not `lp:…`. |
 | Ticket does not cut | Cutter empty/jammed. Status should show **Zacięcie drukarki** / **Printer jam**. App already sends ESC/POS cut (`GS V`) when status is OK. |
 | Screen never sleeps | `idle_seconds = 0`, or encoder bouncing. Still on Wayland? Switch to X11 so `xset` works. |
 | Keyboard/mouse do nothing | Plug into the Pi USB-A; X11 picks them up. Click or press a key — the kiosk claims focus. **F2** / **C** opens settings. **Esc** closes settings, then leaves fullscreen. GPIO print buttons still do not wake the screensaver. |
 | Language resets to Polish after you picked English | Stored in `/home/kiosk/.config/fh6parse/ui.ini`. Pick **English** again in settings. **UPDATE** does not delete that file. Pins, mill, and ticks live in the same overlay. |
-| **Add mill…** missing / mill list is only Default | Clone is older than this pull. Settings → **Add mill…**. Saved in `ui.ini` (`[machine.<id>]`). |
+| **Add mill…** missing / mill list is only Default | Clone is older than this pull. Settings → **Add mill…**. Saved in `ui.ini` (`[machine.<id>]`). Travel keys `x_min`…`y_max` print the G54 rectangle. |
 | Screen stays in English and **F2** does nothing | Wake first if the screen is black. Click the **EN** chip next to **v…**. Encoder never opens settings. |
 | Black screen immediately | Desktop blanking plus app DPMS. Disable LXDE idle blank; keep kiosk `idle_seconds = 60`. |
 | Wrong aspect / sideways UI | Rotate until `xdpyinfo` (or Screen Configuration) shows 600×800. App geometry is 600×800 fullscreen. Pi 5 output is often `HDMI-A-1`. |
@@ -535,7 +551,7 @@ CLI without the kiosk (reports next to the NC file):
 
 ```
 python3 -m fh6parse /path/program.nc
-python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
+python3 -m fh6parse --format 80mm-load --stdout /path/program.nc
 ```
 
 ---
@@ -557,7 +573,7 @@ python3 -m fh6parse --format 80mm-min --stdout /path/program.nc
 
 ## 8. Updating the kiosk
 
-This section is for **fh6parse 1.4.0** on a **git checkout** (`/home/kiosk/fh6parse`). The badge stays **1.4.0** until you tag a newer number; shop commits after that badge (preview, mill table / **Add mill…**, on-screen isometric, empty-pocket, loops / canned L) still arrive on **UPDATE** as a git hash. Confirm first:
+This section is for **fh6parse 1.4.0** on a **git checkout** (`/home/kiosk/fh6parse`). The badge stays **1.4.0** until you tag a newer number; shop commits after that badge (preview, mill table / **Add mill…**, travel / G54 box, on-screen isometric, empty-pocket, loops / canned L) still arrive on **UPDATE** as a git hash. Confirm first:
 
 ```
 python3 -m fh6parse --version
@@ -644,7 +660,7 @@ git log -1 --oneline
 sudo systemctl restart fh6parse-kiosk
 ```
 
-`git log -1` on current master should mention **Add mill** (or on-screen isometric / empty pocket if that is the last commit you pulled). The on-screen badge is still **v1.4.0**. STEP isometrics, D vs T, USB `/dev/usb/lp0`, cycle time, and kiosk preview are already in older 1.4.0 commits. Or wait for the yellow **UPDATE** after a restart (check runs once per boot).
+`git log -1` on current master should mention **G54** / travel (or **Add mill** / on-screen isometric if that is an older pull). The on-screen badge is still **v1.4.0**. STEP isometrics, D vs T, USB `/dev/usb/lp0`, cycle time, and kiosk preview are already in older 1.4.0 commits. Or wait for the yellow **UPDATE** after a restart (check runs once per boot).
 
 Clear old STEP bitmaps:
 
@@ -664,11 +680,11 @@ sudo systemctl disable --now cups
 | --- | --- |
 | `ls -l /dev/usb/lp0` exists, writable by `kiosk` | |
 | Python test in **§3.5** prints TEST and cuts | |
-| FULL ticket status: `device:/dev/usb/lp0` (not `lp:…`) | |
+| RUN ticket status: `device:/dev/usb/lp0` (not `lp:…`) | |
 | Ticket text is readable (PC852 Polish comments), then cut | |
-| Open cover → status **Pokrywa otwarta**; FULL does not print | |
-| Paper out → status **Brak papieru**; FULL does not print | |
-| Cover closed, paper in → FULL prints and cuts | |
+| Open cover → status **Pokrywa otwarta**; RUN does not print | |
+| Paper out → status **Brak papieru**; RUN does not print | |
+| Cover closed, paper in → RUN prints and cuts | |
 | No CUPS garbage / doubled jobs | |
 
 **3. D and H vs tool number**
@@ -699,8 +715,8 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Through-holes as ellipses, not filled blobs | |
 | Long shaft is a thin strip across 80 mm | |
 | Print without a cube is still text-only, no wait | |
-| Settings (**F2** / **PL** chip): language, mill / **Add mill…**, BCM pins, ticks per tooth; survives restart | |
+| Settings (**F2** / **PL** chip): language, mill / **Add mill…** (optional travel Xmin…Ymax), BCM pins, ticks per tooth; survives restart | |
 | Clicky encoder: rest is stable; highlight changes halfway to the next tooth | |
 
-Windows office PC: double-click the exe (or `python -m fh6parse --gui` from a git clone). **Polski / English** radios at the top right (default English). Set **STEP folders…**. **Add mill…** next to the mill combo (name, rapids m/min, B/C, tool-change seconds). Last NC folder, report folder, and A4 vs 80 mm are remembered. A wireframe cube means the STEP bitmap is ready; the stacked isometric also appears above the report preview. Windows print is still the browser dialog, not `/dev/usb/lp0`. If GitHub (frozen exe) or origin (git) has a newer build, a yellow **UPDATE** button appears after launch — one click, then the window restarts. Frozen **1.4.0** office boxes only show UPDATE after you tag a **newer** version. Publish by tagging **vX.Y.Z** (GitHub Actions builds it) or `packaging\build_windows.bat` then `packaging\publish_windows.ps1`. The tag must match `_version.py`. Do not overwrite `fh6parse-kiosk.ini` next to the exe.
+Windows office PC: double-click the exe (or `python -m fh6parse --gui` from a git clone). **Polski / English** radios at the top right (default English). Set **STEP folders…**. **Add mill…** next to the mill combo (name, rapids m/min, B/C, tool-change seconds, optional G53 ATC / G54 / travel). Next to the preview, tick which **report sections** to include (header, notes, STEP, G54, cycle/chart, tool list, each Txx M6, warnings, sign-off). Preview, Print A4, Print 80 mm, and Save all use the same ticks. There are no LOAD / SET / RUN buttons on the GUI — those exist only on the kiosk. Last NC folder, report folder, A4 vs 80 mm, and the section checklist are remembered. A wireframe cube means the STEP bitmap is ready; the stacked isometric also appears above the report preview. With mill travel set, the ticket includes the G54 origin rectangle in G53 mm when that box is ticked. Windows print is still the browser dialog, not `/dev/usb/lp0`. If GitHub (frozen exe) or origin (git) has a newer build, a yellow **UPDATE** button appears after launch — one click, then the window restarts. Frozen **1.4.0** office boxes only show UPDATE after you tag a **newer** version. Publish by tagging **vX.Y.Z** (GitHub Actions builds it) or `packaging\build_windows.bat` then `packaging\publish_windows.ps1`. The tag must match `_version.py`. Do not overwrite `fh6parse-kiosk.ini` next to the exe.
 

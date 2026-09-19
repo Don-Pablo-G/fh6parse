@@ -8,7 +8,14 @@ from pathlib import Path
 
 from ._version import __version__
 from .parser import parse_nc_file
-from .report import PAPER_80MM, PAPER_80MM_MIN, PAPER_A4, format_report, write_report
+from .report import (
+    PAPER_80MM,
+    PAPER_80MM_LOAD,
+    PAPER_80MM_SET,
+    PAPER_A4,
+    format_report,
+    write_report,
+)
 
 
 def _frozen() -> bool:
@@ -73,10 +80,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--format",
-        choices=(PAPER_A4, PAPER_80MM, PAPER_80MM_MIN, "both"),
+        choices=(
+            PAPER_A4,
+            PAPER_80MM,
+            "80mm-run",
+            PAPER_80MM_LOAD,
+            "80mm-min",
+            PAPER_80MM_SET,
+            "both",
+        ),
         default="both",
         dest="paper_format",
-        help="A4, 80mm thermal, 80mm-min, or both (default both when writing files)",
+        help="A4, 80mm (RUN), 80mm-load, 80mm-set, or both (default both when writing files)",
     )
     p.add_argument(
         "--machine",

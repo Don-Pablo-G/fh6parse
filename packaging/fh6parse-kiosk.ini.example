@@ -11,18 +11,24 @@ fullscreen = true
 idle_seconds = 60
 # Screen language: pl (default on the kiosk) or en. Change in settings (F2 / mouse).
 # language = pl
-# Windows GUI also stores last_nc_dir, last_out_dir, last_paper (a4 or 80mm)
-# in this file and in ~/.config/fh6parse/ui.ini.
+# Windows GUI also stores last_nc_dir, last_out_dir, last_paper (a4 or 80mm),
+# and report_sections (comma list) in this file and in ~/.config/fh6parse/ui.ini.
 
 encoder_clk = 17
 encoder_dt = 27
 encoder_swap = false
+encoder_mill_clk = 5
+encoder_mill_dt = 6
+encoder_mill_swap = false
 # gpiozero ticks from one tooth valley (rest) to the next. Highlight
 # changes at half a tooth so a wiggle at rest does not skip files.
 # 1 = every tick (no dead zone). Typical KY-040 is 2 or 4.
 encoder_steps = 1
-button_full = 22
-button_min = 23
+button_run = 22
+button_load = 23
+button_set = 24
+button_spare = 25
+# Old names still work: button_full = RUN, button_min = LOAD.
 
 printer_device = /dev/usb/lp0
 # Optional CUPS name — only if /dev/usb/lp0 is missing. Leave empty on the shop Pi.
