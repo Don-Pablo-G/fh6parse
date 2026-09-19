@@ -306,6 +306,7 @@ def parse_machine_form(
     y_max: str = "",
     z_min: str = "",
     z_max: str = "",
+    max_rpm: str = "",
     existing_ids: set[str] | None = None,
 ) -> MachineProfile:
     """Build a MachineProfile from the Add mill form. Raises ValueError(i18n key)."""
@@ -329,9 +330,12 @@ def parse_machine_form(
         ymax = _parse_optional_float(y_max)
         zmin = _parse_optional_float(z_min)
         zmax = _parse_optional_float(z_max)
+        rpm = _parse_optional_float(max_rpm)
     except ValueError as exc:
         raise ValueError("machine_bad_number") from exc
     if rapid_m <= 0 or rotary <= 0 or tchg < 0 or tlen < 0:
+        raise ValueError("machine_bad_number")
+    if rpm is not None and rpm <= 0:
         raise ValueError("machine_bad_number")
     return MachineProfile(
         id=unique_machine_id(label, existing_ids),
@@ -352,6 +356,7 @@ def parse_machine_form(
         y_max=ymax,
         z_min=zmin,
         z_max=zmax,
+        max_rpm=rpm,
     )
 
 
@@ -360,6 +365,7 @@ MILL_FORM_SCALARS = (
     ("machine_rapid", "20"),
     ("machine_rotary", "5400"),
     ("machine_tchg", "0"),
+    ("machine_max_rpm", ""),
     ("machine_tool_len", ""),
 )
 MILL_FORM_ATC = ("machine_atc_x", "machine_atc_y", "machine_atc_z")
@@ -398,6 +404,7 @@ def mill_from_form_entries(
         y_max=entries["machine_y_max"].get(),
         z_min=entries["machine_z_min"].get(),
         z_max=entries["machine_z_max"].get(),
+        max_rpm=entries["machine_max_rpm"].get(),
         existing_ids=existing_ids,
     )
 
@@ -423,6 +430,13 @@ def _opt_ini_float(src: configparser.SectionProxy, key: str) -> float | None:
         return float(raw)
     except ValueError:
         return None
+
+
+def _positive_opt_rpm(src: configparser.SectionProxy) -> float | None:
+    value = _opt_ini_float(src, "max_rpm")
+    if value is None or value <= 0:
+        return None
+    return value
 
 
 def _opt_ini_float_any(src: configparser.SectionProxy, *keys: str) -> float | None:
@@ -476,6 +490,7 @@ def _machine_from_section(
         y_max=_opt_ini_float(src, "y_max"),
         z_min=_opt_ini_float(src, "z_min"),
         z_max=_opt_ini_float(src, "z_max"),
+        max_rpm=_positive_opt_rpm(src),
     )
 
 
@@ -608,6 +623,10 @@ def save_machine_profile(
         parser.set(section, "tool_length_mm", _ini_number(mill.tool_length_mm))
     elif parser.has_option(section, "tool_length_mm"):
         parser.remove_option(section, "tool_length_mm")
+    if mill.max_rpm:
+        parser.set(section, "max_rpm", _ini_number(mill.max_rpm))
+    elif parser.has_option(section, "max_rpm"):
+        parser.remove_option(section, "max_rpm")
     if select:
         if not parser.has_section("kiosk"):
             parser.add_section("kiosk")

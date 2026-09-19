@@ -68,6 +68,7 @@ Kiosk **nie zapisuje i nie kasuje** plików na pendrive ani w firmowym folderze 
 | `brak ruchu po wymianie narzędzia` | Pusta kieszeń: Txx M6 bez ruchu. **Ostatnia** wymiana bez ruchu to przygotowanie wrzeciona na kolejny cykl — cisza jest zamierzona |
 | `brak posuwu (sonda/makro?)` | Narzędzie tylko na G0 (sonda / makro) — nie ma skrawania |
 | `G55 po starcie operacji (L…)` | G54–G59 tylko na początku pliku, przed pierwszym Txx M6 / M97. Późniejsza zmiana offsetu |
+| `S… przekracza max wrzeciona …` | Programowane S wyższe niż `max_rpm` obrabiarki |
 | `! …` przy numerze linii | Uwaga programisty z komentarza z `!` |
 
 Pasujące H/D (= numer T) nie dają ostrzeżenia.
@@ -91,7 +92,7 @@ Pokrętło **nie otwiera** ustawień.
 | --- | --- |
 | Otwórz ustawienia | **F2** albo **C**, albo kliknij **PL** / **EN** przy wersji |
 | Język | **Polski** / **English** — dotyczy ekranu **i** biletu |
-| Obrabiarka | Drugie pokrętło, **+** / **−**, albo **Dodaj obrabiarkę…** (nazwa, szybkie m/min, B/C, czas wymiany, opcjonalnie ATC X/Y/Z, offset X/Y/Z i skok min/max) — od tego liczony jest czas cyklu i prostokąt offsetu |
+| Obrabiarka | Drugie pokrętło, **+** / **−**, albo **Dodaj obrabiarkę…** (nazwa, szybkie m/min, B/C, czas wymiany, opcjonalnie max obr./min, ATC X/Y/Z, offset X/Y/Z i skok min/max) — od tego liczony jest czas cyklu i prostokąt offsetu |
 | Zamknij | **Esc**: najpierw formularz obrabiarki, potem ustawienia |
 
 Język i obrabiarka zapamiętują się po restarcie.

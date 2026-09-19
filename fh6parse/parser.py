@@ -861,6 +861,30 @@ def _flag_empty_pockets(changes: list[ToolUsage]) -> None:
                 usage.warnings.append(NO_FEED_WARN)
 
 
+def _fmt_rpm(value: float) -> str:
+    if abs(value - round(value)) < 1e-6:
+        return str(int(round(value)))
+    return f"{value:g}"
+
+
+def _rpm_exceeds_warn(s: float, limit: float) -> str:
+    return f"S{_fmt_rpm(s)} exceeds mill max {_fmt_rpm(limit)}"
+
+
+def _flag_rpm_limit(changes: list[ToolUsage], mill: MachineProfile) -> None:
+    """Warn when a called tool's S is above this mill's max spindle speed."""
+    limit = mill.max_rpm
+    if limit is None or limit <= 0:
+        return
+    for usage in changes:
+        if usage.is_stop() or usage.s_rpm is None:
+            continue
+        if usage.s_rpm > limit + 1e-9:
+            msg = _rpm_exceeds_warn(usage.s_rpm, limit)
+            if msg not in usage.warnings:
+                usage.warnings.append(msg)
+
+
 def _feed_on_line(line: Line, hash_vars: dict[int, float]) -> float | None:
     w = line.first("F")
     if w is not None:
@@ -1516,6 +1540,7 @@ def _run_program(
     if current is not None and feed_per_rev and G95_NEXT_WARN not in current.warnings:
         current.warnings.append(G95_END_WARN)
     _flag_empty_pockets(changes)
+    _flag_rpm_limit(changes, mill)
     return executed, bbox, offset_warns
 
 

@@ -339,6 +339,16 @@ class TestKioskConfig(unittest.TestCase):
         self.assertAlmostEqual(mill.rapid_mm_min, 25400.0)
         self.assertEqual(mill.rotary_deg_min, 6000.0)
         self.assertAlmostEqual(mill.tool_change_s, 2.8)
+        self.assertIsNone(mill.max_rpm)
+
+    def test_parse_machine_form_max_rpm(self) -> None:
+        from fh6parse.kiosk import parse_machine_form
+
+        mill = parse_machine_form(name="VF", max_rpm="12000")
+        self.assertEqual(mill.max_rpm, 12000.0)
+        with self.assertRaises(ValueError) as ctx:
+            parse_machine_form(name="VF", max_rpm="0")
+        self.assertEqual(str(ctx.exception), "machine_bad_number")
 
     def test_parse_machine_form_requires_name(self) -> None:
         from fh6parse.kiosk import parse_machine_form
@@ -357,6 +367,7 @@ class TestKioskConfig(unittest.TestCase):
                 name="Haas VF-2",
                 rapid_m_min="25.4",
                 tool_change_s="8",
+                max_rpm="8100",
             )
             save_machine_profile(mill, dest=path)
             cfg = load_kiosk_config(path)
@@ -364,6 +375,7 @@ class TestKioskConfig(unittest.TestCase):
             self.assertEqual(cfg.active_machine().name, "Haas VF-2")
             self.assertAlmostEqual(cfg.active_machine().rapid_mm_min, 25400.0)
             self.assertEqual(cfg.active_machine().tool_change_s, 8.0)
+            self.assertEqual(cfg.active_machine().max_rpm, 8100.0)
 
     def test_save_machine_profile_g53_tables(self) -> None:
         from fh6parse.kiosk import parse_machine_form, save_machine_profile

@@ -43,6 +43,7 @@ class MachineProfile:
     y_max: float | None = None
     z_min: float | None = None
     z_max: float | None = None
+    max_rpm: float | None = None
 
     def rapid_m_min_label(self) -> str:
         return f"{self.rapid_mm_min / 1000.0:.0f} m/min"

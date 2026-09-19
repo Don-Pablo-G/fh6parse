@@ -32,6 +32,7 @@ from .workarea import append_g54_png, fmt_mm, fmt_xy, window_for_result
 _ticket_lang: ContextVar[str] = ContextVar("ticket_lang", default=GUI_DEFAULT)
 _MISMATCH_RE = re.compile(r"^([A-Z]#?\d+) does not match (T#?\d+)$")
 _OFFSET_LATE_RE = re.compile(r"^(G\d+) after operation started \((L\d+)\)$")
+_S_MAX_RE = re.compile(r"^(S[0-9.]+) exceeds mill max ([0-9.]+)$")
 _WARN_KEYS = {
     G95_NEXT_WARN: "ticket_warn_g95_next",
     G95_END_WARN: "ticket_warn_g95_end",
@@ -62,6 +63,9 @@ def _warn_text(warn: str) -> str:
         return _tr(
             "ticket_warn_offset_late", offset=late.group(1), line=late.group(2)
         )
+    rpm = _S_MAX_RE.match(warn)
+    if rpm:
+        return _tr("ticket_warn_s_max", s=rpm.group(1), max=rpm.group(2))
     return warn
 
 

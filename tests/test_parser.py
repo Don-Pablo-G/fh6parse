@@ -1052,5 +1052,48 @@ M99
         self.assertEqual(warns, [])
 
 
+class TestSpindleLimit(unittest.TestCase):
+    def test_s_above_mill_max_warns(self) -> None:
+        from fh6parse.machtime import MachineProfile
+
+        src = """O1
+T1 M6
+S12000 M3
+G1 Z-1 F200
+M30
+"""
+        mill = MachineProfile(id="vf", name="VF", max_rpm=8000)
+        r = parse_nc_text(src, "t.nc", machine=mill)
+        self.assertIn("S12000 exceeds mill max 8000", r.usages[0].warnings)
+        self.assertIn("WARNING: S12000 exceeds mill max 8000", format_report(r))
+        load = format_report(r, paper=PAPER_80MM_MIN)
+        self.assertIn("S12000 exceeds mill max 8000", load)
+        pl = format_report(r, lang="pl")
+        self.assertIn("S12000 przekracza max wrzeciona 8000", pl)
+
+    def test_s_at_mill_max_is_quiet(self) -> None:
+        from fh6parse.machtime import MachineProfile
+
+        src = """O1
+T1 M6
+S8000 M3
+G1 Z-1 F200
+M30
+"""
+        mill = MachineProfile(id="vf", name="VF", max_rpm=8000)
+        r = parse_nc_text(src, "t.nc", machine=mill)
+        self.assertFalse(any("exceeds mill max" in w for w in r.usages[0].warnings))
+
+    def test_no_max_rpm_is_quiet(self) -> None:
+        src = """O1
+T1 M6
+S12000 M3
+G1 Z-1 F200
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertFalse(any("exceeds mill max" in w for w in r.usages[0].warnings))
+
+
 if __name__ == "__main__":
     unittest.main()
