@@ -871,5 +871,92 @@ M99
         self.assertEqual(u.min_z, -1)
 
 
+class TestProgramStop(unittest.TestCase):
+    def test_m00_joins_above_same_and_below_comments(self) -> None:
+        src = """O1
+T1 M6
+G0 X0 Y0 Z10
+(CHECK CLAMP)
+M00 (PROGRAM STOP)
+(CONTINUE)
+G1 Z-1 F200
+T2 M6
+G1 Z-2 F200
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertEqual([u.tool for u in r.usages], [1, 2])
+        stops = [u for op in r.operations for u in op.usages if u.is_stop()]
+        self.assertEqual(len(stops), 1)
+        self.assertEqual(
+            stops[0].description, "CHECK CLAMP / PROGRAM STOP / CONTINUE"
+        )
+        self.assertEqual(r.usages[0].description, "")
+        a4 = format_report(r)
+        _, _, changes = a4.partition("EACH TOOL CHANGE")
+        self.assertIn("[ ] M00  CHECK CLAMP / PROGRAM STOP / CONTINUE", changes)
+        self.assertNotIn("T0", a4.split("EACH TOOL CHANGE")[0])
+        html = format_print_html(r)
+        self.assertIn(">M00<", html)
+        self.assertIn("PROGRAM STOP", html)
+        load = format_report(r, paper=PAPER_80MM_MIN)
+        self.assertNotIn("M00", load)
+        sett = format_report(r, paper=PAPER_80MM_SET)
+        self.assertNotIn("M00", sett)
+        mm = format_report(r, paper=PAPER_80MM)
+        self.assertIn("[ ] M00", mm)
+        self.assertIn("PROGRAM STOP", mm)
+
+    def test_bare_m0_still_listed(self) -> None:
+        src = """O1
+T1 M6
+G1 Z-1 F200
+M0
+T2 M6
+G1 Z-2 F200
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        stops = [u for op in r.operations for u in op.usages if u.is_stop()]
+        self.assertEqual(len(stops), 1)
+        self.assertEqual(stops[0].description, "")
+        text = format_report(r, paper=PAPER_80MM)
+        self.assertIn("[ ] M00", text)
+
+    def test_sample_m00_mocowanie(self) -> None:
+        r = parse_nc_file(SAMPLES / "D0134078.nc")
+        self.assertEqual([u.tool for u in r.usages], [15, 26])
+        stops = [u for op in r.operations for u in op.usages if u.is_stop()]
+        self.assertTrue(stops)
+        self.assertEqual(stops[0].description, "MOCOWANIE")
+        a4 = format_report(r)
+        self.assertIn("MOCOWANIE", a4.partition("EACH TOOL CHANGE")[2])
+
+    def test_trailing_m00_does_not_warn_last_tool(self) -> None:
+        from fh6parse.parser import NO_MOTION_WARN
+
+        src = """O1
+T1 M6
+G1 Z-1 F200
+T2 M6
+M00 (CHECK)
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertNotIn(NO_MOTION_WARN, r.usages[1].warnings)
+        self.assertEqual(r.usages[1].tool, 2)
+
+    def test_m00_after_m30_is_not_listed(self) -> None:
+        src = """O1
+T1 M6
+G1 Z-1 F200
+M30
+M00 (LATE)
+"""
+        r = parse_nc_text(src, "t.nc")
+        stops = [u for op in r.operations for u in op.usages if u.is_stop()]
+        self.assertEqual(stops, [])
+
+
 if __name__ == "__main__":
     unittest.main()

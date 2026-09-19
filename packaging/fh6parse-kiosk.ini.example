@@ -1,6 +1,7 @@
 # Raspberry Pi 5 kiosk — copy to /etc/fh6parse-kiosk.ini or next to the app.
 # GPIO numbers are BCM (same pins as Pi 3/4). Buttons: momentary to GND.
-# KY-040 encoder: CLK / DT; shaft switch unused. Pi 5 needs lgpio, not RPi.GPIO.
+# DFRobot Fermion EC11 (SEN0235): A = CLK, B = DT, C unused.
+# Power VCC from 3.3 V, not 5 V. Pi 5 needs lgpio, not RPi.GPIO.
 # Updates are not configured here. Git checkout + on-screen UPDATE: see
 # packaging/LINUX-KIOSK.md §8 (fh6parse 1.4.0). This file is never overwritten.
 
@@ -22,7 +23,7 @@ encoder_mill_dt = 6
 encoder_mill_swap = false
 # gpiozero ticks from one tooth valley (rest) to the next. Highlight
 # changes at half a tooth so a wiggle at rest does not skip files.
-# 1 = every tick (no dead zone). Typical KY-040 is 2 or 4.
+# 1 = every tick (no dead zone). DFRobot EC11 (20 pulses) is usually 2.
 encoder_steps = 1
 button_run = 22
 button_load = 23

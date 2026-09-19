@@ -115,10 +115,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "machine_default": "Default mill",
         "gpio_pins": "GPIO (BCM numbers, not header pins)",
         "gpio_pi5": "Pi 5 needs python3-lgpio; RPi.GPIO is not supported",
-        "pin_clk": "File CLK",
-        "pin_dt": "File DT",
-        "pin_mill_clk": "Mill CLK",
-        "pin_mill_dt": "Mill DT",
+        "pin_clk": "File A (CLK)",
+        "pin_dt": "File B (DT)",
+        "pin_mill_clk": "Mill A (CLK)",
+        "pin_mill_dt": "Mill B (DT)",
         "pin_run": "RUN button",
         "pin_load": "LOAD button",
         "pin_set": "SET button",
@@ -131,11 +131,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "encoder_swap_on": "Reverse",
         "encoder_steps": "Ticks per tooth",
         "encoder_steps_blurb": (
-            "GPIO ticks from one rest (the valley) to the next. A 36-tooth "
-            "knob is 10° per file; the list changes at about 5°, so a small "
-            "wiggle at rest does not move the highlight. Raise this until "
-            "rest is stable and one tooth is one file. Keyboard arrows stay "
-            "one file per key."
+            "GPIO ticks from one rest (the valley) to the next. DFRobot EC11 "
+            "is 20 pulses per turn (18° per file); the list changes halfway, "
+            "so a small wiggle at rest does not move the highlight. Raise "
+            "this until rest is stable and one click is one file (try 2). "
+            "Keyboard arrows stay one file per key."
         ),
         "settings_keys": (
             "F2 / C / Esc  close     arrows change language     "
@@ -194,7 +194,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "section_g54": "Offset rectangle + Ømax",
         "section_cycle": "Cycle time / share chart",
         "section_tools": "Tool list (T / H / D / S / Min Z)",
-        "section_changes": "Each Txx M6",
+        "section_changes": "Each Txx M6 / M00",
         "section_warnings": "Warnings",
         "section_sign": "Sign-off",
         "ticket_title_a4": "CNC TOOL REPORT  |  A4",
@@ -237,7 +237,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "ticket_no_ops_short": "(no operations)",
         "ticket_no_tools": "(no tools)",
         "ticket_no_tool_changes": "(no tool changes until M30)",
-        "ticket_no_txx": "(no Txx M6)",
+        "ticket_no_txx": "(no Txx M6 / M00)",
         "ticket_no_comment": "(no comment)",
         "ticket_no_onumber": "(no O-number)",
         "ticket_share": "Share of cycle",
@@ -418,10 +418,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "machine_default": "Domyślna obrabiarka",
         "gpio_pins": "GPIO (numery BCM, nie piny złącza)",
         "gpio_pi5": "Pi 5 wymaga python3-lgpio; RPi.GPIO nie jest obsługiwane",
-        "pin_clk": "Plik CLK",
-        "pin_dt": "Plik DT",
-        "pin_mill_clk": "Mill CLK",
-        "pin_mill_dt": "Mill DT",
+        "pin_clk": "A pliku (CLK)",
+        "pin_dt": "B pliku (DT)",
+        "pin_mill_clk": "A mill (CLK)",
+        "pin_mill_dt": "B mill (DT)",
         "pin_run": "Przycisk RUN",
         "pin_load": "Przycisk LOAD",
         "pin_set": "Przycisk SET",
@@ -434,11 +434,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "encoder_swap_on": "Odwróć",
         "encoder_steps": "Impulsy na ząb",
         "encoder_steps_blurb": (
-            "Impulsy GPIO od spoczynku (dolina) do następnego. Pokrętło "
-            "36-zębne to 10° na plik; lista zmienia się przy ok. 5°, więc "
-            "lekkie drgnięcie w dolinie nie zmienia podświetlenia. Podnieś, "
-            "aż spoczynek będzie stabilny i jeden ząb to jeden plik. "
-            "Strzałki klawiatury nadal to jeden plik na klawisz."
+            "Impulsy GPIO od spoczynku (dolina) do następnego. DFRobot EC11 "
+            "to 20 impulsów na obrót (18° na plik); lista zmienia się w "
+            "połowie, więc lekkie drgnięcie w dolinie nie zmienia "
+            "podświetlenia. Podnieś, aż spoczynek będzie stabilny i jedno "
+            "kliknięcie to jeden plik (spróbuj 2). Strzałki klawiatury "
+            "nadal to jeden plik na klawisz."
         ),
         "settings_keys": (
             "F2 / C / Esc  zamknij     strzałki zmieniają język     "
@@ -497,7 +498,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "section_g54": "Prostokąt offsetu + Ømax",
         "section_cycle": "Czas cyklu / wykres udziału",
         "section_tools": "Lista narzędzi (T / H / D / S / Min Z)",
-        "section_changes": "Każde Txx M6",
+        "section_changes": "Każde Txx M6 / M00",
         "section_warnings": "Ostrzeżenia",
         "section_sign": "Podpis",
         "ticket_title_a4": "RAPORT NARZĘDZI CNC  |  A4",
@@ -540,7 +541,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "ticket_no_ops_short": "(brak operacji)",
         "ticket_no_tools": "(brak narzędzi)",
         "ticket_no_tool_changes": "(brak wymian do M30)",
-        "ticket_no_txx": "(brak Txx M6)",
+        "ticket_no_txx": "(brak Txx M6 / M00)",
         "ticket_no_comment": "(brak komentarza)",
         "ticket_no_onumber": "(brak numeru O)",
         "ticket_share": "Udział cyklu",

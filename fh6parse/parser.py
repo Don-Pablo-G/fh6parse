@@ -186,6 +186,10 @@ class ToolUsage:
     time_incomplete: bool = False
     had_work: bool = False
     had_cut: bool = False
+    event: str = "tool"
+
+    def is_stop(self) -> bool:
+        return self.event == "stop"
 
     def consider_z(self, z: float, line_no: int) -> None:
         if self.min_z is None or z < self.min_z:
@@ -362,6 +366,15 @@ def _is_tool_change(line: Line) -> bool:
     )
 
 
+def _is_program_stop(line: Line) -> bool:
+    """M00 / M0. Not M01 (optional stop) and not M06."""
+    return line.has_m(0) and not line.has_m(6)
+
+
+def _is_change_or_stop(line: Line) -> bool:
+    return _is_tool_change(line) or _is_program_stop(line)
+
+
 def _join_desc(*parts: str) -> str:
     out: list[str] = []
     for part in parts:
@@ -426,7 +439,7 @@ def _description_for(lines: list[Line], idx: int) -> str:
             prev = lines[j]
             if _is_pad_line(prev):
                 continue
-            if prev.comments and not _is_tool_change(prev):
+            if prev.comments and not _is_change_or_stop(prev):
                 comment = _last_comment(prev)
                 if comment:
                     parts.append(comment)
@@ -435,12 +448,54 @@ def _description_for(lines: list[Line], idx: int) -> str:
         nxt = lines[j]
         if _is_pad_line(nxt):
             continue
-        if nxt.comments and not _is_tool_change(nxt):
+        if nxt.comments and not _is_change_or_stop(nxt):
             comment = _last_comment(nxt)
             if comment and comment not in parts:
                 parts.append(comment)
         break
     return " / ".join(parts)
+
+
+def _is_comment_only(line: Line) -> bool:
+    if not line.comments:
+        return False
+    return {w.letter for w in line.words} <= {"N"}
+
+
+def _stop_description(lines: list[Line], idx: int) -> str:
+    """Comments above, on, and below M00/M0 — each slot if it exists."""
+    above: list[str] = []
+    for j in range(idx - 1, -1, -1):
+        prev = lines[j]
+        if _is_pad_line(prev):
+            continue
+        if _is_change_or_stop(prev):
+            break
+        if _is_comment_only(prev):
+            above[0:0] = [c for c in prev.comments if c]
+            continue
+        if prev.comments:
+            comment = _last_comment(prev)
+            if comment:
+                above.insert(0, comment)
+        break
+    same = [c for c in lines[idx].comments if c]
+    below: list[str] = []
+    for j in range(idx + 1, len(lines)):
+        nxt = lines[j]
+        if _is_pad_line(nxt):
+            continue
+        if _is_change_or_stop(nxt):
+            break
+        if _is_comment_only(nxt):
+            below.extend(c for c in nxt.comments if c)
+            continue
+        if nxt.comments:
+            comment = _last_comment(nxt)
+            if comment:
+                below.append(comment)
+        break
+    return _join_desc(*above, *same, *below)
 
 
 def _tool_description(
@@ -458,7 +513,7 @@ def _tool_description(
             nxt = lines[j]
             if _is_pad_line(nxt):
                 continue
-            if nxt.comments and not _is_tool_change(nxt) and not nxt.hash_assigns:
+            if nxt.comments and not _is_change_or_stop(nxt) and not nxt.hash_assigns:
                 comment = _last_comment(nxt)
                 if comment and comment not in parts:
                     parts.append(comment)
@@ -776,10 +831,11 @@ def _flag_empty_pockets(changes: list[ToolUsage]) -> None:
     A final tool change with no work is usual Haas/Fanuc prep so the next
     cycle already has the first tool in the spindle.
     """
-    if not changes:
+    tools = [u for u in changes if not u.is_stop()]
+    if not tools:
         return
-    last = changes[-1]
-    for usage in changes:
+    last = tools[-1]
+    for usage in tools:
         if not usage.had_work:
             if usage is last:
                 continue
@@ -804,6 +860,20 @@ def _collect_tool_usages(lines: list[Line]) -> list[ToolUsage]:
     for i, line in enumerate(lines):
         _apply_hash_exprs(hash_vals, line.hash_assigns)
         _note_hash_descs(hash_descs, line)
+        if _is_program_stop(line):
+            sub, sub_c = _current_n_context(lines, i)
+            usages.append(
+                ToolUsage(
+                    tool=0,
+                    description=_stop_description(lines, i),
+                    line_start=line.number,
+                    line_end=line.number,
+                    subprogram=sub,
+                    subprogram_comment=sub_c,
+                    event="stop",
+                )
+            )
+            continue
         if not _is_tool_change(line):
             continue
         t_val, t_hash = _resolve_letter_int(line, "T", hash_vals)
@@ -1378,7 +1448,8 @@ def _run_program(
             current.add_time(timed)
             current.add_time(rot)
             current.line_end = line.number
-            _apply_line_to_usage(current, line, cycle_active, hash_vars)
+            if not _is_program_stop(line):
+                _apply_line_to_usage(current, line, cycle_active, hash_vars)
             if not g53:
                 g43_only = (
                     line.has_g(43)
@@ -1487,13 +1558,15 @@ def parse_nc_text(
     usages, executed, bbox = _simulate_path(
         lines, n_index, mill, inch=inch, o_index=o_index
     )
+    events = usages
+    tool_usages = [u for u in events if not u.is_stop()]
 
-    called_summaries = _summarize(usages, called_only=True)
-    all_summaries = _summarize(usages, called_only=False)
+    called_summaries = _summarize(tool_usages, called_only=True)
+    all_summaries = _summarize(tool_usages, called_only=False)
 
-    if usages and header_comments:
+    if events and header_comments:
         used: set[str] = set()
-        for u in usages:
+        for u in events:
             for part in (u.description or "").split(" / "):
                 part = part.strip()
                 if part:
@@ -1533,7 +1606,7 @@ def parse_nc_text(
     else:
         operations.append(
             _make_operation(
-                usages,
+                events,
                 executed,
                 n=None,
                 title="MAIN",
@@ -1568,7 +1641,7 @@ def parse_nc_text(
         header_comments=header_comments,
         bang_notes=_collect_bang_notes(lines),
         units=units,
-        usages=usages,
+        usages=tool_usages,
         called_summaries=called_summaries,
         all_summaries=all_summaries,
         operations=operations,
@@ -1583,6 +1656,8 @@ def _summarize(usages: list[ToolUsage], called_only: bool) -> list[ToolSummary]:
     grouped: dict[int, list[ToolUsage]] = {}
     order: list[int] = []
     for u in usages:
+        if u.is_stop():
+            continue
         if called_only and not u.called_from_main:
             continue
         if u.tool not in grouped:

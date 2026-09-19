@@ -350,7 +350,13 @@ def _fmt_t(tool: int, tool_hash: int | None = None) -> str:
     return f"T{tool}"
 
 
+def _is_stop_usage(u: ToolUsage) -> bool:
+    return getattr(u, "event", "tool") == "stop"
+
+
 def _t_of_usage(u: ToolUsage) -> str:
+    if _is_stop_usage(u):
+        return "M00"
     return _fmt_t(u.tool, u.tool_hash)
 
 
@@ -445,22 +451,26 @@ def _usage_meta(u: ToolUsage, *, include_lines: bool = True) -> str:
     parts = [u.subprogram]
     if u.subprogram_comment:
         parts[0] = f"{u.subprogram} ({u.subprogram_comment})"
-    bc = " ".join(
-        p for p in (_fmt_axis("B", u.b), _fmt_axis("C", u.c)) if p
-    )
-    if bc:
-        parts.append(bc)
-    h = _fmt_hd("H", u.h_offset, u.h_hash)
-    if h:
-        parts.append(h)
-    d = _fmt_hd("D", u.d_offset, u.d_hash)
-    if d:
-        parts.append(d)
-    s = _fmt_s(u.s_rpm)
-    if s:
-        parts.append(s)
+    if not _is_stop_usage(u):
+        bc = " ".join(
+            p for p in (_fmt_axis("B", u.b), _fmt_axis("C", u.c)) if p
+        )
+        if bc:
+            parts.append(bc)
+        h = _fmt_hd("H", u.h_offset, u.h_hash)
+        if h:
+            parts.append(h)
+        d = _fmt_hd("D", u.d_offset, u.d_hash)
+        if d:
+            parts.append(d)
+        s = _fmt_s(u.s_rpm)
+        if s:
+            parts.append(s)
     if include_lines:
-        parts.append(f"L{u.line_start}-{u.line_end}")
+        if _is_stop_usage(u):
+            parts.append(f"L{u.line_start}")
+        else:
+            parts.append(f"L{u.line_start}-{u.line_end}")
     return "  ".join(parts)
 
 
@@ -632,19 +642,20 @@ def _format_text_a4(
                 w("-" * w78)
                 for u in op.usages:
                     w("")
-                    share = _pct_of(u, cycle_s)
                     for part in _wrap(
                         f"[ ] {_t_of_usage(u)}  {u.description or none}", w78
                     ):
                         w(part)
                     for part in _wrap(_usage_meta(u), w78 - 4):
                         w(f"    {part}")
-                    bits = f"{minz} {_fmt_z(u.min_z)}"
-                    if u.min_z_line:
-                        bits += f"  L{u.min_z_line}"
-                    bits += f"  {time_lbl} {_time_of(u)}  {share:3d}%"
-                    for part in _wrap(bits, w78 - 4):
-                        w(f"    {part}")
+                    if not _is_stop_usage(u):
+                        share = _pct_of(u, cycle_s)
+                        bits = f"{minz} {_fmt_z(u.min_z)}"
+                        if u.min_z_line:
+                            bits += f"  L{u.min_z_line}"
+                        bits += f"  {time_lbl} {_time_of(u)}  {share:3d}%"
+                        for part in _wrap(bits, w78 - 4):
+                            w(f"    {part}")
                     if sections.warnings:
                         for warn in u.warnings:
                             for part in _wrap(_warn_line(warn), w78 - 4):
@@ -763,14 +774,15 @@ def _format_text_80mm(
                 w(_tr("ticket_each_change_short"))
                 w(dash)
                 for u in op.usages:
-                    share = _pct_of(u, cycle_s)
                     w(f"[ ] {_t_of_usage(u)}")
                     block(u.description or none)
                     block(_usage_meta(u, include_lines=False))
-                    minz = f"{minz_lbl} {_fmt_z(u.min_z)}"
-                    if u.min_z_line:
-                        minz += f" L{u.min_z_line}"
-                    w(f"{minz}  {time_lbl} {_time_of(u)}  {share:3d}%")
+                    if not _is_stop_usage(u):
+                        share = _pct_of(u, cycle_s)
+                        minz = f"{minz_lbl} {_fmt_z(u.min_z)}"
+                        if u.min_z_line:
+                            minz += f" L{u.min_z_line}"
+                        w(f"{minz}  {time_lbl} {_time_of(u)}  {share:3d}%")
                     if sections.warnings:
                         for warn in u.warnings:
                             block(_warn_line(warn, prefix="! "))
@@ -993,6 +1005,19 @@ table.chart td.bar { padding-right: 0; }
                         f'<div class="warn">{escape(_warn_line(warn))}</div>'
                         for warn in u.warnings
                     )
+                if _is_stop_usage(u):
+                    change_rows.append(
+                        "<tr>"
+                        f'<td class="c"><span class="box"></span></td>'
+                        f"<td>{escape(_t_of_usage(u))}</td>"
+                        f"<td>{escape(u.description or none)}{extra}</td>"
+                        f"<td>{escape(u.subprogram)}</td>"
+                        "<td>—</td><td>—</td>"
+                        f'<td class="n">—</td>'
+                        f'<td class="n">—</td>'
+                        "</tr>"
+                    )
+                    continue
                 bc = " ".join(p for p in (_fmt_axis("B", u.b), _fmt_axis("C", u.c)) if p) or "—"
                 share = _pct_of(u, cycle_s)
                 change_rows.append(
@@ -1217,16 +1242,17 @@ pre.chart {
             if sections.changes:
                 a(f'<div class="tline">{escape(_tr("ticket_each_change_short"))}</div>')
                 for u in op.usages:
-                    share = _pct_of(u, cycle_s)
                     a('<div class="tool">')
                     a(f'<div class="tline"><span class="box"></span>{escape(_t_of_usage(u))}</div>')
                     a(f'<div class="d">{escape(u.description or none)}</div>')
                     a(f'<div class="d">{escape(_usage_meta(u, include_lines=False))}</div>')
-                    a(f'<div class="kv"><span>{escape(minz)}</span><span>{escape(_fmt_z(u.min_z))}</span></div>')
-                    a(
-                        f'<div class="kv"><span>{escape(time_lbl)}</span>'
-                        f'<span>{escape(_time_of(u))}  {share}%</span></div>'
-                    )
+                    if not _is_stop_usage(u):
+                        share = _pct_of(u, cycle_s)
+                        a(f'<div class="kv"><span>{escape(minz)}</span><span>{escape(_fmt_z(u.min_z))}</span></div>')
+                        a(
+                            f'<div class="kv"><span>{escape(time_lbl)}</span>'
+                            f'<span>{escape(_time_of(u))}  {share}%</span></div>'
+                        )
                     if sections.warnings:
                         for warn in u.warnings:
                             a(f'<div class="warn">{escape(_warn_line(warn, prefix="! "))}</div>')
