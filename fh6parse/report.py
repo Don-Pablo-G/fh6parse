@@ -387,6 +387,9 @@ def _g54_ticket_lines(result: ParseResult, width: int) -> list[str]:
         _tr("ticket_g54_nw", xy=fmt_xy(*nw)),
         _tr("ticket_g54_center", xy=fmt_xy(cx, cy)),
     ]
+    dia = window.max_tool_dia_mm
+    if dia is not None:
+        raw.append(_tr("ticket_g54_dia", d=fmt_mm(dia)))
     if window.z_min is not None and window.z_max is not None:
         raw.append(
             _tr("ticket_g54_z", z0=fmt_mm(window.z_min), z1=fmt_mm(window.z_max))

@@ -41,8 +41,9 @@ tool change. Optional per mill: ATC and typical G54 in G53 mm, plus tool
 length. Then Txx M6 rapids Z then XY/BC to that mill’s ATC; work G0 is
 timed in G53. Empty tables keep the old estimate. Optional travel
 Xmin/Xmax/Ymin/Ymax (G53 mm) prints a labeled rectangle of where G54 may
-sit so programmed work stays inside the envelope; corners and center are
-machine coordinates. No accel. A trailing + means missing F or S.
+sit so programmed work stays inside the envelope; corners, center, and
+max Ø (centred outside G41/G42) are on the ticket. No accel. A trailing +
+means missing F or S.
 Each operation shows Cycle (that path until M30) and a share chart of each T.
 FULL also prints % of cycle on each Txx M6. MIN adds H/D/S to load and
 H/D/G95 mismatch flags on that short slip. Text/80 mm uses a solid block bar

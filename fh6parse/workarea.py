@@ -61,10 +61,23 @@ class G54Window:
     z_max: float | None = None
     fits: bool = True
     g54_inside: bool | None = None
+    leftover_x: float = 0.0
+    leftover_y: float = 0.0
 
     @property
     def center(self) -> tuple[float, float]:
         return ((self.x_min + self.x_max) / 2.0, (self.y_min + self.y_max) / 2.0)
+
+    @property
+    def max_tool_dia_mm(self) -> float | None:
+        """Largest Ø whose tool axis still fits if the work AABB is centred.
+
+        Outside G41/G42: leftover on +X and −X is one diameter. Skip when the
+        uncompensated box already exceeds travel.
+        """
+        if self.leftover_x < -1e-9 or self.leftover_y < -1e-9:
+            return None
+        return min(self.leftover_x, self.leftover_y)
 
     @property
     def corners(self) -> tuple[tuple[float, float], ...]:
@@ -103,8 +116,10 @@ def g54_window(
     x_max = tx1 - wx1
     y_min = ty0 - wy0
     y_max = ty1 - wy1
-    fits_x = x_min <= x_max + 1e-9
-    fits_y = y_min <= y_max + 1e-9
+    leftover_x = x_max - x_min
+    leftover_y = y_max - y_min
+    fits_x = leftover_x >= -1e-9
+    fits_y = leftover_y >= -1e-9
     fits = fits_x and fits_y
     if not fits_x:
         x_min, x_max = x_max, x_min
@@ -140,6 +155,8 @@ def g54_window(
         z_max=z_max,
         fits=fits,
         g54_inside=inside,
+        leftover_x=leftover_x,
+        leftover_y=leftover_y,
     )
 
 
@@ -220,6 +237,14 @@ def render_g54_window_png(
     elif window.g54_inside is False:
         title += "  G54 OUT"
     draw.text((8, 6), title, fill=0, font=font)
+    dia = window.max_tool_dia_mm
+    if dia is not None:
+        draw.text(
+            (8, height - 18),
+            f"Omax {fmt_mm(dia)} mm  centred G41/G42",
+            fill=0,
+            font=font,
+        )
     path = dest or _cache_png_path(mill, window)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
@@ -232,7 +257,8 @@ def _cache_png_path(mill: MachineProfile, window: G54Window) -> Path:
     key = (
         f"{mill.id}|{mill.x_min}|{mill.x_max}|{mill.y_min}|{mill.y_max}|"
         f"{window.x_min}|{window.x_max}|{window.y_min}|{window.y_max}|"
-        f"{mill.g54_x}|{mill.g54_y}|{window.fits}|{window.g54_inside}|v1"
+        f"{mill.g54_x}|{mill.g54_y}|{window.fits}|{window.g54_inside}|"
+        f"{window.leftover_x}|{window.leftover_y}|v2"
     )
     digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:20]
     root = Path(tempfile.gettempdir()) / "fh6parse-models"

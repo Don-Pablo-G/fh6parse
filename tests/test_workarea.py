@@ -35,6 +35,9 @@ class TestG54Window(unittest.TestCase):
         self.assertEqual(se, (-100, -400))
         self.assertEqual(ne, (-100, -50))
         self.assertEqual(nw, (-500, -50))
+        self.assertAlmostEqual(window.leftover_x, 400)
+        self.assertAlmostEqual(window.leftover_y, 350)
+        self.assertAlmostEqual(window.max_tool_dia_mm or 0, 350)
 
     def test_too_big_when_work_exceeds_travel(self) -> None:
         mill = _mill(x_min=-500, x_max=0, y_min=-400, y_max=0)
@@ -44,6 +47,7 @@ class TestG54Window(unittest.TestCase):
         window = g54_window(mill, bbox)
         assert window is not None
         self.assertFalse(window.fits)
+        self.assertIsNone(window.max_tool_dia_mm)
 
     def test_stored_g54_inside_and_out(self) -> None:
         mill = _mill(
@@ -155,6 +159,7 @@ M30
         self.assertIn("NE -100,-50", text)
         self.assertIn("NW -500,-50", text)
         self.assertIn("Center -300,-225", text)
+        self.assertIn("Max Ø G41/G42 centred 350 mm", text)
         self.assertIn("Stored G54 is inside this box.", text)
 
 

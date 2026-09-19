@@ -264,7 +264,7 @@ Add one `[machine.<id>]` section per mill, or use **Add mill…** on the Windows
 
 If ATC and G54 XYZ are all set, cycle time uses one G53 pose: work rapids convert through G54+length; at Txx M6 the finishing tool rapids Z then XY/BC to that mill’s ATC, then `tool_change_s` on the new T. A program that already `G53`’s to the ATC is not charged twice. Omit the keys to keep the older estimate (Default mill).
 
-If XY travel is set, the ticket adds a labeled rectangle of allowed G54 origin (G53 mm): four corners, center, and a warning if the stored G54 is outside or the work is larger than travel. Needs Pillow for the PNG; numbers still print without it.
+If XY travel is set, the ticket adds a labeled rectangle of allowed G54 origin (G53 mm): four corners, center, max Ø for centred outside G41/G42 (the shorter leftover), and a warning if the stored G54 is outside or the work is larger than travel. Needs Pillow for the PNG; numbers still print without it.
 
 Example:
 
