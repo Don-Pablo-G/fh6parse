@@ -67,9 +67,12 @@ from .update import UpdateCheck
 
 BG = "#111111"
 ACCENT = "#e6b800"
-MUTED = "#888888"
+MUTED = "#c8c8c8"
 ERR = "#ff6b6b"
 OK = "#8fd19e"
+BTN_LOAD = "#1f8a3a"
+BTN_SET = "#e6b800"
+BTN_RUN = "#c41e3a"
 
 BCM_MIN = 0
 BCM_MAX = 27
@@ -881,13 +884,16 @@ class KioskApp(tk.Tk):
 
     def _build(self) -> None:
         family = "DejaVu Sans" if sys.platform.startswith("linux") else "Segoe UI"
-        title_font = tkfont.Font(family=family, size=22, weight="bold")
-        list_font = tkfont.Font(family=family, size=20)
-        small = tkfont.Font(family=family, size=13)
-        update_font = tkfont.Font(family=family, size=18, weight="bold")
+        title_font = tkfont.Font(family=family, size=28, weight="bold")
+        list_font = tkfont.Font(family=family, size=24, weight="bold")
+        small = tkfont.Font(family=family, size=16)
+        settings_font = tkfont.Font(family=family, size=13)
+        update_font = tkfont.Font(family=family, size=22, weight="bold")
+        legend_font = tkfont.Font(family=family, size=18, weight="bold")
         self._font_title = title_font
         self._font_small = small
         self._font_update = update_font
+        self._font_legend = legend_font
 
         head = tk.Frame(self, bg=BG)
         head.pack(fill=tk.X, padx=16, pady=(18, 8))
@@ -937,8 +943,8 @@ class KioskApp(tk.Tk):
             justify="left",
         )
         self.hint.pack(anchor="w", pady=(4, 0))
-        self._cad_ready, self._cad_empty = cube_photo(self, size=32, dark=True)
-        self._cad_legend, _unused_empty = cube_photo(self, size=26, dark=True)
+        self._cad_ready, self._cad_empty = cube_photo(self, size=40, dark=True)
+        self._cad_legend, _unused_empty = cube_photo(self, size=32, dark=True)
         legend = tk.Frame(head, bg=BG)
         legend.pack(anchor="w", pady=(6, 0))
         tk.Label(legend, image=self._cad_legend, bg=BG).pack(side=tk.LEFT)
@@ -953,13 +959,13 @@ class KioskApp(tk.Tk):
 
         mid = tk.Frame(self, bg=BG)
         mid.pack(fill=tk.BOTH, expand=True, padx=12, pady=8)
-        self.listbox = make_file_tree(mid, dark=True, font=list_font, rowheight=40)
+        self.listbox = make_file_tree(mid, dark=True, font=list_font, rowheight=52)
         self.listbox.pack(fill=tk.BOTH, expand=True)
         self.listbox.bind("<Button-1>", self._on_list_click)
         self.listbox.bind("<MouseWheel>", self._on_wheel)
         self.listbox.bind("<Button-4>", lambda e: self._on_wheel_button(-1))
         self.listbox.bind("<Button-5>", lambda e: self._on_wheel_button(1))
-        preview_font = tkfont.Font(family=family, size=16, weight="bold")
+        preview_font = tkfont.Font(family=family, size=20, weight="bold")
         self.preview = tk.Label(
             mid,
             text="",
@@ -980,7 +986,8 @@ class KioskApp(tk.Tk):
         )
 
         foot = tk.Frame(self, bg=BG)
-        foot.pack(fill=tk.X, padx=16, pady=(4, 16))
+        self._foot = foot
+        foot.pack(fill=tk.X, padx=16, pady=(4, 12))
         self.update_btn = tk.Button(
             foot,
             text=t(self._lang, "update"),
@@ -1017,9 +1024,10 @@ class KioskApp(tk.Tk):
             justify="left",
         )
         self.status.pack(anchor="w", pady=(6, 0))
+        self._build_print_legend(legend_font)
 
-        self._build_config_panel(small, update_font)
-        self._build_mill_form(small, update_font)
+        self._build_config_panel(settings_font, update_font)
+        self._build_mill_form(settings_font, update_font)
 
         self.saver = tk.Frame(self, bg="#000000", takefocus=True, cursor="arrow")
         self.saver.bind("<Button-1>", self._on_saver_pointer)
@@ -1028,6 +1036,36 @@ class KioskApp(tk.Tk):
         self.saver.bind("<MouseWheel>", self._on_wheel)
         self.saver.bind("<Button-4>", lambda e: self._on_wheel_button(-1))
         self.saver.bind("<Button-5>", lambda e: self._on_wheel_button(1))
+
+    def _build_print_legend(self, legend_font) -> None:
+        """Three colour chips at the screen bottom, left→right with the panel buttons."""
+        row = tk.Frame(self._foot, bg=BG)
+        self._print_legend = row
+        specs = (
+            ("_legend_load", BTN_LOAD, "#ffffff", "legend_load"),
+            ("_legend_set", BTN_SET, "#111111", "legend_set"),
+            ("_legend_run", BTN_RUN, "#ffffff", "legend_run"),
+        )
+        for i, (attr, bg, fg, key) in enumerate(specs):
+            cell = tk.Frame(row, bg=bg)
+            cell.pack(
+                side=tk.LEFT,
+                expand=True,
+                fill=tk.BOTH,
+                padx=(0 if i == 0 else 8, 0),
+            )
+            lbl = tk.Label(
+                cell,
+                text=t(self._lang, key),
+                font=legend_font,
+                bg=bg,
+                fg=fg,
+                pady=14,
+                justify="center",
+            )
+            lbl.pack(fill=tk.BOTH, expand=True)
+            setattr(self, attr, lbl)
+        row.pack(fill=tk.X, pady=(10, 0))
 
     def _build_config_panel(self, small, update_font) -> None:
         panel = tk.Frame(
@@ -1693,6 +1731,9 @@ class KioskApp(tk.Tk):
         self.lang_chip.config(text=self._tr("lang_chip"))
         self._refresh_cad_chip()
         self._keys_hint.config(text=self._tr("keys_hint"))
+        self._legend_load.config(text=self._tr("legend_load"))
+        self._legend_set.config(text=self._tr("legend_set"))
+        self._legend_run.config(text=self._tr("legend_run"))
         self._config_title.config(text=self._tr("settings"))
         self._config_blurb.config(text=self._tr("settings_blurb"))
         self._config_lang_lbl.config(text=self._tr("language"))

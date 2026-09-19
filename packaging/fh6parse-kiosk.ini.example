@@ -1,7 +1,10 @@
 # Raspberry Pi 5 kiosk — copy to /etc/fh6parse-kiosk.ini or next to the app.
-# GPIO numbers are BCM (same pins as Pi 3/4). Buttons: momentary to GND.
-# DFRobot Fermion EC11 (SEN0235): A = CLK, B = DT, C unused.
-# Power VCC from 3.3 V, not 5 V. Pi 5 needs lgpio, not RPi.GPIO.
+# GPIO numbers are BCM (same pins as Pi 3/4).
+# Print buttons: 16 mm 5-pin vandal (C / NO / NC + LED +/−). C to GND, NO to
+# GPIO, NC unused. LED + to 5 V (header pin 2), LED − to GND. Rings stay on.
+# Do not put 5 V on a GPIO. DFRobot Fermion EC11 (SEN0235): A = CLK, B = DT,
+# C unused. Power encoder VCC from 3.3 V, not 5 V. Pi 5 needs lgpio, not RPi.GPIO.
+# Panel left→right under the screen: green LOAD, yellow SET, red RUN.
 # Updates are not configured here. Git checkout + on-screen UPDATE: see
 # packaging/LINUX-KIOSK.md §8 (fh6parse 1.4.0). This file is never overwritten.
 

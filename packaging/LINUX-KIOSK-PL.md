@@ -10,10 +10,10 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 
 1. Włącz kiosk. Na ekranie: **Włóż pendrive** (albo lista z poprzedniego kija, jeśli został w gnieździe).
 2. Włóż pendrive. Programy **`.nc` / `.tap` w katalogu głównym** kija (nie w podfolderach) pojawiają się na liście. Przy liczbie plików: **Można wyjąć** = wolno wyciągnąć kij. **Czytanie pendrive — czekaj** = kiosk jeszcze czyta (podgląd albo kopiuje STEP) — nie wyrywaj.
-3. Pokrętłem **pliku** podświetl program. Drugie pokrętło wybiera obrabiarkę (nazwa obok wersji). Pod listą widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz. Jeśli na kiju nadpiszesz ten sam `.nc`, podgląd sam się odświeży — poczekaj aż zniknie **Czytanie…**, potem LOAD / SET / RUN.
-4. Przycisk **LOAD** — bilet operatora (T, H/D/S, Min Z, kratki załadunku, ostrzeżenia). Bez wykresu, bez każdej wymiany Txx / M00, bez offsetu, bez STEP.
-5. Przycisk **SET** — bilet ustawiacza (program, mill, STEP gdy gotowy, prostokąt offsetu, czas cyklu bez wykresu, uwagi `!`).
-6. Przycisk **RUN** — pełny bilet 80 mm (STEP, offset, operacje, czas, wykres udziału, lista narzędzi, każda wymiana Txx / M00, ostrzeżenia).
+3. Pokrętłem **pliku** podświetl program. Drugie pokrętło wybiera obrabiarkę (nazwa obok wersji). Pod listą widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz. Jeśli na kiju nadpiszesz ten sam `.nc`, podgląd sam się odświeży — poczekaj aż zniknie **Czytanie…**, potem LOAD / SET / RUN. Lista i trzy kolorowe pola na dole są duże — pola stoją nad przyciskami.
+4. Przycisk **zielony LOAD** (lewy, pod ekranem) — bilet operatora (T, H/D/S, Min Z, kratki załadunku, ostrzeżenia). Bez wykresu, bez każdej wymiany Txx / M00, bez offsetu, bez STEP.
+5. Przycisk **żółty SET** (środek) — bilet ustawiacza (program, mill, STEP gdy gotowy, prostokąt offsetu, czas cyklu bez wykresu, uwagi `!`).
+6. Przycisk **czerwony RUN** (prawy) — pełny bilet 80 mm (STEP, offset, operacje, czas, wykres udziału, lista narzędzi, każda wymiana Txx / M00, ostrzeżenia).
 7. Na dole **Pokrywa otwarta**, **Brak papieru** albo **Zacięcie drukarki** — nie drukuj, najpierw drukarka. Przycisk nie wytnie pustego biletu.
 8. Brak żółtej kostki 3D obok nazwy = drukuj i tak. Bilet będzie sam tekst, bez czekania. Chip przy kostce mówi dlaczego: **szuka…** / **liczy…** / **brak STEP** / **Z: wył.** / **brak CAD**.
 9. Po dobrym druku na dole: **`device:/dev/usb/lp0`**. Jeśli widać `lp:…`, wołaj serwis (kolejka CUPS zamiast USB).
@@ -39,6 +39,7 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 | **v1.4.0** u góry | Wersja programu (numer może zostać, a żółty **AKTUALIZUJ** pokazuje skrót gita) |
 | Nazwa obrabiarki przy wersji | Drugie pokrętło (mill). Ta sama lista co **Dodaj obrabiarkę…** |
 | Chip **PL** / **EN** | Język ekranu i biletu. Domyślnie polski |
+| Trzy kolorowe pola na dole | Nad przyciskami: **zielony LOAD**, **żółty SET**, **czerwony RUN** (od lewej) |
 | **Pokrywa otwarta** | Zamknij pokrywę P047 — LOAD / SET / RUN nic nie wyśle |
 | **Brak papieru** | Załaduj rolkę 80 mm |
 | **Zacięcie drukarki** | Sprawdź papier i nożyk; nie wciskaj RUN w kółko |
@@ -49,9 +50,9 @@ Kiosk **nie zapisuje i nie kasuje** plików na pendrive ani w firmowym folderze 
 
 ## 3. Druk
 
-- **LOAD** — załadunek: T, H/D/S, opis, Min Z, kratki, ostrzeżenia.
-- **SET** — ustawianie: mill, STEP gdy kostka jest, prostokąt offsetu, czas cyklu (bez wykresu), uwagi `!`.
-- **RUN** — pełna lista narzędzi, czas, udział każdego T w cyklu, Min Z, ostrzeżenia, izometria gdy kostka już jest. Gdy obrabiarka ma skok: prostokąt punktu zerowego offsetu w współrzędnych maszyny (rogi, środek, maks. Ø G41/G42 wyśrodkowane).
+- **LOAD** (zielony, lewy) — załadunek: T, H/D/S, opis, Min Z, kratki, ostrzeżenia.
+- **SET** (żółty, środek) — ustawianie: mill, STEP gdy kostka jest, prostokąt offsetu, czas cyklu (bez wykresu), uwagi `!`.
+- **RUN** (czerwony, prawy) — pełna lista narzędzi, czas, udział każdego T w cyklu, Min Z, ostrzeżenia, izometria gdy kostka już jest. Gdy obrabiarka ma skok: prostokąt punktu zerowego offsetu w współrzędnych maszyny (rogi, środek, maks. Ø G41/G42 wyśrodkowane).
 - Papier: **80 mm**, drukarka termiczna przy kiosku. Nie skalować do A4.
 - Jeśli na dole jest **Brak papieru** / **Pokrywa otwarta** / **Zacięcie drukarki**, najpierw drukarka — kiosk nie wytnie pustej kartki.
 - Komentarze z programu (polskie opisy narzędzi) zostają jak w NC. Napisy kiosku i biletu są po polsku, gdy wybrano **Polski**.

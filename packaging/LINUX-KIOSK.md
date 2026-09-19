@@ -2,7 +2,7 @@
 
 Operator sheet (Polish, daily use only): **[LINUX-KIOSK-PL.md](LINUX-KIOSK-PL.md)**. This file is the full English install / wiring / update manual.
 
-**Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.0**). Three print buttons: **LOAD** (operator slip), **SET** (setter: mill, STEP, offset, cycle), **RUN** (full ticket). Spare GPIO is reserved (wake-only). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C rapid, tool-change time, optional max rpm, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Tickets then show a labeled G53 rectangle of where the work offset may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.0** badge; the yellow **UPDATE** button then shows a short hash. The Windows / Linux office GUI is one report with a **section checklist** (no LOAD / SET / RUN presets). The same single-click yellow **UPDATE to …** bar appears under the mill/print row: frozen Windows exe against a GitHub Release (tag **vX.Y.Z** builds it), git checkout against origin.
+**Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.0**). Three 16 mm vandal print buttons under the screen, left→right **green LOAD** (operator slip), **yellow SET** (setter), **red RUN** (full ticket). The same three colour chips sit on the bottom of the panel. List, preview, and those chips use large high-contrast type. Spare GPIO is reserved (wake-only). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C rapid, tool-change time, optional max rpm, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Tickets then show a labeled G53 rectangle of where the work offset may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.0** badge; the yellow **UPDATE** button then shows a short hash. The Windows / Linux office GUI is one report with a **section checklist** (no LOAD / SET / RUN presets). The same single-click yellow **UPDATE to …** bar appears under the mill/print row: frozen Windows exe against a GitHub Release (tag **vX.Y.Z** builds it), git checkout against origin.
 
 Python **3.10+** is required (Bookworm ships 3.11). Use **Raspberry Pi OS 64-bit Desktop** (Bookworm or later). Pi 5 has no 32-bit OS.
 
@@ -29,8 +29,8 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 | 800×600 LCD, mounted vertically | After rotation the framebuffer is **600×800**. That is what the app uses. |
 | DFRobot Fermion EC11 (file) | SEN0235. Phase **A** and **B** only. Shaft push (**C**) unused. Selects the NC file. |
 | DFRobot Fermion EC11 (mill) | Second knob, same wiring. Cycles mills in settings / `kiosk.machine`. |
-| Three momentary print buttons | Normally-open, wired to GPIO and GND: **RUN**, **LOAD**, **SET**. |
-| Spare momentary button | Wired and reserved. Wakes the screen if it is asleep; otherwise ignored (does not print). |
+| Three 16 mm 5-pin vandal buttons | Momentary, ring LED **5 V**: **green LOAD**, **yellow SET**, **red RUN**. Mount **under the screen**, left→right matching the colour chips on the panel. |
+| Spare momentary button | Optional. Wired and reserved. Wakes the screen if it is asleep; otherwise ignored (does not print). |
 | USB stick | FAT/exFAT/NTFS. Programs as `.nc` / `.NC` / `.tap` in the **stick root** only (not subfolders). |
 | MUNBYN P047 (ITPP047) | USB, 80 mm ESC/POS, auto-cutter. Own mains PSU. |
 | Company STEP folder (optional) | NAS of `.stp` / `.step` if the stick has none. See **§3.7**. Stick copy is enough. |
@@ -45,11 +45,12 @@ Default GPIO (**BCM** numbers, not header pin numbers):
 | File encoder B (DT) | 27 | 13 |
 | Mill encoder A (CLK) | 5 | 29 |
 | Mill encoder B (DT) | 6 | 31 |
-| RUN button | 22 | 15 |
-| LOAD button | 23 | 16 |
-| SET button | 24 | 18 |
+| RUN button (red) | 22 | 15 |
+| LOAD button (green) | 23 | 16 |
+| SET button (yellow) | 24 | 18 |
 | Spare button (reserved) | 25 | 22 |
 | 3.3 V for encoder VCC | — | 1 or 17 |
+| 5 V for button LED rings | — | 2 or 4 |
 | GND | — | 6, 9, 14, 20, or 30 |
 
 Change pins in **settings** (**F2** / **C** / **PL**·**EN**) or in `/etc/fh6parse-kiosk.ini`. Settings write `~/.config/fh6parse/ui.ini` (and the main ini if it is writable).
@@ -66,28 +67,82 @@ Change pins in **settings** (**F2** / **C** / **PL**·**EN**) or in `/etc/fh6par
 
 ### 2.2 GPIO rules
 
-Pi GPIO is **3.3 V** (unchanged on Pi 5). Do not feed 5 V into A, B, or the button pins.
+Pi GPIO is **3.3 V** (unchanged on Pi 5). Do not feed 5 V into A, B, or the button **signal** pins (C / NO / NC).
 
-DFRobot EC11 (SEN0235) is **3.3–5 V**. Power it from the Pi: **VCC → 3.3 V** (header pin 1), **GND → GND**. Do not use the Pi 5 V pins. If a clone only runs at 5 V, you still must not put 5 V on the Pi inputs (use a level shifter).
-
-Buttons: one side to the GPIO, the other to GND. The app enables the internal pull-up, so the pin reads high until the button shorts it to ground.
+DFRobot EC11 (SEN0235) is **3.3–5 V**. Power it from the Pi: **VCC → 3.3 V** (header pin 1), **GND → GND**. Do not use the Pi 5 V pins for the encoder. If a clone only runs at 5 V, you still must not put 5 V on the Pi inputs (use a level shifter).
 
 Encoder **C** (shaft click): leave unconnected. The kiosk does not read the push-switch.
 
-### 2.3 Wiring diagram (defaults)
+### 2.3 16 mm 5-pin vandal buttons (no datasheet)
+
+The Allegro 5 V ring-LED parts (and the common 16 mm LAS16 / Adafruit-style clones) have **five Faston tabs**, not two. The five functions are always the same even when the silk is missing:
+
+| Tab | What it is |
+| --- | --- |
+| **C** | Switch common |
+| **NO** | Normally open — closes to **C** while pressed |
+| **NC** | Normally closed — opens from **C** while pressed (leave unused) |
+| **LED +** | Ring anode (this listing is **5 V**, built-in resistor on most 3–6 V rings) |
+| **LED −** | Ring cathode |
+
+The switch and the LED are **separate circuits**. The kiosk only reads the switch (internal pull-up, press = GND). The rings are wired **always on** so the colours stay visible in a dim shop.
+
+**Identify the tabs with a meter** (pin order on the back is not the same on every clone):
+
+1. The two tabs that are a **diode**, not a click: that pair is **LED + / −**. One way around they drop ~1.8–3 V; the other way they are open. Tabs marked **+** / **−** (or a different colour / bent pair) are this pair.
+2. The remaining three are the switch. **Unpressed:** **C–NC** beeps, **C–NO** is open. **Pressed:** **C–NO** beeps, **C–NC** is open. The tab that beeps in both tests (one at a time) is **C**.
+
+Most likely rear view (looking at the **back**, tabs toward you) on these 16 mm 5 V rings:
+
+```
+     +         −          ← LED (often the two odd / marked tabs)
+
+  NO     C     NC         ← 2.8 mm Faston. NC unused.
+```
+
+If that drawing does not match the part in your hand, trust the meter, not the sketch.
+
+**Kiosk wiring (one button):**
+
+```
+GPIO (BCM, pull-up) ── NO
+GND                 ── C
+NC                     unused
+
+5 V (header pin 2)  ── LED +
+GND                 ── LED −
+```
+
+Same pattern on all three. Share **5 V** and **GND**. Do **not** jumper LED + onto a GPIO, and do **not** put 5 V on C / NO / NC.
+
+| If | Then |
+| --- | --- |
+| Ring stays dark | Swap LED + and − |
+| Ring is dim | Listing is 5 V — use header **5 V**, not 3.3 V |
+| Ring gets hot | Add ~220 Ω in series with LED + (that clone has no built-in resistor) |
+| Press does nothing, GPIO error | 5 V reached a GPIO — move the switch onto C/NO only, LED stays on 5 V |
+
+**Panel layout** (buttons **below** the screen, left→right as you face it). The colour chips on the bottom of the UI are in this order:
+
+| Left | Middle | Right |
+| --- | --- | --- |
+| **Green** LOAD (short / operator) | **Yellow** SET (setter) | **Red** RUN (full) |
+| GPIO 23 / header 16 | GPIO 24 / header 18 | GPIO 22 / header 15 |
+
+### 2.4 Wiring diagram (defaults)
 
 Pi 5 40-pin header (same BCM layout as Pi 3/4), looking at the board with the USB-A / Ethernet ports down:
 
 ```
- 3.3V  (1)  (2)  5V          ← encoder VCC to pin 1 only
+ 3.3V  (1)  (2)  5V          ← encoder VCC to pin 1; LED rings to pin 2
  GPIO2 (3)  (4)  5V
- GPIO3 (5)  (6)  GND         ← shared GND (encoders + buttons)
+ GPIO3 (5)  (6)  GND         ← shared GND (encoders + buttons + LED −)
  GPIO4 (7)  (8)  GPIO14
   GND  (9)  (10) GPIO15
 GPIO17 (11) (12) GPIO18      ← file encoder A (CLK)
 GPIO27 (13) (14) GND         ← file encoder B (DT)
-GPIO22 (15) (16) GPIO23      ← RUN button     LOAD button
-  3.3V (17) (18) GPIO24      ← SET button
+GPIO22 (15) (16) GPIO23      ← red RUN           green LOAD
+  3.3V (17) (18) GPIO24      ← yellow SET
 GPIO10 (19) (20) GND
  GPIO9 (21) (22) GPIO25      ← spare (reserved; wake-only)
  …
@@ -105,15 +160,9 @@ DFRobot Fermion EC11 (SEN0235) silk:
 | B | pin 13 (GPIO 27) file, or pin 31 (GPIO 6) mill |
 | C | not used |
 
-Each print button:
-
-```
-GPIO ── button ── GND
-```
-
 If turning the **file** knob moves the highlight the wrong way, use **Reverse** on the file knob in settings (or `encoder_swap = true`, or swap A and B). Same for the mill knob (`encoder_mill_swap`). SEN0235 is **20 pulses** per turn (one detent per pulse). **Ticks per tooth** is shared: GPIO ticks from one rest valley to the next. Start at **2** if one click skips two files. The list (or mill) changes halfway, so a small wiggle at rest does not skip.
 
-### 2.4 Screen orientation
+### 2.5 Screen orientation
 
 The panel is 800×600 landscape electronics, mounted as portrait. The OS must present **600×800**.
 
@@ -143,7 +192,7 @@ To make rotation survive reboot, add the same `xrandr` line to `~/.config/autost
 
 Do not use legacy `display_rotate=` in `/boot/firmware/config.txt`. Pi 5 is KMS-only.
 
-### 2.5 Printer (MUNBYN P047)
+### 2.6 Printer (MUNBYN P047)
 
 USB to the Pi. The kiosk sends **raw ESC/POS**: optional STEP bitmaps (`GS v 0`), then 48-column Font A, then cut. Do **not** print HTML or use a Windows GDI/POS-80 raster driver.
 
@@ -249,7 +298,7 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | `idle_seconds` | 60 | Black screen after this many seconds. `0` disables. |
 | `encoder_clk` / `encoder_dt` | 17 / 27 | File knob BCM pins (EC11 **A** / **B**). Change in **settings** or here. |
 | `encoder_mill_clk` / `encoder_mill_dt` | 5 / 6 | Mill knob BCM pins (header 29 / 31). |
-| `button_run` / `button_load` / `button_set` | 22 / 23 / 24 | RUN / LOAD / SET print. Old `button_full` / `button_min` still read. |
+| `button_run` / `button_load` / `button_set` | 22 / 23 / 24 | Red RUN / green LOAD / yellow SET. Old `button_full` / `button_min` still read. |
 | `button_spare` | 25 | Reserved. Wake-only if the screen is asleep; otherwise ignored. |
 | `encoder_swap` / `encoder_mill_swap` | false | Reverse file knob / mill knob |
 | `encoder_steps` | 1 | GPIO ticks from one tooth valley to the next (shared). DFRobot EC11 is usually **2**. Highlight / mill changes at half a tooth so rest is stable. |
@@ -352,13 +401,13 @@ python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 
 Without GPIO you can still use a **USB keyboard and mouse** at any time (hot-plug is fine). The kiosk keeps keyboard focus and the black screensaver wakes on a key, click, or mouse wheel.
 
-The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids, tool-change time, optional G53 ATC / work offset / tool length / travel from `[machine.<id>]` in this ini; the mill name also sits next to the version chip and the mill knob cycles it), **Add mill…** to create a new mill (written to `~/.config/fh6parse/ui.ini`), BCM pin numbers for file A / B, mill A / B, RUN / LOAD / SET / spare, knob reverse, and **ticks per tooth** (GPIO ticks from one rest valley to the next; the highlight or mill changes halfway so a wiggle at rest does not skip). Language, mill, and GPIO are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes the mill form first, then settings; the next **Esc** still leaves fullscreen. The file encoder or a GPIO print button closes settings without printing / skipping a file. The mill encoder keeps settings open and changes the mill.
+The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids, tool-change time, optional G53 ATC / work offset / tool length / travel from `[machine.<id>]` in this ini; the mill name also sits next to the version chip and the mill knob cycles it), **Add mill…** to create a new mill (written to `~/.config/fh6parse/ui.ini`), BCM pin numbers for file A / B, mill A / B, green LOAD / yellow SET / red RUN / spare, knob reverse, and **ticks per tooth** (GPIO ticks from one rest valley to the next; the highlight or mill changes halfway so a wiggle at rest does not skip). Language, mill, and GPIO are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes the mill form first, then settings; the next **Esc** still leaves fullscreen. The file encoder or a GPIO print button closes settings without printing / skipping a file. The mill encoder keeps settings open and changes the mill.
 
 | Input | While awake | While screensaver |
 | --- | --- | --- |
 | Arrows, mouse wheel, click a file | Move highlight | First event only wakes |
 | **F** / **M** / **S** | Print RUN / LOAD / SET | Ignored (no ticket); another key or click wakes |
-| GPIO RUN / LOAD / SET | Print | Ignored (no ticket, stays black) |
+| GPIO RUN / LOAD / SET (red / green / yellow) | Print | Ignored (no ticket, stays black) |
 | GPIO spare | Ignored | Wake only |
 | Yellow **UPDATE to …** / **U** | One tap: pull, then restart kiosk | Wake first, then tap |
 | **F2** / **C** / click **PL**·**EN** | Open or close settings (language, pins, encoder ticks) | Wake first |
@@ -492,9 +541,9 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 1. Power on. Screen shows **Włóż pendrive** / **Insert USB** (or the last stick if it was already plugged in). The kiosk is Polish unless settings were changed.
 2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear. The count line shows **Można wyjąć** / **Safe to remove** when the kiosk is not reading the stick — wait for that before unplugging. **Czytanie pendrive — czekaj** / **Reading USB — wait** means preview parse or a STEP copy from the stick is still running.
 3. Turn the **file** encoder to highlight a file. The panel under the list shows each operation’s tool count and cycle time, and whether the STEP views are ready. A **3D cube** next to the name also means the STEP views are ready; the stacked isometric appears under the preview when it is. Check OP1 vs OP2 here before printing. If that `.nc` is overwritten on the stick (same name, new bytes), preview reloads from disk — wait for **Reading…** to finish before RUN / LOAD / SET. The mill name sits next to the version chip; turn the **mill** knob to change mill (same as **Add mill…** / settings).
-4. **LOAD** — operator slip: file / program / units, tool list with T / H / D / S / Min Z and load boxes, mismatch and empty-pocket warnings, sign-off. No cycle chart, no each-Txx-M6 dump, no offset box, no STEP.
-5. **SET** — setter slip: file / program, mill name, STEP when ready, offset rectangle + Ømax + Z window, cycle time (no share chart), programmer `!` notes, offset in/out / too-big warnings.
-6. **RUN** — full slip (old FULL): STEP, offset block, ops, cycle + share chart, tool list, each Txx M6 / M00, all warnings.
+4. **Green LOAD** (left under the screen) — operator slip: file / program / units, tool list with T / H / D / S / Min Z and load boxes, mismatch and empty-pocket warnings, sign-off. No cycle chart, no each-Txx-M6 dump, no offset box, no STEP.
+5. **Yellow SET** (middle) — setter slip: file / program, mill name, STEP when ready, offset rectangle + Ømax + Z window, cycle time (no share chart), programmer `!` notes, offset in/out / too-big warnings.
+6. **Red RUN** (right) — full slip (old FULL): STEP, offset block, ops, cycle + share chart, tool list, each Txx M6 / M00, all warnings. The three colour chips on the bottom of the screen sit in this same left→right order.
 7. If the status line says **Pokrywa otwarta** / **Printer cover open**, **Brak papieru** / **No paper**, or **Zacięcie drukarki** / **Printer jam**, fix the P047 first. RUN / LOAD / SET will not cut a blank slip. Those messages also appear on their own while idle (polled about every 2 s).
 8. If there is no cube, print anyway. The slip is text only. The chip next to the cube legend says why: **3D ready**, **searching…** / **szuka…** (looking for a `.stp`), **rendering…** / **liczy…** (drawing a match), **no STEP** / **brak STEP**, **Z: off** / **Z: wył.** (company share down), or **no CAD** / **brak CAD** (install `[models]`).
 9. Status after a good print: **`device:/dev/usb/lp0`**. If it says `lp:…`, CUPS took the job — **§3.5**.
@@ -517,7 +566,9 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | Knob does nothing | File knob defaults 17/27, mill knob 5/6. A/B (CLK/DT) on the BCM numbers shown in settings; common GND; 3.3 V VCC. Try **Reverse** for that knob. |
 | Mill name does not change | Mill knob BCM 5/6 (header 29/31). Need more than one mill in settings. `encoder_mill_swap` if it turns the wrong way. |
 | Knob skips or jitters at rest | Raise **Ticks per tooth** so the valley is several GPIO ticks wide; highlight only changes halfway to the next tooth. Shorter wires; module decoupling. The kiosk also sets a short encoder `bounce_time` for Pi 5. |
-| Buttons print on press and release | Use momentary NO to GND, not a latching switch. |
+| Buttons print on press and release | Use momentary **NO** to GPIO and **C** to GND. Leave **NC** and the LED tabs off the GPIO. Not a latching switch. |
+| Ring LED dark | LED + to header **5 V** (pin 2), LED − to GND. Swap +/− if it stays dark. Dim on 3.3 V is expected on the 5 V rings. |
+| Pi dies / GPIO error after wiring LEDs | **5 V reached a GPIO.** LED stays on pin 2; C / NO / NC must never see 5 V. |
 | List stays on Insert USB / Włóż pendrive | Stick mounted? `ls /media` / `ls /run/media`. Format FAT32. Files ending `.nc` or `.tap`. |
 | Preview does not match the stick file | Same name overwritten? Wait until **Reading…** clears. Reload uses mtime **and** size (FAT 2 s). Do not yank during **Reading USB — wait**. |
 | Yanked stick, list frozen / cube stuck | Wait for **Safe to remove** next time. Plug back in. `rm -rf /tmp/fh6parse-models` if pictures are from a half-copy. |
@@ -735,6 +786,7 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Settings (**F2** / **PL** chip): language, mill / **Add mill…**, file + mill pins, RUN / LOAD / SET / spare, ticks per tooth; survives restart | |
 | File knob: rest is stable; highlight changes halfway to the next tooth | |
 | Mill knob: mill name next to **v…** changes; persists like **Add mill…** | |
+| Colour chips on the bottom of the screen: green LOAD, yellow SET, red RUN left→right | |
 | LOAD has T / H / D / S / Min Z, no STEP / offset / chart | |
 | SET has mill, offset, cycle, no share chart / each Txx M6 / M00 | |
 | RUN has STEP (when ready), offset, chart, tool list, each change | |

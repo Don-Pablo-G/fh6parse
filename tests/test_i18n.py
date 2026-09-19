@@ -95,6 +95,17 @@ class TestI18n(unittest.TestCase):
         self.assertIn("python3-lgpio", t("pl", "gpio_pi5"))
         self.assertIn("RPi.GPIO", t("en", "gpio_pi5"))
 
+    def test_print_legend_matches_panel_buttons(self) -> None:
+        self.assertIn("LOAD", t("en", "legend_load"))
+        self.assertIn("short", t("en", "legend_load"))
+        self.assertIn("SET", t("en", "legend_set"))
+        self.assertIn("RUN", t("en", "legend_run"))
+        self.assertIn("załadunek", t("pl", "legend_load"))
+        self.assertIn("ustawianie", t("pl", "legend_set"))
+        self.assertIn("pełny", t("pl", "legend_run"))
+        self.assertIn("green", t("en", "pin_load"))
+        self.assertIn("zielony", t("pl", "pin_load"))
+
 
 class TestTicketLanguage(unittest.TestCase):
     def _sample(self):

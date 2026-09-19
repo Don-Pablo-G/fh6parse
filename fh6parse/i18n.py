@@ -30,10 +30,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "usb_busy": "Reading USB — wait",
         "local_extra": "+{n} local",
         "cad_legend": "3D view ready to print",
-        "keys_hint": (
-            "RUN / F  full     LOAD / M  tools     SET / S  setter     "
-            "F2  settings     Esc  window"
-        ),
+        "keys_hint": "F2  settings     Esc  window     F / M / S  print",
+        "legend_load": "LOAD\nshort",
+        "legend_set": "SET\nsetter",
+        "legend_run": "RUN\nfull",
         "update": "UPDATE",
         "update_to": "UPDATE to {version}",
         "update_sha": "UPDATE  {sha}",
@@ -79,9 +79,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "cad_chip_share_down": "Z: off",
         "settings": "Settings",
         "settings_blurb": (
-            "Language, mill, BCM pins (file knob, mill knob, RUN / LOAD / SET, "
-            "spare), and ticks from one tooth valley to the next. Rest is the "
-            "file; the highlight changes halfway to the next tooth."
+            "Language, mill, BCM pins (file knob, mill knob, green LOAD / "
+            "yellow SET / red RUN, spare), and ticks from one tooth valley "
+            "to the next. Rest is the file; the highlight changes halfway "
+            "to the next tooth."
         ),
         "language": "Language",
         "lang_pl": "Polski",
@@ -120,12 +121,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "pin_dt": "File B (DT)",
         "pin_mill_clk": "Mill A (CLK)",
         "pin_mill_dt": "Mill B (DT)",
-        "pin_run": "RUN button",
-        "pin_load": "LOAD button",
-        "pin_set": "SET button",
+        "pin_run": "RUN button (red)",
+        "pin_load": "LOAD button (green)",
+        "pin_set": "SET button (yellow)",
         "pin_spare": "Spare (reserved)",
-        "pin_full": "RUN button",
-        "pin_min": "LOAD button",
+        "pin_full": "RUN button (red)",
+        "pin_min": "LOAD button (green)",
         "encoder_knob": "File knob",
         "encoder_knob_mill": "Mill knob",
         "encoder_swap_off": "Normal direction",
@@ -326,10 +327,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "usb_busy": "Czytanie pendrive — czekaj",
         "local_extra": "+{n} lokalne",
         "cad_legend": "Widok 3D gotowy do druku",
-        "keys_hint": (
-            "RUN / F  pełny     LOAD / M  załadunek     SET / S  ustawianie     "
-            "F2  ustawienia     Esc  okno"
-        ),
+        "keys_hint": "F2  ustawienia     Esc  okno     F / M / S  druk",
+        "legend_load": "LOAD\nzaładunek",
+        "legend_set": "SET\nustawianie",
+        "legend_run": "RUN\npełny",
         "update": "AKTUALIZUJ",
         "update_to": "AKTUALIZUJ do {version}",
         "update_sha": "AKTUALIZUJ  {sha}",
@@ -385,9 +386,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "settings": "Ustawienia",
         "settings_blurb": (
             "Język, obrabiarka, piny BCM (pokrętło pliku, pokrętło mill, "
-            "RUN / LOAD / SET, zapasowy) i impulsy od jednej doliny zęba do "
-            "następnej. Spoczynek to plik; podświetlenie zmienia się w połowie "
-            "drogi do następnego zęba."
+            "zielony LOAD / żółty SET / czerwony RUN, zapasowy) i impulsy "
+            "od jednej doliny zęba do następnej. Spoczynek to plik; "
+            "podświetlenie zmienia się w połowie drogi do następnego zęba."
         ),
         "language": "Język",
         "lang_pl": "Polski",
@@ -426,12 +427,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "pin_dt": "B pliku (DT)",
         "pin_mill_clk": "A mill (CLK)",
         "pin_mill_dt": "B mill (DT)",
-        "pin_run": "Przycisk RUN",
-        "pin_load": "Przycisk LOAD",
-        "pin_set": "Przycisk SET",
+        "pin_run": "Przycisk RUN (czerwony)",
+        "pin_load": "Przycisk LOAD (zielony)",
+        "pin_set": "Przycisk SET (żółty)",
         "pin_spare": "Zapasowy (zarezerwowany)",
-        "pin_full": "Przycisk RUN",
-        "pin_min": "Przycisk LOAD",
+        "pin_full": "Przycisk RUN (czerwony)",
+        "pin_min": "Przycisk LOAD (zielony)",
         "encoder_knob": "Pokrętło pliku",
         "encoder_knob_mill": "Pokrętło mill",
         "encoder_swap_off": "Kierunek normalny",
