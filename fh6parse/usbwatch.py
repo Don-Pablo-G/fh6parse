@@ -39,6 +39,16 @@ SKIP_FS = {
     "nfsd",
     "binfmt_misc",
     "efivarfs",
+    # Company NAS / Windows share — never treat as a USB stick.
+    "cifs",
+    "smb3",
+    "smb2",
+    "smbfs",
+    "nfs",
+    "nfs4",
+    "nfsv4",
+    "ceph",
+    "glusterfs",
 }
 SKIP_MOUNTPOINTS = {
     "/",
@@ -53,6 +63,7 @@ SKIP_MOUNTPOINTS = {
     "/sys",
     "/proc",
     "/dev",
+    "/mnt/fh6parse-cad",
 }
 
 

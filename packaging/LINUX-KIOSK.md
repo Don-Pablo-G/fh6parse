@@ -1,5 +1,7 @@
 # fh6parse Linux kiosk manual
 
+Operator sheet (Polish, daily use only): **[LINUX-KIOSK-PL.md](LINUX-KIOSK-PL.md)**. This file is the full English install / wiring / update manual.
+
 **Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C, tool-change time). Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. The screen shows **v1.4.0** (later git commits keep that number; the yellow **UPDATE** button then shows a short hash). The Windows office exe uses the same button against a GitHub Release (tag **vX.Y.Z** builds the exe).
 
 Python **3.10+** is required (Bookworm ships 3.11). Use **Raspberry Pi OS 64-bit Desktop** (Bookworm or later). Pi 5 has no 32-bit OS.
@@ -347,18 +349,38 @@ or `D0134078.nc` plus `cad/D0134078_Rev03.stp`. The kiosk indexes the stick when
 **2. Optional company CAD folders** in `/etc/fh6parse-kiosk.ini` if the stick has no STEP. Several roots are allowed (comma or `:` / `;`). Subfolders are searched. A file on the stick always wins over the NAS.
 
 ```
-model_roots = /mnt/cad/stp,/mnt/cad/archive
+model_roots = /mnt/fh6parse-cad
 ```
 
-Mount the company share before the kiosk starts. Install `cifs-utils` if needed, then:
+fh6parse **only reads** that folder (list `.stp` / `.step`, open for the isometric). It never creates, overwrites, or deletes files there. Rendered bitmaps go to `/tmp/fh6parse-models` on the Pi (or `%TEMP%\fh6parse-models` on Windows). Reports are not written next to company files. CIFS is mounted **read-only**, so the kernel also refuses writes. Network shares (CIFS/NFS) are never treated as a USB stick.
+
+**Easy mount of the office Z: drive** (plug the Pi into company Ethernet). On a Windows PC, `net use Z:` shows the UNC (example `\\fileserver\Dokumentacja`). Then on the Pi:
 
 ```
 sudo apt install -y cifs-utils
-sudo mkdir -p /mnt/cad
-sudo mount -t cifs //server/cad /mnt/cad -o guest,uid=kiosk,gid=kiosk,iocharset=utf8
+sudo bash /home/kiosk/fh6parse/packaging/connect-windows-share.sh //fileserver/Dokumentacja --guest
 ```
 
-Put a matching line in `/etc/fstab` so it survives reboot. If the share is down, the ticket is still text only.
+Domain account (more common):
+
+```
+sudo bash /home/kiosk/fh6parse/packaging/connect-windows-share.sh //fileserver/Dokumentacja --user kiosk --domain COMPANY
+sudo nano /etc/fh6parse-cad.cred
+```
+
+Put the password on the `password=` line, `chmod 600`, then `sudo mount /mnt/fh6parse-cad`. The script writes a **read-only** `fstab` line with `x-systemd.automount`: when the cable is unplugged the kiosk still starts; when you plug in, the share appears on first use (STEP cubes fill in within a minute). Template: `packaging/fh6parse-cad.cred.example`.
+
+Manual equivalent:
+
+```
+sudo mkdir -p /mnt/fh6parse-cad
+# /etc/fstab (one line):
+# //fileserver/Dokumentacja /mnt/fh6parse-cad cifs credentials=/etc/fh6parse-cad.cred,ro,uid=kiosk,gid=kiosk,iocharset=utf8,file_mode=0444,dir_mode=0555,_netdev,nofail,x-systemd.automount 0 0
+```
+
+If the share is down, the ticket is still text only.
+
+On **Windows**, pick **STEP folders…** once. Prefer the UNC (`\\fileserver\Dokumentacja`) so it still works if the letter is not Z:. That path is `model_roots` in `fh6parse-kiosk.ini`. The GUI will not save reports into that folder.
 
 **3. Install the CAD extra** (git checkout only; heavy: numpy, pillow, trimesh, cascadio):
 
@@ -391,13 +413,13 @@ If the program **has** a revision, only a STEP file with the **same** rev is use
 
 **5. On the screen**, a small **wireframe 3D cube** appears next to the file when the bitmap is rendered and ready (same icon as the legend under the title — the same visible-edge isometric language as the ticket). The **stacked isometric** itself is shown under the highlight preview (and above the Windows GUI report) so a wrong STEP can be caught before print. The walk and render run in the background for every USB file in the list. Cache: `/tmp/fh6parse-models`.
 
-On **Windows**, the GUI also searches next to the opened NC file. **STEP folders…** is the NAS fallback. Paths are saved as `model_roots` in `fh6parse-kiosk.ini` next to the exe. The Windows one-file build bundles the CAD stack; print still works if a model is missing.
+On **Windows**, the GUI also searches next to the opened NC file. **STEP folders…** is the company-share fallback (prefer `\\server\share`, not only Z:). Paths are saved as `model_roots` in `fh6parse-kiosk.ini` next to the exe. fh6parse will not write reports into that folder. The Windows one-file build bundles the CAD stack; print still works if a model is missing.
 
 ---
 
 ## 4. Boot to kiosk
 
-Copy the unit and enable it. The service assumes user `kiosk`, display `:0`, and Desktop autologin. If `model_roots` is on a NAS, mount that share in `fstab` so it is up before the kiosk starts. The sudoers line from **§3.2** must exist if you want the **UPDATE** button to restart the unit.
+Copy the unit and enable it. The service assumes user `kiosk`, display `:0`, and Desktop autologin. If `model_roots` is on a company share, use the read-only automount in **§3.7** (`/mnt/fh6parse-cad`). The kiosk starts even if the cable is unplugged; cubes appear after the share is up. The sudoers line from **§3.2** must exist if you want the **UPDATE** button to restart the unit.
 
 ```
 sudo cp /home/kiosk/fh6parse/packaging/fh6parse-kiosk.service /etc/systemd/system/

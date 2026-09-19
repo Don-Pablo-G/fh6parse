@@ -148,6 +148,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "wrote_files": "Wrote {n} files in {folder}",
         "wrote_all": "Wrote A4 + 80 mm reports for {n} file(s)",
         "opened_print": "Opened {label} print preview ({name})",
+        "company_folder_readonly": (
+            "fh6parse never writes or deletes files in the company STEP folder. "
+            "Choose a different output folder, or open NC files that are not on that share."
+        ),
         "ticket_title_a4": "CNC TOOL REPORT  |  A4",
         "ticket_title_80": "CNC TOOL REPORT",
         "ticket_title_min": "CNC TOOLS MIN",
@@ -385,6 +389,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "wrote_files": "Zapisano {n} plików w {folder}",
         "wrote_all": "Zapisano raporty A4 i 80 mm dla {n} plików",
         "opened_print": "Otwarto podgląd wydruku {label} ({name})",
+        "company_folder_readonly": (
+            "fh6parse nigdy nie zapisuje ani nie usuwa plików w firmowym folderze STEP. "
+            "Wybierz inny folder zapisu albo otwórz NC spoza tego udziału."
+        ),
         "ticket_title_a4": "RAPORT NARZĘDZI CNC  |  A4",
         "ticket_title_80": "RAPORT NARZĘDZI CNC",
         "ticket_title_min": "NARZĘDZIA CNC MIN",

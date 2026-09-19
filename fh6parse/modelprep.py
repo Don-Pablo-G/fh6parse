@@ -7,7 +7,7 @@ import threading
 import time
 
 from .modelmatch import ModelFile, index_models, pick_model_near
-from .modelrender import cache_png_path, render_available, render_step_stack
+from .modelrender import cache_png_path, ensure_cache_path, render_available, render_step_stack
 from .partid import identity_from_nc_path
 
 INDEX_EVERY = 90.0
@@ -125,7 +125,7 @@ class ModelPrep:
         except OSError:
             self._mark_tried(key)
             return
-        dest = cache_png_path(chosen.path, st.st_mtime, st.st_size)
+        dest = ensure_cache_path(cache_png_path(chosen.path, st.st_mtime, st.st_size))
         if not dest.is_file():
             if render_step_stack(chosen.path, dest) is None:
                 self._mark_tried(key)

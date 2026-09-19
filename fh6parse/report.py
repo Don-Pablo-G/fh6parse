@@ -24,6 +24,7 @@ from .parser import (
     ToolUsage,
 )
 from .machtime import DEFAULT_MACHINE, format_machine_time
+from .safepath import refuse_write
 
 
 _ticket_lang: ContextVar[str] = ContextVar("ticket_lang", default=GUI_DEFAULT)
@@ -1029,6 +1030,7 @@ def write_report(
     papers: str = "both",
     image_paths: list[Path] | None = None,
     lang: str | None = None,
+    protected_roots: list[Path] | None = None,
 ) -> list[Path]:
     """Write text + HTML for A4, 80 mm, or both. Returns paths written."""
     if dest:
@@ -1042,6 +1044,7 @@ def write_report(
     else:
         directory = Path(out_dir) if out_dir else Path(result.path).parent
         stem = Path(result.path).stem
+    refuse_write(directory, protected_roots)
     directory.mkdir(parents=True, exist_ok=True)
 
     want = {PAPER_A4, PAPER_80MM} if papers == "both" else {papers.lower()}

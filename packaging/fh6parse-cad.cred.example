@@ -1,0 +1,5 @@
+# Copy to /etc/fh6parse-cad.cred (root, mode 600). Never commit a real password.
+# Used by packaging/connect-windows-share.sh and /etc/fstab (CIFS, read-only).
+username=SHOPKIOSK
+password=CHANGE_ME
+domain=COMPANY

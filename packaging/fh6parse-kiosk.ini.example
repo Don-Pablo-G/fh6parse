@@ -34,14 +34,18 @@ extensions = .nc,.tap
 # extra_roots = /home/kiosk/nc-samples
 
 # USB stick is searched first (folder of the .nc + subfolders). Stick wins.
-# Company STEP folders below are optional fallback. Comma or path-separator.
+# Company STEP / documentation folders below are optional fallback.
+# fh6parse only reads them (never writes or deletes). Bitmaps go to
+# /tmp/fh6parse-models. Mount the office Z: share read-only:
+#   sudo bash packaging/connect-windows-share.sh //fileserver/Dokumentacja --guest
+#   (see packaging/LINUX-KIOSK.md §3.7). Comma or path-separator.
 # Matching starts at the shared prefix of the NC name / program title.
 # G-code (REV 3) / (Rewizja: 02) / trailing -0 or _Rev03 must match the
 # model revision. If the NC has no rev, the latest matching .stp is used.
 # D0134078.nc  ->  D0134078_Rev03.stp  (not D0134079_…)
 # SE0241282.nc with O-title SE0241282-0  ->  SE0241282-0.stp
 # Missing models never block print. CAD extra: pip install -e '.[models]'
-# model_roots = /mnt/cad/stp,/mnt/cad/archive
+# model_roots = /mnt/fh6parse-cad
 
 # Mill used for programmed cycle time. Pick in settings (F2) or Add mill…
 # [machine.default] is built in (20 m/min, 0 s tool change) if omitted.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import hashlib
+import shutil
 import tempfile
 
 # Printable width on 80 mm ESC/POS at 203 dpi, multiple of 8.
@@ -43,6 +44,36 @@ def cache_png_path(step_path: Path, mtime: float, size: int) -> Path:
     return cache_dir() / f"{digest}.png"
 
 
+def ensure_cache_path(dest: Path) -> Path:
+    """Bitmaps are only allowed under the temp cache, never on a company share."""
+    root = cache_dir().resolve()
+    dest = Path(dest)
+    if not dest.is_absolute():
+        dest = root / dest.name
+    dest = dest.resolve()
+    try:
+        dest.relative_to(root)
+    except ValueError as exc:
+        raise PermissionError(f"refusing to write outside cache: {dest}") from exc
+    return dest
+
+
+def staged_step_copy(step_path: Path) -> Path:
+    """Read-only copy in the temp cache so CAD libraries cannot touch the share."""
+    src = Path(step_path)
+    st = src.stat()
+    key = f"{src.resolve()}|{st.st_mtime}|{st.st_size}|src-v1"
+    digest = hashlib.sha1(key.encode("utf-8", "replace")).hexdigest()[:20]
+    dest = cache_dir() / f"{digest}{src.suffix.lower() or '.stp'}"
+    if dest.is_file() and dest.stat().st_size == st.st_size:
+        return dest
+    tmp = dest.with_name(dest.name + ".tmp")
+    with src.open("rb") as incoming, tmp.open("wb") as outgoing:
+        shutil.copyfileobj(incoming, outgoing)
+    tmp.replace(dest)
+    return dest
+
+
 def ticket_view_pixels(vertices) -> tuple[int, int]:
     """Pixel size of one view: width is the 80 mm axis; height follows the part."""
     import numpy as np
@@ -61,7 +92,9 @@ def render_step_stack(step_path: Path, dest: Path) -> Path | None:
     except ImportError:
         return None
     try:
-        mesh = trimesh.load(str(step_path), force="mesh", skip_materials=True)
+        dest = ensure_cache_path(dest)
+        staged = staged_step_copy(step_path)
+        mesh = trimesh.load(str(staged), force="mesh", skip_materials=True)
         if isinstance(mesh, trimesh.Scene):
             geom = mesh.dump(concatenate=True)
             mesh = geom

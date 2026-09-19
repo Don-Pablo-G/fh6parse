@@ -66,6 +66,7 @@ Print: open the GUI, load the NC file, Print A4 or Print 80 mm.
 
 Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
   Full wiring + OS + printer + update: packaging/LINUX-KIOSK.md
+  Operator sheet (Polish): packaging/LINUX-KIOSK-PL.md
   64-bit Raspberry Pi OS Desktop. raspi-config: X11 + desktop autologin.
   Official 27 W USB-C PSU. micro-HDMI on HDMI0. Same BCM pins as Pi 3/4.
   sudo apt install python3-gpiozero python3-lgpio python3-rpi-lgpio python3-tk git
@@ -118,6 +119,11 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
 STEP models on the 80 mm ticket (kiosk, optional)
   Put a matching .stp / .step on the USB stick (next to the .nc or in a
   subfolder). Company model_roots are a fallback if the stick has none.
+  That folder is read-only: fh6parse never writes or deletes files there
+  (bitmaps go to /tmp/fh6parse-models). Pi: packaging/connect-windows-share.sh
+  maps the office Z: UNC (net use Z: on Windows) to /mnt/fh6parse-cad, CIFS
+  ro, automount when Ethernet is plugged. Windows GUI: STEP folders… —
+  prefer \\server\share so the letter need not stay Z:.
   pip install -e '.[models]'   (git checkout; not in the one-file Pi tarball)
   Matching starts at the NC name prefix. G-code rev must match the .stp rev.
   If the NC has no rev, the latest matching .stp is used (USB copy wins).

@@ -45,6 +45,7 @@ from .modelprep import ModelPrep
 from .parser import ParseResult, parse_nc_file
 from .printer import print_ticket
 from .report import PAPER_80MM, PAPER_80MM_MIN, PAPER_A4, format_report
+from .safepath import is_protected
 from .update import UpdateCheck
 
 BG = "#111111"
@@ -1656,7 +1657,11 @@ class KioskApp(tk.Tk):
         return list(self._mounts) + list(self.cfg.extra_roots)
 
     def _poll_usb(self) -> None:
-        mounts = set(usbwatch.removable_mounts())
+        mounts = {
+            m
+            for m in usbwatch.removable_mounts()
+            if not is_protected(m, self.cfg.model_roots)
+        }
         added = mounts - self._mounts
         self._mounts = mounts
         files = usbwatch.list_nc_files(

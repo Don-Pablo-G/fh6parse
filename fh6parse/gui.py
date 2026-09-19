@@ -39,6 +39,7 @@ from .report import (
     open_print_html,
     write_report,
 )
+from .safepath import ProtectedWriteError, is_protected
 from .update import UpdateCheck
 
 
@@ -618,7 +619,13 @@ class ToolReportApp(tk.Tk):
         chosen = filedialog.askdirectory(title=self._tr("out_folder_title"), **kwargs)
         if not chosen:
             return
-        self._out_dir = Path(chosen)
+        folder = Path(chosen)
+        if is_protected(folder, self._model_roots):
+            messagebox.showerror(
+                self._tr("out_folder_title"), self._tr("company_folder_readonly")
+            )
+            return
+        self._out_dir = folder
         self.out_label.config(text=str(self._out_dir))
         self._persist_gui_prefs()
 
@@ -628,12 +635,19 @@ class ToolReportApp(tk.Tk):
             messagebox.showinfo(self._tr("save_title"), self._tr("select_first"))
             return
         path, result = selected
-        dests = write_report(
-            result,
-            out_dir=self._out_dir,
-            image_paths=self._images_for(path),
-            lang=self._lang,
-        )
+        try:
+            dests = write_report(
+                result,
+                out_dir=self._out_dir,
+                image_paths=self._images_for(path),
+                lang=self._lang,
+                protected_roots=self._model_roots,
+            )
+        except ProtectedWriteError:
+            messagebox.showerror(
+                self._tr("save_title"), self._tr("company_folder_readonly")
+            )
+            return
         self.status.config(
             text=self._tr("wrote_files", n=len(dests), folder=dests[0].parent)
         )
@@ -644,12 +658,19 @@ class ToolReportApp(tk.Tk):
             return
         written = 0
         for path, result in self._results.values():
-            write_report(
-                result,
-                out_dir=self._out_dir,
-                image_paths=self._images_for(path),
-                lang=self._lang,
-            )
+            try:
+                write_report(
+                    result,
+                    out_dir=self._out_dir,
+                    image_paths=self._images_for(path),
+                    lang=self._lang,
+                    protected_roots=self._model_roots,
+                )
+            except ProtectedWriteError:
+                messagebox.showerror(
+                    self._tr("save_all_title"), self._tr("company_folder_readonly")
+                )
+                return
             written += 1
         self.status.config(text=self._tr("wrote_all", n=written))
 
