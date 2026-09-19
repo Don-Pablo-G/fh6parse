@@ -31,6 +31,7 @@ from .workarea import append_g54_png, fmt_mm, fmt_xy, window_for_result
 
 _ticket_lang: ContextVar[str] = ContextVar("ticket_lang", default=GUI_DEFAULT)
 _MISMATCH_RE = re.compile(r"^([A-Z]#?\d+) does not match (T#?\d+)$")
+_OFFSET_LATE_RE = re.compile(r"^(G\d+) after operation started \((L\d+)\)$")
 _WARN_KEYS = {
     G95_NEXT_WARN: "ticket_warn_g95_next",
     G95_END_WARN: "ticket_warn_g95_end",
@@ -56,6 +57,11 @@ def _warn_text(warn: str) -> str:
     match = _MISMATCH_RE.match(warn)
     if match:
         return _tr("ticket_warn_mismatch", offset=match.group(1), tool=match.group(2))
+    late = _OFFSET_LATE_RE.match(warn)
+    if late:
+        return _tr(
+            "ticket_warn_offset_late", offset=late.group(1), line=late.group(2)
+        )
     return warn
 
 
@@ -608,6 +614,10 @@ def _format_text_a4(
             for part in _wrap(_op_heading(op), w78):
                 w(part)
             w("=" * w78)
+            if sections.warnings:
+                for warn in op.warnings:
+                    for part in _wrap(_warn_line(warn), w78):
+                        w(part)
             cycle_s, _ = _op_cycle(op)
             if sections.cycle:
                 w(_cycle_label(op))
@@ -737,6 +747,9 @@ def _format_text_80mm(
             w(dash)
             block(_op_heading(op))
             w(dash)
+            if sections.warnings:
+                for warn in op.warnings:
+                    block(_warn_line(warn, prefix="! "))
             cycle_s, _ = _op_cycle(op)
             if sections.cycle:
                 w(_cycle_label(op))
@@ -1033,6 +1046,11 @@ table.chart td.bar { padding-right: 0; }
                     "</tr>"
                 )
             op_html.append(f"<h2>{escape(_op_heading(op))}</h2>")
+            if sections.warnings:
+                for warn in op.warnings:
+                    op_html.append(
+                        f'<p class="warn">{escape(_warn_line(warn))}</p>'
+                    )
             if sections.cycle:
                 op_html.append(f'<p class="cycle">{escape(_cycle_label(op))}</p>')
             if sections.chart:
@@ -1210,6 +1228,9 @@ pre.chart {
             cycle_s, _ = _op_cycle(op)
             a('<hr class="rule">')
             a(f'<div class="tline d">{escape(_op_heading(op))}</div>')
+            if sections.warnings:
+                for warn in op.warnings:
+                    a(f'<div class="warn">{escape(_warn_line(warn, prefix="! "))}</div>')
             if sections.cycle:
                 a(f'<div class="cycle">{escape(_cycle_label(op))}</div>')
             if sections.chart:

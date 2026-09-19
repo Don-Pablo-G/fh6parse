@@ -27,6 +27,8 @@ on that assign, e.g. #100=1 (Frez fi12) then T#100 prints T1 (#100)). H# / D#
 must use the same # as T# or a literal that equals that tool; otherwise WARNING.
 M00 / M0 is listed in EACH TOOL CHANGE (not the tool list) with comments above,
 on, and below that line when they exist. M01 is not listed.
+G54–G59 belong in the file preamble only (before the first Txx M6 or M97/M98).
+A later work offset prints WARNING: G55 after operation started (L…).
 Comments containing ! are listed as programmer notes.
 G95 (feed per rev) still on at the next T or M30 prints a WARNING to set G94.
 A Txx M6 that never moves warns (empty pocket), except the last tool change —

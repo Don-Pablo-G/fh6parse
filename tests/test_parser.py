@@ -958,5 +958,99 @@ M00 (LATE)
         self.assertEqual(stops, [])
 
 
+class TestWorkOffset(unittest.TestCase):
+    def test_g54_before_first_tool_is_quiet(self) -> None:
+        src = """O1
+G54
+T1 M6
+G1 Z-1 F200
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertEqual(r.operations[0].warnings, [])
+        self.assertNotIn("after operation started", format_report(r))
+
+    def test_g54_on_first_txx_m6_line_is_quiet(self) -> None:
+        src = """O1
+G54 T1 M6
+G1 Z-1 F200
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertEqual(r.operations[0].warnings, [])
+
+    def test_g55_after_txx_m6_warns(self) -> None:
+        src = """O1
+G54
+T1 M6
+G1 Z-1 F200
+G55
+G1 Z-2 F200
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        warns = r.operations[0].warnings
+        self.assertTrue(any("G55 after operation started" in w for w in warns))
+        self.assertIn("WARNING: G55 after operation started", format_report(r))
+        sett = format_report(r, paper=PAPER_80MM_SET)
+        self.assertIn("G55 after operation started", sett)
+        pl = format_report(r, lang="pl")
+        self.assertIn("G55 po starcie operacji", pl)
+
+    def test_second_offset_in_preamble_is_quiet(self) -> None:
+        src = """O1
+G54
+G55
+T1 M6
+G1 Z-1 F200
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertEqual(r.operations[0].warnings, [])
+
+    def test_g55_after_m97_warns(self) -> None:
+        src = """O1
+(N10 - OP1)
+G54
+M97 P10
+G55
+M30
+N10
+T1 M6
+G1 Z-1 F200
+M99
+"""
+        r = parse_nc_text(src, "t.nc")
+        warns = [w for op in r.operations for w in op.warnings]
+        self.assertTrue(any("G55 after operation started" in w for w in warns))
+
+    def test_g54_inside_op_body_warns(self) -> None:
+        src = """O1
+(N10 - OP1)
+G54
+M97 P10
+M30
+N10
+G55
+T1 M6
+G1 Z-1 F200
+M99
+"""
+        r = parse_nc_text(src, "t.nc")
+        op1 = [op for op in r.operations if op.n == 10][0]
+        self.assertTrue(any("G55 after operation started" in w for w in op1.warnings))
+
+    def test_sample_d0134078_warns_on_g55_in_main(self) -> None:
+        r = parse_nc_file(SAMPLES / "D0134078.nc")
+        warns = [w for op in r.operations for w in op.warnings]
+        self.assertTrue(any(w.startswith("G55 after operation started") for w in warns))
+        self.assertTrue(any(w.startswith("G54 after operation started") for w in warns))
+
+    def test_sample_000814086_preamble_g54_is_quiet(self) -> None:
+        r = parse_nc_file(SAMPLES / "000814086.nc")
+        warns = [w for op in r.operations for w in op.warnings]
+        self.assertEqual(warns, [])
+
+
 if __name__ == "__main__":
     unittest.main()

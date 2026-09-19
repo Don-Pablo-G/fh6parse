@@ -67,6 +67,7 @@ Kiosk **nie zapisuje i nie kasuje** plików na pendrive ani w firmowym folderze 
 | `G95 nadal aktywne… ustaw G94` | Po gwintowaniu / posuwie na obrót brak G94 przed następnym T (albo M30) |
 | `brak ruchu po wymianie narzędzia` | Pusta kieszeń: Txx M6 bez ruchu. **Ostatnia** wymiana bez ruchu to przygotowanie wrzeciona na kolejny cykl — cisza jest zamierzona |
 | `brak posuwu (sonda/makro?)` | Narzędzie tylko na G0 (sonda / makro) — nie ma skrawania |
+| `G55 po starcie operacji (L…)` | G54–G59 tylko na początku pliku, przed pierwszym Txx M6 / M97. Późniejsza zmiana offsetu |
 | `! …` przy numerze linii | Uwaga programisty z komentarza z `!` |
 
 Pasujące H/D (= numer T) nie dają ostrzeżenia.

@@ -63,6 +63,7 @@ G95_NEXT_WARN = "G95 still active (feed per rev); set G94"
 G95_END_WARN = "G95 still active at M30; set G94"
 NO_MOTION_WARN = "no motion after tool change"
 NO_FEED_WARN = "no feed (probe/macro?)"
+WORK_OFFSET_G = frozenset({54, 55, 56, 57, 58, 59})
 
 # Fanuc/Haas G65 argument letters → local # variables (not G H L N O P).
 G65_ARG_TO_HASH = {
@@ -226,6 +227,7 @@ class Operation:
     summaries: list[ToolSummary]
     usages: list[ToolUsage]
     work_bbox: WorkBBox = field(default_factory=WorkBBox)
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -373,6 +375,17 @@ def _is_program_stop(line: Line) -> bool:
 
 def _is_change_or_stop(line: Line) -> bool:
     return _is_tool_change(line) or _is_program_stop(line)
+
+
+def _work_offset_g(line: Line) -> int | None:
+    for g in line.g_ints():
+        if g in WORK_OFFSET_G:
+            return g
+    return None
+
+
+def _offset_late_warn(g: int, line_no: int) -> str:
+    return f"G{g} after operation started (L{line_no})"
 
 
 def _join_desc(*parts: str) -> str:
@@ -758,6 +771,7 @@ def _make_operation(
     title: str,
     call: str,
     work_bbox: WorkBBox | None = None,
+    warnings: list[str] | None = None,
 ) -> Operation:
     path_usages = _usages_on_path(usages, executed)
     return Operation(
@@ -768,6 +782,7 @@ def _make_operation(
         summaries=_summarize(path_usages, called_only=False),
         usages=path_usages,
         work_bbox=work_bbox or WorkBBox(),
+        warnings=list(warnings or ()),
     )
 
 
@@ -905,7 +920,7 @@ def _run_program(
     start_at: int | None = None,
     inch: bool = False,
     o_index: dict[int, int] | None = None,
-) -> tuple[set[int], WorkBBox]:
+) -> tuple[set[int], WorkBBox, list[str]]:
     """Execute Haas/Fanuc flow and fill time / min Z on visited Txx M6.
 
     p_overrides maps 0-based line index -> P number for operator M97 P# selection.
@@ -921,6 +936,8 @@ def _run_program(
     n = len(lines)
     overrides = p_overrides or {}
     o_map = o_index or {}
+    op_picked = start_at is not None
+    offset_warns: list[str] = []
 
     current: ToolUsage | None = None
     incremental = False
@@ -972,6 +989,12 @@ def _run_program(
         line = lines[i]
         _apply_hash_exprs(hash_vars, line.hash_assigns)
         _note_hash_descs(hash_descs, line)
+
+        off = _work_offset_g(line)
+        if off is not None and op_picked:
+            msg = _offset_late_warn(off, line.number)
+            if msg not in offset_warns:
+                offset_warns.append(msg)
 
         if line.if_goto is not None and line.if_cond is not None:
             if _eval_cond(line.if_cond, hash_vars):
@@ -1042,6 +1065,7 @@ def _run_program(
                 if p is not None:
                     p_val = int(round(p.value))
             if p_val is not None:
+                op_picked = True
                 target = n_index.get(p_val)
                 if target is None:
                     target = o_map.get(p_val)
@@ -1190,6 +1214,7 @@ def _run_program(
                 cycle_p = p_word.value
 
         if _is_tool_change(line):
+            op_picked = True
             if frame and current is not None:
                 travel = rapid_z_then_xy(
                     (g53_x, g53_y, g53_z, g53_b, g53_c),
@@ -1491,7 +1516,7 @@ def _run_program(
     if current is not None and feed_per_rev and G95_NEXT_WARN not in current.warnings:
         current.warnings.append(G95_END_WARN)
     _flag_empty_pockets(changes)
-    return executed, bbox
+    return executed, bbox, offset_warns
 
 
 def _simulate_path(
@@ -1503,10 +1528,10 @@ def _simulate_path(
     p_overrides: dict[int, int] | None = None,
     start_at: int | None = None,
     o_index: dict[int, int] | None = None,
-) -> tuple[list[ToolUsage], set[int], WorkBBox]:
+) -> tuple[list[ToolUsage], set[int], WorkBBox, list[str]]:
     """Fresh Txx M6 list + one programmed-path walk (M97 L, WHILE, canned L)."""
     usages = _collect_tool_usages(lines)
-    executed, bbox = _run_program(
+    executed, bbox, offset_warns = _run_program(
         lines,
         n_index,
         usages,
@@ -1516,7 +1541,7 @@ def _simulate_path(
         inch=inch,
         o_index=o_index,
     )
-    return usages, executed, bbox
+    return usages, executed, bbox, offset_warns
 
 
 def parse_nc_text(
@@ -1555,7 +1580,7 @@ def parse_nc_text(
     n_index = _build_n_index(lines)
     o_index = _build_o_index(lines)
     inch = units == "inch"
-    usages, executed, bbox = _simulate_path(
+    usages, executed, bbox, path_warns = _simulate_path(
         lines, n_index, mill, inch=inch, o_index=o_index
     )
     events = usages
@@ -1581,12 +1606,12 @@ def parse_nc_text(
     if declared and selectors:
         for n_num, title in declared:
             overrides = {idx: n_num for idx in selectors}
-            op_usages, op_exec, op_bbox = _simulate_path(
+            op_usages, op_exec, op_bbox, op_warns = _simulate_path(
                 lines, n_index, mill, inch=inch, p_overrides=overrides, o_index=o_index
             )
             n_line = n_index.get(n_num)
             if n_line is not None and n_line not in op_exec:
-                op_usages, op_exec, op_bbox = _simulate_path(
+                op_usages, op_exec, op_bbox, op_warns = _simulate_path(
                     lines, n_index, mill, inch=inch, start_at=n_line, o_index=o_index
                 )
                 call = f"start N{n_num} until M30"
@@ -1601,6 +1626,7 @@ def parse_nc_text(
                     title=title,
                     call=call,
                     work_bbox=op_bbox,
+                    warnings=op_warns,
                 )
             )
     else:
@@ -1612,13 +1638,14 @@ def parse_nc_text(
                 title="MAIN",
                 call="as written until M30",
                 work_bbox=bbox,
+                warnings=path_warns,
             )
         )
         for n_num, title in declared:
             n_line = n_index.get(n_num)
             if n_line is None:
                 continue
-            op_usages, op_exec, op_bbox = _simulate_path(
+            op_usages, op_exec, op_bbox, op_warns = _simulate_path(
                 lines, n_index, mill, inch=inch, start_at=n_line, o_index=o_index
             )
             bbox = bbox.union(op_bbox)
@@ -1630,6 +1657,7 @@ def parse_nc_text(
                     title=title,
                     call=f"start N{n_num} until M30",
                     work_bbox=op_bbox,
+                    warnings=op_warns,
                 )
             )
 
