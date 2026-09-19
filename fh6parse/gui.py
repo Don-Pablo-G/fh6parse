@@ -80,6 +80,7 @@ class ToolReportApp(tk.Tk):
         self._model_job: str | None = None
         self._pending_update: UpdateCheck | None = None
         self._updating = False
+        self._update_check_inflight = False
         self._iso_photo = None
         self._iso_path: Path | None = None
 
@@ -89,6 +90,7 @@ class ToolReportApp(tk.Tk):
         self._start_models()
         self.after(400, self._poll_models)
         self.after(400, self._start_update_check)
+        self.bind("<FocusIn>", self._on_window_focus)
 
     def _tr(self, key: str, **kwargs) -> str:
         return t(self._lang, key, **kwargs)
@@ -164,20 +166,29 @@ class ToolReportApp(tk.Tk):
             paper_row, command=lambda: self.print_paper(PAPER_80MM)
         )
         self.btn_print_80.pack(side=tk.LEFT)
+
+        self._update_bar = tk.Frame(self, bg="#e6b800")
         self.btn_update = tk.Button(
-            paper_row,
+            self._update_bar,
             text=self._tr("update"),
             command=self._on_update,
             bg="#e6b800",
             fg="#111",
             activebackground="#f0c420",
             activeforeground="#111",
+            disabledforeground="#555555",
             relief=tk.FLAT,
+            bd=0,
+            highlightthickness=0,
             padx=10,
-            font=("Segoe UI", 10, "bold"),
+            pady=8,
+            cursor="hand2",
+            font=("Segoe UI", 12, "bold"),
         )
+        self.btn_update.pack(fill=tk.X)
 
         body = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
+        self._body = body
         body.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
 
         left = ttk.Frame(body)
@@ -800,24 +811,53 @@ class ToolReportApp(tk.Tk):
         )
 
     def _start_update_check(self) -> None:
+        if self._update_check_inflight or self._updating or self._pending_update is not None:
+            return
+        self._update_check_inflight = True
         threading.Thread(target=self._check_update_worker, daemon=True).start()
+
+    def _on_window_focus(self, event: tk.Event) -> None:
+        if event.widget is not self:
+            return
+        self._start_update_check()
 
     def _check_update_worker(self) -> None:
         from .update import check_for_update, check_github_windows_exe
 
-        if getattr(sys, "frozen", False):
-            status = check_github_windows_exe()
-        else:
-            status = check_for_update()
-        self.after(0, lambda: self._apply_update_status(status))
+        status = None
+        try:
+            if getattr(sys, "frozen", False):
+                status = check_github_windows_exe()
+            else:
+                status = check_for_update()
+        except Exception:
+            status = None
+
+        def done() -> None:
+            self._update_check_inflight = False
+            if status is not None:
+                self._apply_update_status(status)
+
+        self.after(0, done)
+
+    def _show_update_bar(self) -> None:
+        try:
+            mapped = bool(self._update_bar.winfo_ismapped())
+        except tk.TclError:
+            return
+        if mapped:
+            return
+        self._update_bar.pack(fill=tk.X, padx=8, pady=(0, 8), before=self._body)
+
+    def _hide_update_bar(self) -> None:
+        self._update_bar.pack_forget()
 
     def _apply_update_status(self, status: UpdateCheck) -> None:
         if self._updating or not status.available:
             return
         self._pending_update = status
         self.btn_update.config(text=update_button_label(self._lang, status))
-        if not self.btn_update.winfo_ismapped():
-            self.btn_update.pack(side=tk.LEFT, padx=(12, 0))
+        self._show_update_bar()
         if status.new_version:
             self.status.config(
                 text=self._tr(
@@ -858,6 +898,12 @@ class ToolReportApp(tk.Tk):
             relaunch_gui()
             return
         self._updating = False
+        if code == 2:
+            self._pending_update = None
+            self._hide_update_bar()
+            self.btn_update.config(state=tk.NORMAL, text=self._tr("update"))
+            self.status.config(text=self._tr("update_frozen"))
+            return
         if self._pending_update is not None:
             self.btn_update.config(
                 state=tk.NORMAL,

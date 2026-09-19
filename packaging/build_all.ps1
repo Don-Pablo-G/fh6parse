@@ -17,6 +17,9 @@ Write-Host "==> Versioned packages"
 New-Item -ItemType Directory -Force -Path "dist\packages" | Out-Null
 Copy-Item -Force "packaging\USAGE.txt" "dist\packages\USAGE.txt"
 Copy-Item -Force "packaging\LINUX-KIOSK.md" "dist\packages\LINUX-KIOSK.md"
+Copy-Item -Force "packaging\LINUX-KIOSK.pdf" "dist\packages\LINUX-KIOSK.pdf"
+Copy-Item -Force "packaging\LINUX-KIOSK-PL.md" "dist\packages\LINUX-KIOSK-PL.md"
+Copy-Item -Force "packaging\LINUX-KIOSK-PL.pdf" "dist\packages\LINUX-KIOSK-PL.pdf"
 
 $winName = "fh6parse-$Version-windows-x64"
 Copy-Item -Force "dist\windows\fh6parse.exe" "dist\packages\$winName.exe"

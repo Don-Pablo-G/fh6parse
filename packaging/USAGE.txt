@@ -6,6 +6,7 @@ Linux:    ./fh6parse                 (or fh6parse --gui)
 GUI
   fh6parse.exe
   fh6parse.exe --gui
+  python3 -m fh6parse --gui   (Linux/Windows git checkout; same yellow UPDATE bar)
 
 Reports next to the NC file (A4 + 80 mm text and HTML)
   fh6parse.exe C:\path\program.nc
@@ -77,8 +78,10 @@ preview, then Print A4 or Print 80 mm (paper size only — same ticks).
   Views are visible edges only (no shading). The longest axis is across the
   80 mm width; height is cropped to the part (a long shaft is a thin strip).
   Update: if origin (git GUI) or GitHub Releases (frozen exe) has a newer
-  build, a yellow UPDATE button appears after launch. One click installs and
-  restarts. Never automatic. Frozen exe: bump version, git tag vX.Y.Z, push the
+  build, a yellow UPDATE to x.y.z bar appears under the mill/print row
+  (same single-button flow as the kiosk). One click installs and restarts.
+  Never automatic. The check also runs when you click back into the window.
+  Frozen exe: bump version, git tag vX.Y.Z, push the
   tag — GitHub Actions builds and attaches fh6parse-X.Y.Z-windows-x64.exe.
   Local fallback: packaging\build_windows.bat then packaging\publish_windows.ps1
   (needs gh). Keep the ini next to the exe.

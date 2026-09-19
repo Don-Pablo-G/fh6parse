@@ -17,7 +17,7 @@ if (-not (Test-Path $exe)) {
 }
 
 $tag = "v$Version"
-$notes = "Windows office GUI. On the PC: yellow UPDATE downloads this exe and restarts. Keep fh6parse-kiosk.ini next to the exe (STEP folders, language)."
+$notes = "Windows office GUI. Yellow UPDATE to … bar under the mill/print row: one click downloads this exe and restarts. Keep fh6parse-kiosk.ini next to the exe (STEP folders, language)."
 
 gh --version | Out-Null
 $exists = $false
