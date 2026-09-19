@@ -1,4 +1,7 @@
-"""Source-checkout update: git pull --ff-only, pip only if pyproject changed."""
+"""Source-checkout update: git pull --ff-only, pip only if pyproject changed.
+
+When CAD ([models]) is already importable, pip uses .[models] so cubes survive.
+"""
 
 from __future__ import annotations
 
@@ -12,6 +15,7 @@ from fh6parse.update import (
     UpdateCheck,
     check_for_update,
     check_github_windows_exe,
+    editable_install_target,
     find_git_root,
     parse_windows_release,
     perform_frozen_exe_update,
@@ -27,6 +31,19 @@ class _Proc:
         self.returncode = returncode
         self.stdout = stdout
         self.stderr = stderr
+
+
+class TestEditableInstallTarget(unittest.TestCase):
+    def test_plain_editable_path(self) -> None:
+        root = Path("/home/kiosk/fh6parse")
+        self.assertEqual(editable_install_target(root, keep_models=False), str(root))
+
+    def test_models_extra_appended(self) -> None:
+        root = Path("/home/kiosk/fh6parse")
+        self.assertEqual(
+            editable_install_target(root, keep_models=True),
+            f"{root}[models]",
+        )
 
 
 class TestFindGitRoot(unittest.TestCase):
@@ -120,11 +137,47 @@ class TestPerformUpdate(unittest.TestCase):
             runner=run,
             stdout=out,
             stderr=err,
+            keep_models=False,
         )
         self.assertEqual(code, 0)
         self.assertIn("reinstalling", out.getvalue())
+        self.assertNotIn("[models]", out.getvalue())
         self.assertTrue(any("pip" in c for c in self.calls))
+        self.assertFalse(any(any("[models]" in arg for arg in c) for c in self.calls))
         self.assertIn("restart the kiosk yourself", err.getvalue())
+
+    def test_pip_keeps_models_extra_when_cad_present(self) -> None:
+        heads = iter(["oldsha\n", "newsha\n"])
+
+        def run(cmd: list[str], **_kwargs) -> _Proc:
+            self.calls.append(cmd)
+            joined = " ".join(cmd)
+            if "rev-parse" in joined:
+                return _Proc(0, stdout=next(heads))
+            if "pull" in joined:
+                return _Proc(0, stdout="Updating oldsha..newsha\n")
+            if "diff" in joined:
+                return _Proc(0, stdout="pyproject.toml\n")
+            if "pip" in cmd:
+                return _Proc(0, stdout="Successfully installed fh6parse\n")
+            if joined.startswith("systemctl cat"):
+                return _Proc(1, stderr="not found")
+            return _Proc(0)
+
+        out = io.StringIO()
+        code = perform_update(
+            frozen=False,
+            start=self.start,
+            runner=run,
+            stdout=out,
+            stderr=io.StringIO(),
+            keep_models=True,
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("reinstalling with [models]", out.getvalue())
+        pip_calls = [c for c in self.calls if "pip" in c]
+        self.assertTrue(pip_calls)
+        self.assertTrue(any(arg.endswith("[models]") for arg in pip_calls[0]))
 
     def test_ff_only_failure_is_nonzero(self) -> None:
         def run(cmd: list[str], **_kwargs) -> _Proc:

@@ -793,6 +793,7 @@ class KioskApp(tk.Tk):
         self._models = ModelPrep(cfg.model_roots)
         self._update_available = False
         self._updating = False
+        self._update_check_inflight = False
         self._pending_update: UpdateCheck | None = None
         self._lang = parse_language(cfg.language, default=KIOSK_DEFAULT)
         self._config_open = False
@@ -2413,13 +2414,26 @@ class KioskApp(tk.Tk):
         return "break"
 
     def _start_update_check(self) -> None:
+        if self._update_check_inflight or self._updating or self._update_available:
+            return
+        self._update_check_inflight = True
         threading.Thread(target=self._check_update_worker, daemon=True).start()
 
     def _check_update_worker(self) -> None:
         from .update import check_for_update
 
-        status = check_for_update()
-        self._queue(lambda: self._apply_update_status(status))
+        status = None
+        try:
+            status = check_for_update()
+        except Exception:
+            status = None
+
+        def done() -> None:
+            self._update_check_inflight = False
+            if status is not None:
+                self._apply_update_status(status)
+
+        self._queue(done)
 
     def _apply_update_status(self, status: UpdateCheck) -> None:
         if not status.available or self._updating:
@@ -2617,9 +2631,16 @@ class KioskApp(tk.Tk):
         _dpms("off")
 
     def _hide_saver(self) -> None:
+        was_up = False
+        try:
+            was_up = bool(self.saver.winfo_ismapped())
+        except tk.TclError:
+            pass
         _dpms("on")
         self.saver.place_forget()
         self._claim_input()
+        if was_up:
+            self._start_update_check()
 
     def destroy(self) -> None:
         for seq in self._bound_all:

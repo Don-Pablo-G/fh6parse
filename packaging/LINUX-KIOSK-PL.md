@@ -37,6 +37,7 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 | **brak CAD** | Na kiosku nie ma bibliotek 3D — serwis (`pip … [models]`). Drukuj tekst |
 | Izometria pod podświetleniem | Ten sam rysunek co na bilecie — zły STEP widać przed drukiem |
 | **v1.4.0** u góry | Wersja programu (numer może zostać, a żółty **AKTUALIZUJ** pokazuje skrót gita) |
+| Nazwa obrabiarki przy wersji | Drugie pokrętło (mill). Ta sama lista co **Dodaj obrabiarkę…** |
 | Chip **PL** / **EN** | Język ekranu i biletu. Domyślnie polski |
 | **Pokrywa otwarta** | Zamknij pokrywę P047 — LOAD / SET / RUN nic nie wyśle |
 | **Brak papieru** | Załaduj rolkę 80 mm |
@@ -75,7 +76,7 @@ Pasujące H/D (= numer T) nie dają ostrzeżenia.
 ## 5. Ekran czarny i budzenie
 
 - Gaśnie po minucie bez pokrętła i bez nowego USB.
-- Budzi: **pokrętło**, **włożenie pendrive**, klawiatura lub mysz.
+- Budzi: **pokrętło pliku albo mill**, **włożenie pendrive**, klawiatura, mysz, albo przycisk zapasowy.
 - **Pierwszy** ruch pokrętła / klawisz / klik tylko budzi — nie przeskakuje pliku i nie drukuje.
 - Przyciski **LOAD / SET / RUN przy śpiącym ekranie nic nie robią** (żeby nie strzelić biletu w ciemności). Najpierw obudź pokrętłem. Czwarty przycisk (zapasowy) tylko budzi.
 
@@ -89,7 +90,7 @@ Pokrętło **nie otwiera** ustawień.
 | --- | --- |
 | Otwórz ustawienia | **F2** albo **C**, albo kliknij **PL** / **EN** przy wersji |
 | Język | **Polski** / **English** — dotyczy ekranu **i** biletu |
-| Obrabiarka | **+** / **−** albo **Dodaj obrabiarkę…** (nazwa, szybkie m/min, B/C, czas wymiany, opcjonalnie ATC/G54 i skok) — od tego liczony jest czas cyklu i prostokąt G54 |
+| Obrabiarka | Drugie pokrętło, **+** / **−**, albo **Dodaj obrabiarkę…** (nazwa, szybkie m/min, B/C, czas wymiany, opcjonalnie ATC/G54 i skok) — od tego liczony jest czas cyklu i prostokąt G54 |
 | Zamknij | **Esc**: najpierw formularz obrabiarki, potem ustawienia |
 
 Język i obrabiarka zapamiętują się po restarcie.
@@ -99,7 +100,7 @@ Język i obrabiarka zapamiętują się po restarcie.
 ## 7. Żółty przycisk **AKTUALIZUJ**
 
 - Kiosk **sam się nie aktualizuje**.
-- Przycisk pojawia się po starcie, gdy w sieci jest nowsza wersja.
+- Przycisk pojawia się po starcie albo po obudzeniu czarnego ekranu, gdy w sieci jest nowsza wersja.
 - Jeden tap (albo **U**) instaluje i **restartuje** kiosk. Druk działa do momentu tapnięcia.
 - Bez sieci druk działa normalnie. Przycisku wtedy nie ma — to nie jest awaria.
 
@@ -120,7 +121,8 @@ Język i obrabiarka zapamiętują się po restarcie.
 | --- | --- |
 | Włóż pendrive i pusto | Pliki `.nc` / `.tap` **w korzeniu** kija, FAT32. Wyjmij i włóż ponownie |
 | Podgląd nie zgadza się z plikiem | Nadpisany `.nc` o tej samej nazwie? Czekaj na koniec **Czytanie…**. Nie wyrywaj przy **Czytanie pendrive — czekaj** |
-| Pokrętło nic nie robi | Ekran czarny? Najpierw obudź. Dalej — serwis (przewody) |
+| Pokrętło pliku nic nie robi | Ekran czarny? Najpierw obudź. Dalej — serwis (przewody CLK/DT 17/27) |
+| Pokrętło mill nic nie robi | Druga obrabiarka w ustawieniach? Przewody 5/6 (złącze 29/31). Serwis |
 | Przycisk nie drukuje | Ekran czarny? Obudź pokrętłem. Na dole **Brak papieru** / **Pokrywa otwarta** / **Zacięcie**? Napraw P047. Inaczej: zasilanie, USB |
 | Bilet nie tnie | Sprawdź nożyk / kasetę. Serwis |
 | Śmieci na papierze / podwójny wydruk | Serwis (CUPS). Status ma być `device:/dev/usb/lp0` |

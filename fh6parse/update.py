@@ -106,6 +106,23 @@ def _pyproject_changed(
     return PYPROJECT in names
 
 
+def cad_extra_installed() -> bool:
+    """True when the optional [models] extra is importable (STEP cubes work)."""
+    try:
+        from .modelrender import render_available
+    except ImportError:
+        return False
+    return bool(render_available())
+
+
+def editable_install_target(root: Path, *, keep_models: bool) -> str:
+    """pip -e target. Reinstall [models] only when CAD is already in this env."""
+    base = str(root)
+    if keep_models:
+        return f"{base}[models]"
+    return base
+
+
 @dataclass(frozen=True)
 class UpdateCheck:
     """Result of a non-blocking look at origin or a GitHub exe. Never raises."""
@@ -198,8 +215,13 @@ def perform_update(
     stdout=None,
     stderr=None,
     restart_kiosk: bool | None = None,
+    keep_models: bool | None = None,
 ) -> int:
     """Pull this checkout, pip only if pyproject.toml changed, restart kiosk.
+
+    If CAD ([models]) is already importable, pip uses ``.[models]`` so STEP
+    cubes survive a pyproject change. A Pi that never installed CAD stays
+    ``-e .`` and does not pull numpy/trimesh.
 
     Returns 0 on success, 1 on git/pip/restart failure, 2 if this is not a
     source checkout (frozen binary or no git root). Frozen Windows exe uses
@@ -241,7 +263,10 @@ def perform_update(
     new_head = (after.stdout or "").strip()
 
     if _pyproject_changed(root, old_head, new_head, runner=run):
-        print(f"{PYPROJECT} changed; reinstalling", file=out)
+        keep = cad_extra_installed() if keep_models is None else bool(keep_models)
+        target = editable_install_target(root, keep_models=keep)
+        note = " with [models]" if keep else ""
+        print(f"{PYPROJECT} changed; reinstalling{note}", file=out)
         pip = _run(
             [
                 sys.executable,
@@ -249,7 +274,7 @@ def perform_update(
                 "pip",
                 "install",
                 "-e",
-                str(root),
+                target,
                 "--break-system-packages",
             ],
             runner=run,

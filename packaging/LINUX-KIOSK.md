@@ -2,7 +2,7 @@
 
 Operator sheet (Polish, daily use only): **[LINUX-KIOSK-PL.md](LINUX-KIOSK-PL.md)**. This file is the full English install / wiring / update manual.
 
-**Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C, tool-change time, optional G53 ATC / G54 / travel). Tickets then show a labeled G53 rectangle of where G54 may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. The screen shows **v1.4.0** (later git commits keep that number; the yellow **UPDATE** button then shows a short hash). The Windows office exe uses the same button against a GitHub Release (tag **vX.Y.Z** builds the exe).
+**Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.0**). Three print buttons: **LOAD** (operator slip), **SET** (setter: mill, STEP, G54, cycle), **RUN** (full ticket). Spare GPIO is reserved (wake-only). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C, tool-change time, optional G53 ATC / G54 / travel). Tickets then show a labeled G53 rectangle of where G54 may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.0** badge; the yellow **UPDATE** button then shows a short hash. The Windows office exe is one report with a **section checklist** (no LOAD / SET / RUN presets) and the same **UPDATE** button against a GitHub Release (tag **vX.Y.Z** builds the exe).
 
 Python **3.10+** is required (Bookworm ships 3.11). Use **Raspberry Pi OS 64-bit Desktop** (Bookworm or later). Pi 5 has no 32-bit OS.
 
@@ -35,7 +35,7 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 | MUNBYN P047 (ITPP047) | USB, 80 mm ESC/POS, auto-cutter. Own mains PSU. |
 | Company STEP folder (optional) | NAS of `.stp` / `.step` if the stick has none. See **§3.7**. Stick copy is enough. |
 | Network (optional) | Only for git install and later **UPDATE**. Printing works offline. |
-| Keyboard / mouse | First-time setup, **settings** (language, mill / **Add mill…**, GPIO pins, encoder ticks), SSH, or tap **UPDATE**. Not required for encoder + GPIO print. |
+| Keyboard / mouse | First-time setup, **settings** (language, mill / **Add mill…**, file and mill knobs, RUN / LOAD / SET / spare pins, encoder ticks), SSH, or tap **UPDATE**. Not required for encoder + GPIO print. |
 
 Default GPIO (**BCM** numbers, not header pin numbers):
 
@@ -513,7 +513,8 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | Symptom | What to check |
 | --- | --- |
 | `GPIO off: …` on the status line | `python3-gpiozero` and `python3-lgpio` installed (not `python3-rpi.gpio` on Pi 5); user in group `gpio`; pins not already claimed. |
-| Knob does nothing | CLK/DT on the BCM numbers shown in settings (defaults 17/27); common GND; 3.3 V VCC. Try **Reverse**. |
+| Knob does nothing | File knob defaults 17/27, mill knob 5/6. CLK/DT on the BCM numbers shown in settings; common GND; 3.3 V VCC. Try **Reverse** for that knob. |
+| Mill name does not change | Mill knob BCM 5/6 (header 29/31). Need more than one mill in settings. `encoder_mill_swap` if it turns the wrong way. |
 | Knob skips or jitters at rest | Raise **Ticks per tooth** so the valley is several GPIO ticks wide; highlight only changes halfway to the next tooth. Shorter wires; module decoupling. The kiosk also sets a short encoder `bounce_time` for Pi 5. |
 | Buttons print on press and release | Use momentary NO to GND, not a latching switch. |
 | List stays on Insert USB / Włóż pendrive | Stick mounted? `ls /media` / `ls /run/media`. Format FAT32. Files ending `.nc` or `.tap`. |
@@ -537,11 +538,11 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | `--update` says one-file package | This Pi is running the ARM tarball. Copy a new tarball or reinstall from git (**§3.2**). |
 | `--update` / fast-forward failed | Uncommitted edits or a diverged branch. See **§8.1**. Do not merge on the shop floor. |
 | `--update` / **UPDATE** pulled but UI unchanged | `sudo systemctl restart fh6parse-kiosk`. Missing sudoers: **§3.2**. |
-| **UPDATE** button never appears | Offline, one-file tarball, already up to date. Check is only at kiosk start. Screen should show **v1.4.0**. |
+| **UPDATE** button never appears | Offline, one-file tarball, already up to date. Check runs at start and again after the screensaver wakes. Screen should show **v1.4.0**. |
 | **UPDATE** says failed / kiosk did not restart | `sudo -n systemctl restart fh6parse-kiosk` from user `kiosk` should succeed after **§3.2**. Then `sudo systemctl restart fh6parse-kiosk`. |
 | No **3D cube** next to files | Read the chip next to the cube legend: **searching…** (looking for `.stp`), **rendering…** (drawing a hit — wait), **no STEP** (no matching `.stp` on stick or `model_roots`), **Z: off** (company share not mounted), **no CAD** (`pip3 install -e '.[models]'`). Rev mismatch counts as no STEP. Print still works. |
 | Cube shows, ticket has no picture | Status not `device:/dev/usb/lp0` (CUPS intercepted). Printer rejected `GS v 0`. Test text-only first (**§3.5**). |
-| Pictures vanished after `--update` | `--update` runs `pip install -e .` **without** `[models]` when `pyproject.toml` changes. Re-run `sudo pip3 install -e '.[models]' --break-system-packages`. |
+| Pictures vanished after `--update` | `--update` reinstalls `.[models]` when CAD was already importable. If cubes are still gone, run `sudo pip3 install -e '.[models]' --break-system-packages`. |
 | Pictures still shaded / grey mush | Old cache. `rm -rf /tmp/fh6parse-models` and wait for the cube again. The current renderer is black edges on white only. |
 | No `WARNING:` for a wrong D | Clone is older than this pull. `git log -1 --oneline` must mention D vs T. D is checked on G43 and on G41/G42. |
 | No `WARNING:` after tapping / G95 | Next `Txx M6` (or M30) must still be in G95. A `G94` on the next tool’s line cancels it. |
@@ -552,7 +553,11 @@ CLI without the kiosk (reports next to the NC file):
 ```
 python3 -m fh6parse /path/program.nc
 python3 -m fh6parse --format 80mm-load --stdout /path/program.nc
+python3 -m fh6parse --format 80mm-set --stdout /path/program.nc
+python3 -m fh6parse --format 80mm --stdout /path/program.nc
 ```
+
+(`80mm-min` is still accepted and prints LOAD. `80mm` is RUN.)
 
 ---
 
@@ -604,7 +609,7 @@ If `git pull --ff-only` fails, the clone has local edits or a diverged branch. `
 
 ### 8.2 On-screen UPDATE (1.3.2 and later)
 
-On each kiosk start, a background thread runs `git fetch` (~20 s timeout) and compares `HEAD` to the tracked branch (`@{upstream}`, else `origin/HEAD`, else `origin/master` / `origin/main`). **Nothing is installed until you tap the button.**
+On each kiosk start, and again when the screensaver wakes (encoder, USB insert, HID, spare), a background thread runs `git fetch` (~20 s timeout) and compares `HEAD` to the tracked branch (`@{upstream}`, else `origin/HEAD`, else `origin/master` / `origin/main`). A second fetch is skipped while one is already running, while **UPDATE** is already on screen, or while an install is in progress. **Nothing is installed until you tap the button.**
 
 | After the check | What you see |
 | --- | --- |
@@ -619,7 +624,7 @@ Tap **UPDATE** once (touch or **U**). That is the only action: `git pull --ff-on
 sudo systemctl restart fh6parse-kiosk
 ```
 
-The check runs **once per start**. After you put a new commit on GitHub, reboot or restart the kiosk (or wait until the next power-on) before the button can appear.
+The check also runs after idle wake, so a commit pushed while the panel was black can show **UPDATE** without a reboot. If the kiosk stayed awake the whole time, restart it (or wait until the next power-on / next sleep-wake) before the button can appear.
 
 ### 8.3 Keyboard / SSH (`--update`)
 
@@ -634,7 +639,7 @@ python3 -m fh6parse --version
 `--update` and the on-screen button do this, in order:
 
 1. `git pull --ff-only` in the clone (refuses messy merges)
-2. `pip3 install -e .` **only if** `pyproject.toml` changed; otherwise skips pip. That command does **not** reinstall the `[models]` extra; see **§3.7** if pictures disappear.
+2. `pip3 install -e .` **only if** `pyproject.toml` changed; otherwise skips pip. If STEP cubes already work (`[models]` importable), that pip uses `.[models]` so pictures stay. A kiosk that never had CAD stays `-e .` and does not pull numpy/trimesh. If cubes still vanish, see **§3.7**.
 3. `systemctl restart fh6parse-kiosk` if that unit exists; if that fails, `sudo -n systemctl restart fh6parse-kiosk`. Otherwise it prints “restart the kiosk yourself”
 
 It never writes `/etc/fh6parse-kiosk.ini` or `~/.config/fh6parse/ui.ini`. Pins, printer, idle, `model_roots`, and language stay as you set them.
@@ -660,7 +665,7 @@ git log -1 --oneline
 sudo systemctl restart fh6parse-kiosk
 ```
 
-`git log -1` on current master should mention **G54** / travel (or **Add mill** / on-screen isometric if that is an older pull). The on-screen badge is still **v1.4.0**. STEP isometrics, D vs T, USB `/dev/usb/lp0`, cycle time, and kiosk preview are already in older 1.4.0 commits. Or wait for the yellow **UPDATE** after a restart (check runs once per boot).
+`git log -1` on current master should mention **mill encoder** / **LOAD** / **SET** (or **G54** / travel if that is an older pull). The on-screen badge is still **v1.4.0**. STEP isometrics, D vs T, USB `/dev/usb/lp0`, cycle time, and kiosk preview are already in older 1.4.0 commits. Or wait for the yellow **UPDATE** after a restart, or after the screen wakes from idle.
 
 Clear old STEP bitmaps:
 
@@ -682,9 +687,9 @@ sudo systemctl disable --now cups
 | Python test in **§3.5** prints TEST and cuts | |
 | RUN ticket status: `device:/dev/usb/lp0` (not `lp:…`) | |
 | Ticket text is readable (PC852 Polish comments), then cut | |
-| Open cover → status **Pokrywa otwarta**; RUN does not print | |
-| Paper out → status **Brak papieru**; RUN does not print | |
-| Cover closed, paper in → RUN prints and cuts | |
+| Open cover → status **Pokrywa otwarta**; RUN / LOAD / SET do not print | |
+| Paper out → status **Brak papieru**; RUN / LOAD / SET do not print | |
+| Cover closed, paper in → LOAD (short), SET (G54/cycle), RUN (full) print and cut | |
 | No CUPS garbage / doubled jobs | |
 
 **3. D and H vs tool number**
@@ -715,8 +720,12 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Through-holes as ellipses, not filled blobs | |
 | Long shaft is a thin strip across 80 mm | |
 | Print without a cube is still text-only, no wait | |
-| Settings (**F2** / **PL** chip): language, mill / **Add mill…** (optional travel Xmin…Ymax), BCM pins, ticks per tooth; survives restart | |
-| Clicky encoder: rest is stable; highlight changes halfway to the next tooth | |
+| Settings (**F2** / **PL** chip): language, mill / **Add mill…**, file + mill pins, RUN / LOAD / SET / spare, ticks per tooth; survives restart | |
+| File knob: rest is stable; highlight changes halfway to the next tooth | |
+| Mill knob: mill name next to **v…** changes; persists like **Add mill…** | |
+| LOAD has T / H / D / S / Min Z, no STEP / G54 / chart | |
+| SET has mill, G54, cycle, no share chart / each Txx M6 | |
+| RUN has STEP (when ready), G54, chart, tool list, each change | |
 
 Windows office PC: double-click the exe (or `python -m fh6parse --gui` from a git clone). **Polski / English** radios at the top right (default English). Set **STEP folders…**. **Add mill…** next to the mill combo (name, rapids m/min, B/C, tool-change seconds, optional G53 ATC / G54 / travel). Next to the preview, tick which **report sections** to include (header, notes, STEP, G54, cycle/chart, tool list, each Txx M6, warnings, sign-off). Preview, Print A4, Print 80 mm, and Save all use the same ticks. There are no LOAD / SET / RUN buttons on the GUI — those exist only on the kiosk. Last NC folder, report folder, A4 vs 80 mm, and the section checklist are remembered. A wireframe cube means the STEP bitmap is ready; the stacked isometric also appears above the report preview. With mill travel set, the ticket includes the G54 origin rectangle in G53 mm when that box is ticked. Windows print is still the browser dialog, not `/dev/usb/lp0`. If GitHub (frozen exe) or origin (git) has a newer build, a yellow **UPDATE** button appears after launch — one click, then the window restarts. Frozen **1.4.0** office boxes only show UPDATE after you tag a **newer** version. Publish by tagging **vX.Y.Z** (GitHub Actions builds it) or `packaging\build_windows.bat` then `packaging\publish_windows.ps1`. The tag must match `_version.py`. Do not overwrite `fh6parse-kiosk.ini` next to the exe.
 
