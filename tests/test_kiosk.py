@@ -654,6 +654,47 @@ class TestEncoderClicks(unittest.TestCase):
         self.assertEqual(moved_total, 2)
         self.assertEqual(leftover, 0)
 
+    def test_file_and_mill_lists_wrap(self) -> None:
+        from fh6parse.kiosk import cycle_choice, wrap_index
+
+        self.assertEqual(wrap_index(2, 1, 3), 0)
+        self.assertEqual(wrap_index(0, -1, 3), 2)
+        self.assertEqual(wrap_index(0, 1, 1), 0)
+        self.assertEqual(wrap_index(0, 1, 0), 0)
+        mills = ["default", "vf-2", "vf-4ss"]
+        self.assertEqual(cycle_choice(mills, "vf-4ss", 1), "default")
+        self.assertEqual(cycle_choice(mills, "default", -1), "vf-4ss")
+        self.assertEqual(cycle_choice(mills, "missing", 1), "vf-2")
+
+    def test_print_lock_covers_busy_and_wait(self) -> None:
+        from fh6parse.kiosk import print_is_locked
+
+        self.assertTrue(print_is_locked(True, 0.0, 10.0))
+        self.assertTrue(print_is_locked(False, 12.0, 10.0))
+        self.assertFalse(print_is_locked(False, 10.0, 10.0))
+        self.assertFalse(print_is_locked(False, 9.0, 10.0))
+
+    def test_button_delay_from_ini(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "kiosk.ini"
+            path.write_text("[kiosk]\nbutton_delay = 3.5\n", encoding="utf-8")
+            self.assertEqual(load_kiosk_config(path).button_delay, 3.5)
+            path.write_text("[kiosk]\nbutton_delay = 99\n", encoding="utf-8")
+            self.assertEqual(load_kiosk_config(path).button_delay, 30.0)
+            path.write_text("[kiosk]\nbutton_delay = -1\n", encoding="utf-8")
+            self.assertEqual(load_kiosk_config(path).button_delay, 0.0)
+
+    def test_encoder_swap_from_ini(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "kiosk.ini"
+            path.write_text(
+                "[kiosk]\nencoder_swap = true\nencoder_mill_swap = true\n",
+                encoding="utf-8",
+            )
+            cfg = load_kiosk_config(path)
+            self.assertTrue(cfg.encoder_swap)
+            self.assertTrue(cfg.encoder_mill_swap)
+
     def test_next_unused_bcm_skips_taken_pins(self) -> None:
         from fh6parse.kiosk import next_unused_bcm
 

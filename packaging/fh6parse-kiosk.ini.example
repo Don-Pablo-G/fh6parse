@@ -20,6 +20,7 @@ idle_seconds = 60
 
 encoder_clk = 17
 encoder_dt = 27
+# Reverse a knob if turning it moves the highlight the wrong way.
 encoder_swap = false
 encoder_mill_clk = 5
 encoder_mill_dt = 6
@@ -32,6 +33,9 @@ button_run = 22
 button_load = 23
 button_set = 24
 button_spare = 25
+# Seconds to ignore LOAD / SET / RUN after a ticket (stops a double press).
+# 0 = no wait. Change in settings (F2) or here.
+button_delay = 2
 # Old names still work: button_full = RUN, button_min = LOAD.
 
 printer_device = /dev/usb/lp0

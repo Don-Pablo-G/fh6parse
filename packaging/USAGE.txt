@@ -133,20 +133,24 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
 
   Keyboard/mouse (troubleshooting, hot-plug OK): arrows, click, wheel, F, M, S, U.
   F2 or C (or click PL/EN) opens settings: Polish default, mill, Add mill…,
-  GPIO pins (file A/B, mill A/B, RUN / LOAD / SET, spare), ticks per tooth.
+  GPIO pins (file A/B, mill A/B, RUN / LOAD / SET, spare), Reverse on each
+  knob, ticks per tooth, print wait after a ticket (button_delay, default 2 s).
   Language and mill are saved in
   ~/.config/fh6parse/ui.ini (survives UPDATE).
   Escape closes the mill form first, then settings, then leaves fullscreen.
 
-  File encoder (DFRobot EC11 A/B) highlights a file. Mill encoder cycles mills (name next to
-  version). The panel under the list shows each operation
+  File encoder (DFRobot EC11 A/B) highlights a file (last wraps to first).
+  Mill encoder cycles mills (name next to version; last wraps to first).
+  Reverse in settings / encoder_swap / encoder_mill_swap if the list moves
+  the wrong way. The panel under the list shows each operation
   (tool count, cycle time, 3D ready) and the stacked isometric when ready
   so you can see OP1 vs OP2 before print. List and print chips are large type.
   Three vandal buttons sit under the screen; colour chips on the bottom of
   the UI match left→right: green LOAD (short / M), yellow SET (setter / S),
   red RUN (full / F). 16 mm 5-pin: C to GND, NO to GPIO, NC unused; LED +
   to 5 V, LED − to GND (rings always on). Spare GPIO is reserved (wake-only
-  if asleep).
+  if asleep). After a ticket, LOAD / SET / RUN wait button_delay seconds
+  (default 2) so a second press does not print two slips.
   The kiosk asks the P047 (DLE EOT) before RUN / LOAD / SET. Cover open, no paper,
   or a jam stays on the status line and does not cut a blank slip. No reply
   still prints (same as before). Windows GUI print is the browser, not lp0.

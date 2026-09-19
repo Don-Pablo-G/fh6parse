@@ -10,14 +10,15 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 
 1. Włącz kiosk. Na ekranie: **Włóż pendrive** (albo lista z poprzedniego kija, jeśli został w gnieździe).
 2. Włóż pendrive. Programy **`.nc` / `.tap` w katalogu głównym** kija (nie w podfolderach) pojawiają się na liście. Przy liczbie plików: **Można wyjąć** = wolno wyciągnąć kij. **Czytanie pendrive — czekaj** = kiosk jeszcze czyta (podgląd albo kopiuje STEP) — nie wyrywaj.
-3. Pokrętłem **pliku** podświetl program. Drugie pokrętło wybiera obrabiarkę (nazwa obok wersji). Pod listą widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz. Jeśli na kiju nadpiszesz ten sam `.nc`, podgląd sam się odświeży — poczekaj aż zniknie **Czytanie…**, potem LOAD / SET / RUN. Lista i trzy kolorowe pola na dole są duże — pola stoją nad przyciskami.
+3. Pokrętłem **pliku** podświetl program (za ostatnim wraca na pierwszy). Drugie pokrętło wybiera obrabiarkę (też się zawija; nazwa obok wersji). Pod listą widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz. Jeśli na kiju nadpiszesz ten sam `.nc`, podgląd sam się odświeży — poczekaj aż zniknie **Czytanie…**, potem LOAD / SET / RUN. Lista i trzy kolorowe pola na dole są duże — pola stoją nad przyciskami.
 4. Przycisk **zielony LOAD** (lewy, pod ekranem) — bilet operatora (T, H/D/S, Min Z, kratki załadunku, ostrzeżenia). Bez wykresu, bez każdej wymiany Txx / M00, bez offsetu, bez STEP.
 5. Przycisk **żółty SET** (środek) — bilet ustawiacza (program, mill, STEP gdy gotowy, prostokąt offsetu, czas cyklu bez wykresu, uwagi `!`).
 6. Przycisk **czerwony RUN** (prawy) — pełny bilet 80 mm (STEP, offset, operacje, czas, wykres udziału, lista narzędzi, każda wymiana Txx / M00, ostrzeżenia).
-7. Na dole **Pokrywa otwarta**, **Brak papieru** albo **Zacięcie drukarki** — nie drukuj, najpierw drukarka. Przycisk nie wytnie pustego biletu.
-8. Brak żółtej kostki 3D obok nazwy = drukuj i tak. Bilet będzie sam tekst, bez czekania. Chip przy kostce mówi dlaczego: **szuka…** / **liczy…** / **brak STEP** / **Z: wył.** / **brak CAD**.
-9. Po dobrym druku na dole: **`device:/dev/usb/lp0`**. Jeśli widać `lp:…`, wołaj serwis (kolejka CUPS zamiast USB).
-10. Po **60 s** bez pokrętła i bez nowego USB ekran gaśnie (oszczędza panel).
+7. Po bilecie krótka pauza (**Czekaj przed następnym biletem**) — drugie naciśnięcie nie da dwóch kartek.
+8. Na dole **Pokrywa otwarta**, **Brak papieru** albo **Zacięcie drukarki** — nie drukuj, najpierw drukarka. Przycisk nie wytnie pustego biletu.
+9. Brak żółtej kostki 3D obok nazwy = drukuj i tak. Bilet będzie sam tekst, bez czekania. Chip przy kostce mówi dlaczego: **szuka…** / **liczy…** / **brak STEP** / **Z: wył.** / **brak CAD**.
+10. Po dobrym druku na dole: **`device:/dev/usb/lp0`**. Jeśli widać `lp:…`, wołaj serwis (kolejka CUPS zamiast USB).
+11. Po **60 s** bez pokrętła i bez nowego USB ekran gaśnie (oszczędza panel).
 
 ---
 
@@ -40,6 +41,7 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 | Nazwa obrabiarki przy wersji | Drugie pokrętło (mill). Ta sama lista co **Dodaj obrabiarkę…** |
 | Chip **PL** / **EN** | Język ekranu i biletu. Domyślnie polski |
 | Trzy kolorowe pola na dole | Nad przyciskami: **zielony LOAD**, **żółty SET**, **czerwony RUN** (od lewej) |
+| **Czekaj przed następnym biletem** | Pauza po druku — przycisk zignorowany, żeby nie było dwóch kartek |
 | **Pokrywa otwarta** | Zamknij pokrywę P047 — LOAD / SET / RUN nic nie wyśle |
 | **Brak papieru** | Załaduj rolkę 80 mm |
 | **Zacięcie drukarki** | Sprawdź papier i nożyk; nie wciskaj RUN w kółko |

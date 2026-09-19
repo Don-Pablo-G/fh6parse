@@ -59,6 +59,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "print_kind_min": "LOAD",
         "printed": "Printed {name}  ({route})",
         "print_fail": "Print failed: {detail}",
+        "print_wait": "Wait before the next ticket",
         "print_cover": "Printer cover open",
         "print_paper": "No paper",
         "print_cutter": "Printer jam",
@@ -80,9 +81,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "settings": "Settings",
         "settings_blurb": (
             "Language, mill, BCM pins (file knob, mill knob, green LOAD / "
-            "yellow SET / red RUN, spare), and ticks from one tooth valley "
-            "to the next. Rest is the file; the highlight changes halfway "
-            "to the next tooth."
+            "yellow SET / red RUN, spare), reverse each knob, ticks from one "
+            "tooth valley to the next, and wait after a ticket. Rest is the "
+            "file; the highlight changes halfway to the next tooth. File and "
+            "mill lists wrap from last to first."
         ),
         "language": "Language",
         "lang_pl": "Polski",
@@ -137,11 +139,16 @@ STRINGS: dict[str, dict[str, str]] = {
             "is 20 pulses per turn (18° per file); the list changes halfway, "
             "so a small wiggle at rest does not move the highlight. Raise "
             "this until rest is stable and one click is one file (try 2). "
-            "Keyboard arrows stay one file per key."
+            "Keyboard arrows stay one file per key. Last file wraps to first."
+        ),
+        "button_delay": "Print wait (s)",
+        "button_delay_blurb": (
+            "After a ticket, ignore LOAD / SET / RUN so a second press does "
+            "not print two slips. 0 = no wait."
         ),
         "settings_keys": (
             "F2 / C / Esc  close     arrows change language     "
-            "+ / −  mill, pins and ticks"
+            "+ / −  mill, pins, ticks and wait"
         ),
         "settings_saved": "Saved {path}",
         "settings_save_fail": "Could not save settings ({detail})",
@@ -365,6 +372,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "print_kind_min": "LOAD",
         "printed": "Wydrukowano {name}  ({route})",
         "print_fail": "Druk nieudany: {detail}",
+        "print_wait": "Czekaj przed następnym biletem",
         "print_cover": "Pokrywa otwarta",
         "print_paper": "Brak papieru",
         "print_cutter": "Zacięcie drukarki",
@@ -386,9 +394,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "settings": "Ustawienia",
         "settings_blurb": (
             "Język, obrabiarka, piny BCM (pokrętło pliku, pokrętło mill, "
-            "zielony LOAD / żółty SET / czerwony RUN, zapasowy) i impulsy "
-            "od jednej doliny zęba do następnej. Spoczynek to plik; "
-            "podświetlenie zmienia się w połowie drogi do następnego zęba."
+            "zielony LOAD / żółty SET / czerwony RUN, zapasowy), kierunek "
+            "każdego pokrętła, impulsy od jednej doliny zęba do następnej "
+            "i pauza po bilecie. Spoczynek to plik; podświetlenie zmienia "
+            "się w połowie drogi do następnego zęba. Lista plików i "
+            "obrabiarek zawija się z ostatniego na pierwszy."
         ),
         "language": "Język",
         "lang_pl": "Polski",
@@ -444,11 +454,16 @@ STRINGS: dict[str, dict[str, str]] = {
             "połowie, więc lekkie drgnięcie w dolinie nie zmienia "
             "podświetlenia. Podnieś, aż spoczynek będzie stabilny i jedno "
             "kliknięcie to jeden plik (spróbuj 2). Strzałki klawiatury "
-            "nadal to jeden plik na klawisz."
+            "nadal to jeden plik na klawisz. Ostatni plik zawija się na pierwszy."
+        ),
+        "button_delay": "Pauza po druku (s)",
+        "button_delay_blurb": (
+            "Po bilecie ignoruj LOAD / SET / RUN, żeby drugie naciśnięcie "
+            "nie dało dwóch kartek. 0 = bez pauzy."
         ),
         "settings_keys": (
             "F2 / C / Esc  zamknij     strzałki zmieniają język     "
-            "+ / −  obrabiarka, piny i impulsy"
+            "+ / −  obrabiarka, piny, impulsy i pauza"
         ),
         "settings_saved": "Zapisano {path}",
         "settings_save_fail": "Nie udało się zapisać ustawień ({detail})",

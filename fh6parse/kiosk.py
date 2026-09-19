@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 import tkinter as tk
@@ -77,6 +78,8 @@ BTN_RUN = "#c41e3a"
 BCM_MIN = 0
 BCM_MAX = 27
 ENCODER_STEPS_MAX = 16
+BUTTON_DELAY_MAX = 30.0
+BUTTON_DELAY_STEP = 0.5
 PREVIEW_DEBOUNCE_MS = 180
 PREVIEW_CACHE_MAX = 40
 FileStamp = tuple[float, int]
@@ -94,6 +97,7 @@ UI_OVERLAY_KEYS = (
     "button_load",
     "button_set",
     "button_spare",
+    "button_delay",
     "machine",
 )
 
@@ -175,6 +179,33 @@ def encoder_file_delta(delta: int, leftover: int, steps: int) -> tuple[int, int]
     return moved, acc
 
 
+def wrap_index(index: int, delta: int, count: int) -> int:
+    """Step ``index`` by ``delta`` and wrap. Empty list stays at 0."""
+    if count <= 0:
+        return 0
+    return (int(index) + int(delta)) % int(count)
+
+
+def cycle_choice(values: list[str], current: str, delta: int) -> str:
+    """Next value in ``values``, wrapping from last to first (and back)."""
+    if not values:
+        return current
+    try:
+        i = values.index(current)
+    except ValueError:
+        i = 0
+    return values[wrap_index(i, delta, len(values))]
+
+
+def print_is_locked(busy: bool, lock_until: float, now: float) -> bool:
+    """True while a ticket is printing or the post-print wait has not elapsed."""
+    return bool(busy) or now < lock_until
+
+
+def format_button_delay(seconds: float) -> str:
+    return f"{float(seconds):.1f} s"
+
+
 @dataclass
 class KioskConfig:
     width: int = 600
@@ -192,6 +223,7 @@ class KioskConfig:
     button_load: int = 23
     button_set: int = 24
     button_spare: int = 25
+    button_delay: float = 2.0
     printer_queue: str = ""
     printer_device: str = "/dev/usb/lp0"
     usb_poll_ms: int = 500
@@ -670,6 +702,16 @@ def _clamp_encoder_steps(value: int) -> int:
     return max(1, min(ENCODER_STEPS_MAX, int(value)))
 
 
+def _clamp_button_delay(value: float) -> float:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return 2.0
+    if v != v:
+        return 2.0
+    return max(0.0, min(BUTTON_DELAY_MAX, round(v, 1)))
+
+
 def _ini_bcm(src: configparser.SectionProxy, *keys: str, default: int) -> int:
     for key in keys:
         if key in src:
@@ -699,6 +741,10 @@ def _apply_gpio_section(cfg: KioskConfig, src: configparser.SectionProxy) -> Non
     if "encoder_mill_swap" in src:
         cfg.encoder_mill_swap = src.getboolean(
             "encoder_mill_swap", fallback=cfg.encoder_mill_swap
+        )
+    if "button_delay" in src:
+        cfg.button_delay = _clamp_button_delay(
+            src.getfloat("button_delay", fallback=cfg.button_delay)
         )
     cfg.button_run = _ini_bcm(
         src, "button_run", "button_full", default=cfg.button_run
@@ -859,6 +905,7 @@ class KioskApp(tk.Tk):
         self._preview_busy_stamp: FileStamp | None = None
         self._preview_scheduled_stamp: FileStamp | None = None
         self._print_busy = False
+        self._print_lock_until = 0.0
         self._printer_job: str | None = None
         self._printer_key: str | None = None
         self._iso_photo = None
@@ -1351,6 +1398,62 @@ class KioskApp(tk.Tk):
         )
         self._config_steps_blurb.pack(anchor="w", pady=(4, 8))
 
+        self._config_delay_lbl = tk.Label(
+            panel,
+            text=t(self._lang, "button_delay"),
+            font=small,
+            bg="#1a1a1a",
+            fg="#eeeeee",
+        )
+        self._config_delay_lbl.pack(anchor="w")
+        delay_row = tk.Frame(panel, bg="#1a1a1a")
+        delay_row.pack(fill=tk.X, pady=(4, 0))
+        tk.Button(
+            delay_row,
+            text="−",
+            font=update_font,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            relief="flat",
+            bd=0,
+            width=3,
+            cursor="hand2",
+            command=lambda: self._bump_button_delay(-BUTTON_DELAY_STEP),
+        ).pack(side=tk.LEFT)
+        self._delay_value_lbl = tk.Label(
+            delay_row,
+            text=format_button_delay(self.cfg.button_delay),
+            font=update_font,
+            bg="#1a1a1a",
+            fg=ACCENT,
+            width=6,
+        )
+        self._delay_value_lbl.pack(side=tk.LEFT, padx=8)
+        tk.Button(
+            delay_row,
+            text="+",
+            font=update_font,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            relief="flat",
+            bd=0,
+            width=3,
+            cursor="hand2",
+            command=lambda: self._bump_button_delay(BUTTON_DELAY_STEP),
+        ).pack(side=tk.LEFT)
+        self._config_delay_blurb = tk.Label(
+            panel,
+            text=t(self._lang, "button_delay_blurb"),
+            font=small,
+            bg="#1a1a1a",
+            fg=MUTED,
+            wraplength=self.cfg.width - 80,
+            justify="left",
+        )
+        self._config_delay_blurb.pack(anchor="w", pady=(4, 8))
+
         self._config_saved = tk.Label(
             panel,
             text="",
@@ -1623,6 +1726,7 @@ class KioskApp(tk.Tk):
         for attr, lbl in self._pin_value_lbls.items():
             lbl.config(text=str(getattr(self.cfg, attr)))
         self._steps_value_lbl.config(text=str(self.cfg.encoder_steps))
+        self._delay_value_lbl.config(text=format_button_delay(self.cfg.button_delay))
         mill = self.cfg.active_machine()
         self._machine_value_lbl.config(text=machine_display_name(mill, self._lang))
         self.mill_chip.config(text=machine_display_name(mill, self._lang))
@@ -1650,6 +1754,7 @@ class KioskApp(tk.Tk):
             "button_load": str(self.cfg.button_load),
             "button_set": str(self.cfg.button_set),
             "button_spare": str(self.cfg.button_spare),
+            "button_delay": f"{self.cfg.button_delay:.1f}",
         }
 
     def _assigned_pins(self, *, except_attr: str = "") -> set[int]:
@@ -1688,16 +1793,21 @@ class KioskApp(tk.Tk):
         self._persist_ui_settings()
         self._arm_idle()
 
+    def _bump_button_delay(self, delta: float) -> None:
+        nxt = _clamp_button_delay(self.cfg.button_delay + delta)
+        if nxt == self.cfg.button_delay:
+            return
+        self.cfg.button_delay = nxt
+        self._refresh_gpio_labels()
+        self._persist_ui_settings()
+        self._arm_idle()
+
     def _bump_machine(self, delta: int) -> None:
         mills = self.cfg.machines
         if len(mills) <= 1:
             return
         ids = [m.id for m in mills]
-        try:
-            i = ids.index(self.cfg.machine_id)
-        except ValueError:
-            i = 0
-        nxt = ids[(i + delta) % len(mills)]
+        nxt = cycle_choice(ids, self.cfg.machine_id, delta)
         if nxt == self.cfg.machine_id:
             return
         self.cfg.machine_id = nxt
@@ -1762,6 +1872,8 @@ class KioskApp(tk.Tk):
         self._btn_mill_swap_on.config(text=self._tr("encoder_swap_on"))
         self._config_steps_lbl.config(text=self._tr("encoder_steps"))
         self._config_steps_blurb.config(text=self._tr("encoder_steps_blurb"))
+        self._config_delay_lbl.config(text=self._tr("button_delay"))
+        self._config_delay_blurb.config(text=self._tr("button_delay_blurb"))
         self._config_keys.config(text=self._tr("settings_keys"))
         self._mill_title.config(text=self._tr("machine_add_title"))
         for lbl, key in self._mill_field_lbls:
@@ -2563,7 +2675,7 @@ class KioskApp(tk.Tk):
         if not self._files:
             self._arm_idle()
             return
-        self._index = (self._index + delta) % len(self._files)
+        self._index = wrap_index(self._index, delta, len(self._files))
         self._paint_highlight()
         self._arm_idle()
 
@@ -2691,6 +2803,10 @@ class KioskApp(tk.Tk):
             return "break"
         if not self.gate.allow_print():
             return None
+        if print_is_locked(self._print_busy, self._print_lock_until, time.monotonic()):
+            self._arm_idle()
+            self._set_status(self._tr("print_wait"))
+            return "break"
         self._arm_idle()
         path = self._selected()
         if path is None:
@@ -2729,6 +2845,7 @@ class KioskApp(tk.Tk):
             self._set_status(self._tr("print_fail", detail=exc), error=True)
         finally:
             self._print_busy = False
+            self._print_lock_until = time.monotonic() + self.cfg.button_delay
             self._refresh_hint()
         return "break"
 
