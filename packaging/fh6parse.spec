@@ -2,12 +2,29 @@
 """One-file PyInstaller spec. Build natively on Windows and on Linux (Docker)."""
 
 from pathlib import Path
+import subprocess
 import importlib.util
 
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 ROOT = Path(SPECPATH).resolve().parent
 LAUNCHER = str(ROOT / "packaging" / "launcher.py")
+
+# Bake the git short SHA into the frozen binary so --version / GUI / kiosk
+# show the same build as a git checkout (the 1.4.0 number does not change).
+_sha = ""
+try:
+    _sha = subprocess.check_output(
+        ["git", "-C", str(ROOT), "rev-parse", "--short=7", "HEAD"],
+        text=True,
+        timeout=5,
+    ).strip()
+except Exception:
+    _sha = ""
+(ROOT / "fh6parse" / "_build.py").write_text(
+    f'"""Baked at freeze time. Not committed."""\n__build__ = {_sha!r}\n',
+    encoding="utf-8",
+)
 
 hiddenimports = [
     "tkinter",
@@ -29,6 +46,7 @@ hiddenimports = [
     "fh6parse.cadmark",
     "fh6parse.i18n",
     "fh6parse.workarea",
+    "fh6parse._build",
 ]
 extra_datas = []
 extra_binaries = []

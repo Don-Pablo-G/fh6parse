@@ -18,6 +18,7 @@ New-Item -ItemType Directory -Force -Path "dist\packages" | Out-Null
 Copy-Item -Force "packaging\USAGE.txt" "dist\packages\USAGE.txt"
 Copy-Item -Force "packaging\LINUX-KIOSK.md" "dist\packages\LINUX-KIOSK.md"
 Copy-Item -Force "packaging\LINUX-KIOSK.pdf" "dist\packages\LINUX-KIOSK.pdf"
+Copy-Item -Force "packaging\LINUX-KIOSK-WIRING.pdf" "dist\packages\LINUX-KIOSK-WIRING.pdf"
 Copy-Item -Force "packaging\LINUX-KIOSK-PL.md" "dist\packages\LINUX-KIOSK-PL.md"
 Copy-Item -Force "packaging\LINUX-KIOSK-PL.pdf" "dist\packages\LINUX-KIOSK-PL.pdf"
 
@@ -41,6 +42,9 @@ function Pack-Pi {
     Copy-Item "packaging\fh6parse-kiosk.ini.example" $stage
     Copy-Item "packaging\fh6parse-kiosk.service" $stage
     Copy-Item "packaging\LINUX-KIOSK.md" $stage
+    if (Test-Path "packaging\LINUX-KIOSK-WIRING.pdf") {
+        Copy-Item "packaging\LINUX-KIOSK-WIRING.pdf" $stage
+    }
     Copy-Item "packaging\USAGE.txt" $stage
     $tarName = "fh6parse-$Version-raspberrypi-$ArchName.tar.gz"
     $absStage = (Resolve-Path $stage).Path

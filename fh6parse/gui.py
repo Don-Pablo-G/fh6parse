@@ -8,7 +8,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from ._version import __version__
+from ._version import __version__, display_version
 from .cadmark import (
     apply_file_row,
     clear_file_tree,
@@ -72,7 +72,7 @@ def nc_keys_to_reload(
 class ToolReportApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
-        self.title(f"CNC Tool Report {__version__}")
+        self.title(f"CNC Tool Report {display_version()}")
         self.geometry("1000x700")
         self.minsize(760, 500)
 
@@ -146,6 +146,8 @@ class ToolReportApp(tk.Tk):
         )
         self.rb_lang_en.pack(side=tk.RIGHT)
         self.rb_lang_pl.pack(side=tk.RIGHT, padx=(0, 8))
+        self.version_lbl = ttk.Label(top, text=f"v{display_version()}")
+        self.version_lbl.pack(side=tk.RIGHT, padx=(0, 12))
 
         paper_row = ttk.Frame(self, padding=(8, 0, 8, 8))
         paper_row.pack(fill=tk.X)
@@ -287,7 +289,8 @@ class ToolReportApp(tk.Tk):
         self.status.pack(fill=tk.X)
 
     def _apply_language(self) -> None:
-        self.title(self._tr("app_title_gui", version=__version__))
+        self.title(self._tr("app_title_gui", version=display_version()))
+        self.version_lbl.config(text=f"v{display_version()}")
         self.btn_open.config(text=self._tr("open_nc"))
         self.btn_save_fmt.config(text=self._tr("save_formats"))
         self.btn_save_all.config(text=self._tr("save_all"))

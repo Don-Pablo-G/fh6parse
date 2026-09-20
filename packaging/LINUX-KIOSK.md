@@ -1,6 +1,6 @@
 # fh6parse Linux kiosk manual
 
-Operator sheet (Polish, daily use only): **[LINUX-KIOSK-PL.md](LINUX-KIOSK-PL.md)**. This file is the full English install / wiring / update manual.
+Operator sheet (Polish, daily use only): **[LINUX-KIOSK-PL.md](LINUX-KIOSK-PL.md)**. Pi 5 pinout poster: **[LINUX-KIOSK-WIRING.pdf](LINUX-KIOSK-WIRING.pdf)**. This file is the full English install / update manual.
 
 **Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.0**). Three 16 mm vandal print buttons under the screen, left→right **green LOAD** (operator slip), **yellow SET** (setter), **red RUN** (full ticket). The same three colour chips sit on the bottom of the panel. List, preview, and those chips use large high-contrast type. An optional fourth GPIO button sleeps and wakes the panel (leave it unwired). An optional Pi 5 **J2** switch is the hardware power button (not GPIO). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C rapid, tool-change time, optional max rpm, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Tickets then show a labeled G53 rectangle of where the work offset may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.0** badge; the yellow **UPDATE** button then shows a short hash. The Windows / Linux office GUI is one report with a **section checklist** (no LOAD / SET / RUN presets). The same single-click yellow **UPDATE to …** bar appears under the mill/print row: frozen Windows exe against a GitHub Release (tag **vX.Y.Z** builds it), git checkout against origin.
 
@@ -59,6 +59,8 @@ Change pins in **settings** (**F2** / **C** / **PL**·**EN**) or in `/etc/fh6par
 ---
 
 ## 2. Hardware
+
+**Wiring poster (print this at the bench):** [LINUX-KIOSK-WIRING.pdf](LINUX-KIOSK-WIRING.pdf) — Raspberry Pi 5 top view, colour 40-pin map, panel layout, EC11 / vandal / J2. Source: [LINUX-KIOSK-WIRING.html](LINUX-KIOSK-WIRING.html). The sections below are the same facts in text.
 
 ### 2.1 Power and USB
 
@@ -319,7 +321,7 @@ Check:
 python3 -m fh6parse --version
 ```
 
-Expect `fh6parse 1.4.0`. If the number is older, this clone is behind — `git fetch && git pull --ff-only` then check again (**§8**).
+Expect `fh6parse 1.4.0+……` (package number plus git short SHA). If the number is older, this clone is behind — `git fetch && git pull --ff-only` then check again (**§8**).
 
 Later upgrades are **§8**. Do not run `pip install` on every pull. The kiosk does not update by itself.
 
@@ -613,7 +615,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 12. Wake: either encoder, inserting a USB stick, a **keyboard / mouse**, or the optional spare GPIO. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored. Spare while awake blanks the panel (same as the 60 s idle). No spare button: idle timeout and knobs still work.
 13. Settings: **F2** / **C** or the **PL**/**EN** chip (mouse) — **§3.6**. The file encoder does not open settings. Mill picker, **Add mill…**, pins, knob reverse, ticks per tooth, and print wait are on that panel.
 14. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
-15. Current version is **v…** at the top right (mill name is next to it). If the Pi is on the network and origin is ahead, a yellow **UPDATE to x.y.z** (or a git hash if the number is still 1.4.0) appears **after this boot’s check**. It does **not** update by itself. One tap installs and **restarts** the kiosk (sudoers in **§3.2**). Print still works until you tap it.
+15. Current version is **v1.4.0+……** at the top right (mill name is next to it). The suffix is the git short SHA of this checkout. If the Pi is on the network and origin is ahead, a yellow **UPDATE to x.y.z** (or a git hash if the number is still 1.4.0) appears **after this boot’s check**. It does **not** update by itself. One tap installs and **restarts** the kiosk (sudoers in **§3.2**). Print still works until you tap it.
 
 Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). STEP matching and rendering run in the background and must not delay the ticket.
 
@@ -694,13 +696,13 @@ python3 -m fh6parse --format 80mm --stdout /path/program.nc
 
 ## 8. Updating the kiosk
 
-This section is for **fh6parse 1.4.0** on a **git checkout** (`/home/kiosk/fh6parse`). The badge stays **1.4.0** until you tag a newer number; shop commits after that badge (preview, mill table / **Add mill…**, travel / offset box, on-screen isometric, empty-pocket, loops / canned L) still arrive on **UPDATE** as a git hash. Confirm first:
+This section is for **fh6parse 1.4.0** on a **git checkout** (`/home/kiosk/fh6parse`). The package number stays **1.4.0** until you tag a newer release; the kiosk chip, office GUI, and `--version` also show the git short SHA (`v1.4.0+abc1234`) so you can see which commit is running. Confirm first:
 
 ```
 python3 -m fh6parse --version
 ```
 
-You want `fh6parse 1.4.0` (also **v1.4.0** on the kiosk). The kiosk **never updates by itself**. Print works with or without a network.
+You want `fh6parse 1.4.0+……` (also **v1.4.0+……** on the kiosk). The kiosk **never updates by itself**. Print works with or without a network.
 
 ### 8.1 First pull to 1.4.0 (already installed, older number)
 

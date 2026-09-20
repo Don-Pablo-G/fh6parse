@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>fh6parse 1.4.0 — Raspberry Pi 5 kiosk wiring</title>
+<style>
+  @page { size: A4 landscape; margin: 8mm 9mm 9mm 9mm; }
+  * { box-sizing: border-box; }
+  html { font-size: 9.5pt; }
+  body {
+    margin: 0;
+    color: #111;
+    font-family: "Segoe UI", Arial, sans-serif;
+    line-height: 1.35;
+  }
+  h1 { font-size: 16pt; margin: 0 0 0.15em; }
+  h2 {
+    font-size: 11.5pt;
+    margin: 0.7em 0 0.35em;
+    border-bottom: 1px solid #bbb;
+    page-break-after: avoid;
+  }
+  h3 { font-size: 10pt; margin: 0.55em 0 0.25em; page-break-after: avoid; }
+  p { margin: 0.25em 0 0.45em; }
+  .sub { color: #444; margin: 0 0 0.6em; }
+  .page { page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  table { border-collapse: collapse; width: 100%; margin: 0.3em 0 0.7em; }
+  th, td { border: 1px solid #bbb; padding: 0.22em 0.4em; vertical-align: top; }
+  th { background: #f2f2f2; text-align: left; }
+  .cols { display: flex; gap: 14px; }
+  .cols > * { flex: 1; min-width: 0; }
+  .note { background: #f7f7f7; border: 1px solid #ddd; padding: 0.45em 0.6em; margin: 0.4em 0; }
+  .warn { background: #fff4f0; border: 1px solid #e0a090; padding: 0.45em 0.6em; }
+  code, .mono { font-family: Consolas, "Courier New", monospace; font-size: 8.6pt; }
+  svg { display: block; }
+  .sw { display: inline-block; width: 0.85em; height: 0.85em; border: 1px solid #333; vertical-align: -0.1em; margin-right: 0.25em; }
+  .fine { font-size: 8pt; color: #333; }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.15em 1.1em; margin: 0.3em 0 0.5em; font-size: 8.4pt; }
+</style>
+</head>
+<body>
+
+<!-- ===================== PAGE 1: Pi 5 board ===================== -->
+<section class="page">
+<h1>fh6parse 1.4.0 — Raspberry Pi 5 kiosk wiring</h1>
+<p class="sub">Hardware sheet only. Software / OS / UPDATE: <span class="mono">packaging/LINUX-KIOSK.md</span>.
+GPIO is <strong>3.3&nbsp;V</strong>. BCM numbers, not header pin numbers. Optional parts may stay unwired.</p>
+
+<svg viewBox="0 0 1120 620" width="100%" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Raspberry Pi 5 top view with kiosk GPIO">
+  <defs>
+    <filter id="sh"><feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-opacity="0.18"/></filter>
+  </defs>
+
+  <!-- Board -->
+  <rect x="150" y="118" width="820" height="430" rx="14" fill="#2f6f3e" stroke="#1e4a28" stroke-width="2" filter="url(#sh)"/>
+  <!-- PCB silk hint -->
+  <text x="560" y="430" text-anchor="middle" fill="#3f8a50" font-size="13" font-family="Segoe UI, Arial" font-weight="700">Raspberry Pi 5</text>
+  <text x="560" y="448" text-anchor="middle" fill="#3f8a50" font-size="9" font-family="Segoe UI, Arial">USB-A / Ethernet down · GPIO along the top · same BCM map as Pi 3/4</text>
+
+  <!-- CPU / RP1 blocks -->
+  <rect x="430" y="250" width="150" height="150" rx="4" fill="#1a1a1a" stroke="#444"/>
+  <text x="505" y="328" text-anchor="middle" fill="#ddd" font-size="11" font-family="Segoe UI, Arial">SoC + cooler</text>
+  <rect x="250" y="300" width="88" height="70" rx="3" fill="#222" stroke="#555"/>
+  <text x="294" y="340" text-anchor="middle" fill="#ccc" font-size="9" font-family="Segoe UI, Arial">RP1</text>
+  <text x="294" y="353" text-anchor="middle" fill="#999" font-size="8" font-family="Segoe UI, Arial">GPIO I/O</text>
+
+  <!-- Fan header near pin 1 -->
+  <rect x="168" y="148" width="36" height="18" rx="2" fill="#222" stroke="#888"/>
+  <text x="186" y="142" text-anchor="middle" fill="#eee" font-size="8" font-family="Segoe UI, Arial">FAN</text>
+
+  <!-- Left edge: USB-C + HDMI -->
+  <rect x="132" y="175" width="22" height="36" rx="3" fill="#cfd4da" stroke="#333"/>
+  <text x="122" y="190" text-anchor="end" fill="#111" font-size="10" font-family="Segoe UI, Arial" font-weight="700">USB-C</text>
+  <text x="122" y="203" text-anchor="end" fill="#333" font-size="8" font-family="Segoe UI, Arial">27 W 5 V / 5 A</text>
+  <text x="122" y="214" text-anchor="end" fill="#333" font-size="8" font-family="Segoe UI, Arial">power only</text>
+
+  <rect x="136" y="230" width="18" height="28" rx="2" fill="#1a1a1a" stroke="#888"/>
+  <text x="122" y="247" text-anchor="end" fill="#111" font-size="9" font-family="Segoe UI, Arial" font-weight="700">HDMI0</text>
+  <text x="122" y="258" text-anchor="end" fill="#333" font-size="8" font-family="Segoe UI, Arial">kiosk panel</text>
+
+  <rect x="136" y="268" width="18" height="28" rx="2" fill="#1a1a1a" stroke="#888"/>
+  <text x="122" y="286" text-anchor="end" fill="#111" font-size="9" font-family="Segoe UI, Arial">HDMI1</text>
+
+  <rect x="140" y="340" width="16" height="22" rx="2" fill="#333" stroke="#777"/>
+  <text x="122" y="354" text-anchor="end" fill="#333" font-size="8" font-family="Segoe UI, Arial">UART</text>
+
+  <!-- Right: MIPI / PCIe / SD hint -->
+  <rect x="930" y="210" width="28" height="44" rx="3" fill="#1a1a1a" stroke="#666"/>
+  <text x="990" y="228" fill="#111" font-size="9" font-family="Segoe UI, Arial">CAM / DISP</text>
+  <rect x="920" y="280" width="50" height="18" rx="2" fill="#333" stroke="#777"/>
+  <text x="990" y="293" fill="#111" font-size="9" font-family="Segoe UI, Arial">PCIe FPC</text>
+
+  <!-- Bottom: USB + Ethernet -->
+  <rect x="300" y="520" width="70" height="36" rx="4" fill="#bfc5cc" stroke="#333"/>
+  <rect x="380" y="520" width="70" height="36" rx="4" fill="#bfc5cc" stroke="#333"/>
+  <text x="375" y="578" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">USB 3  ·  stick / printer data</text>
+  <rect x="470" y="520" width="58" height="36" rx="4" fill="#9aa3ad" stroke="#333"/>
+  <rect x="538" y="520" width="58" height="36" rx="4" fill="#9aa3ad" stroke="#333"/>
+  <text x="533" y="578" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">USB 2</text>
+  <rect x="640" y="512" width="78" height="44" rx="6" fill="#1c1c1c" stroke="#555"/>
+  <text x="679" y="538" text-anchor="middle" fill="#ddd" font-size="10" font-family="Segoe UI, Arial">ETH</text>
+  <text x="679" y="578" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">optional network</text>
+
+  <!-- RTC + J2 + PCB power at GPIO pin-40 end -->
+  <rect x="868" y="148" width="28" height="16" rx="2" fill="#f4d35e" stroke="#333"/>
+  <text x="882" y="142" text-anchor="middle" fill="#111" font-size="8" font-family="Segoe UI, Arial">RTC</text>
+  <rect x="904" y="148" width="22" height="16" rx="2" fill="#8e44ad" stroke="#2c0a3a"/>
+  <circle cx="911" cy="156" r="2.2" fill="#eee"/>
+  <circle cx="919" cy="156" r="2.2" fill="#eee"/>
+  <text x="915" y="142" text-anchor="middle" fill="#6c1b8a" font-size="9" font-family="Segoe UI, Arial" font-weight="700">J2</text>
+  <path d="M926 156 L990 90" stroke="#8e44ad" stroke-width="1.4" fill="none"/>
+  <rect x="930" y="52" width="178" height="52" rx="4" fill="#f4eaf9" stroke="#8e44ad"/>
+  <text x="939" y="68" fill="#4a1760" font-size="10" font-family="Segoe UI, Arial" font-weight="700">J2 PWR_BTN (optional)</text>
+  <text x="939" y="82" fill="#4a1760" font-size="8.5" font-family="Segoe UI, Arial">NO across the two pads only</text>
+  <text x="939" y="95" fill="#4a1760" font-size="8.5" font-family="Segoe UI, Arial">Not a 40-pin GPIO · omit = USB-C boots</text>
+  <circle cx="948" cy="172" r="7" fill="#222" stroke="#f1c40f" stroke-width="2"/>
+  <text x="962" y="176" fill="#eee" font-size="8" font-family="Segoe UI, Arial">PCB power</text>
+
+  <!-- 40-pin header: USB down, GPIO at top. Pin 1 left inner, pin 2 left outer. -->
+  <text x="560" y="28" text-anchor="middle" fill="#111" font-size="11" font-family="Segoe UI, Arial" font-weight="700">40-pin GPIO  ·  pin 1 at USB-C end  ·  outer row = even (board edge)  ·  inner row = odd (SoC)</text>
+
+  <!-- pin grid -->
+  <g font-family="Consolas, Courier New, monospace" font-size="7">
+    <!-- generated positions: x0=178, step=31.5, outer y=128, inner y=152 -->
+    <!-- We'll draw pins 1-40 with labels above even / below odd -->
+  </g>
+
+  <!-- Header background -->
+  <rect x="170" y="118" width="690" height="52" rx="3" fill="#1b1b1b" stroke="#000"/>
+
+  <!-- Pins: loop unrolled for reliability in Chrome print -->
+  <!-- Helper: each pair i=0..19, x = 186 + i*33 -->
+  <!-- even (outer) y=130, odd (inner) y=152 -->
+
+  <!-- pair 0: 1 3.3V / 2 5V -->
+  <circle cx="186" cy="154" r="7" fill="#e67e22" stroke="#111"/><text x="186" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#111">1</text>
+  <circle cx="186" cy="132" r="7" fill="#c0392b" stroke="#111"/><text x="186" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">2</text>
+  <text x="186" y="112" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#c0392b" font-weight="700">5V LED</text>
+  <text x="186" y="186" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#e67e22" font-weight="700">3.3V enc</text>
+
+  <!-- pair 1: 3 GPIO2 / 4 5V -->
+  <circle cx="219" cy="154" r="7" fill="#7f8c8d" stroke="#111" stroke-dasharray="2 1.5"/><text x="219" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">3</text>
+  <circle cx="219" cy="132" r="7" fill="#c0392b" stroke="#111"/><text x="219" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">4</text>
+  <text x="219" y="186" text-anchor="middle" font-size="7" font-family="Segoe UI, Arial" fill="#555">SDA*</text>
+
+  <!-- pair 2: 5 GPIO3 / 6 GND -->
+  <circle cx="252" cy="154" r="7" fill="#7f8c8d" stroke="#111" stroke-dasharray="2 1.5"/><text x="252" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">5</text>
+  <circle cx="252" cy="132" r="7" fill="#1a1a1a" stroke="#111"/><text x="252" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">6</text>
+  <text x="252" y="112" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#111" font-weight="700">GND</text>
+  <text x="252" y="186" text-anchor="middle" font-size="7" font-family="Segoe UI, Arial" fill="#555">SCL*</text>
+
+  <!-- pair 3: 7 GPIO4 / 8 GPIO14 -->
+  <circle cx="285" cy="154" r="7" fill="#dfe4ea" stroke="#666"/><text x="285" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">7</text>
+  <circle cx="285" cy="132" r="7" fill="#dfe4ea" stroke="#666"/><text x="285" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">8</text>
+
+  <!-- pair 4: 9 GND / 10 GPIO15 -->
+  <circle cx="318" cy="154" r="7" fill="#1a1a1a" stroke="#111"/><text x="318" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">9</text>
+  <circle cx="318" cy="132" r="7" fill="#dfe4ea" stroke="#666"/><text x="318" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">10</text>
+  <text x="318" y="186" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#111">GND</text>
+
+  <!-- pair 5: 11 GPIO17 / 12 GPIO18 -->
+  <circle cx="351" cy="154" r="7" fill="#2980b9" stroke="#111"/><text x="351" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">11</text>
+  <circle cx="351" cy="132" r="7" fill="#dfe4ea" stroke="#666"/><text x="351" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">12</text>
+  <text x="351" y="186" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#1a5276" font-weight="700">file A</text>
+  <text x="351" y="198" text-anchor="middle" font-size="6.5" font-family="Segoe UI, Arial" fill="#1a5276">BCM 17</text>
+
+  <!-- pair 6: 13 GPIO27 / 14 GND -->
+  <circle cx="384" cy="154" r="7" fill="#2980b9" stroke="#111"/><text x="384" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">13</text>
+  <circle cx="384" cy="132" r="7" fill="#1a1a1a" stroke="#111"/><text x="384" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">14</text>
+  <text x="384" y="112" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#111">GND</text>
+  <text x="384" y="186" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#1a5276" font-weight="700">file B</text>
+  <text x="384" y="198" text-anchor="middle" font-size="6.5" font-family="Segoe UI, Arial" fill="#1a5276">BCM 27</text>
+
+  <!-- pair 7: 15 GPIO22 / 16 GPIO23 -->
+  <circle cx="417" cy="154" r="7" fill="#e74c3c" stroke="#111"/><text x="417" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">15</text>
+  <circle cx="417" cy="132" r="7" fill="#27ae60" stroke="#111"/><text x="417" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">16</text>
+  <text x="417" y="100" text-anchor="middle" font-size="6.5" font-family="Segoe UI, Arial" fill="#1e8449">BCM 23</text>
+  <text x="417" y="112" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#1e8449" font-weight="700">LOAD</text>
+  <text x="417" y="186" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#922b21" font-weight="700">RUN</text>
+  <text x="417" y="198" text-anchor="middle" font-size="6.5" font-family="Segoe UI, Arial" fill="#922b21">BCM 22</text>
+
+  <!-- pair 8: 17 3.3V / 18 GPIO24 -->
+  <circle cx="450" cy="154" r="7" fill="#e67e22" stroke="#111"/><text x="450" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#111">17</text>
+  <circle cx="450" cy="132" r="7" fill="#f1c40f" stroke="#111"/><text x="450" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#111">18</text>
+  <text x="450" y="100" text-anchor="middle" font-size="6.5" font-family="Segoe UI, Arial" fill="#9a7b00">BCM 24</text>
+  <text x="450" y="112" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#9a7b00" font-weight="700">SET</text>
+  <text x="450" y="186" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#e67e22">3.3V</text>
+
+  <!-- pair 9: 19 GPIO10 / 20 GND -->
+  <circle cx="483" cy="154" r="7" fill="#dfe4ea" stroke="#666"/><text x="483" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">19</text>
+  <circle cx="483" cy="132" r="7" fill="#1a1a1a" stroke="#111"/><text x="483" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">20</text>
+  <text x="483" y="112" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#111">GND</text>
+
+  <!-- pair 10: 21 GPIO9 / 22 GPIO25 -->
+  <circle cx="516" cy="154" r="7" fill="#dfe4ea" stroke="#666"/><text x="516" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">21</text>
+  <circle cx="516" cy="132" r="7" fill="#8e44ad" stroke="#111"/><text x="516" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">22</text>
+  <text x="516" y="112" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#6c1b8a" font-weight="700">SLEEP</text>
+  <text x="516" y="100" text-anchor="middle" font-size="6.5" font-family="Segoe UI, Arial" fill="#6c1b8a">opt BCM 25</text>
+
+  <!-- pair 11: 23 GPIO11 / 24 GPIO8 -->
+  <circle cx="549" cy="154" r="7" fill="#dfe4ea" stroke="#666"/><text x="549" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">23</text>
+  <circle cx="549" cy="132" r="7" fill="#dfe4ea" stroke="#666"/><text x="549" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">24</text>
+
+  <!-- pair 12: 25 GND / 26 GPIO7 -->
+  <circle cx="582" cy="154" r="7" fill="#1a1a1a" stroke="#111"/><text x="582" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">25</text>
+  <circle cx="582" cy="132" r="7" fill="#dfe4ea" stroke="#666"/><text x="582" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">26</text>
+  <text x="582" y="186" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#111">GND</text>
+
+  <!-- pair 13: 27 GPIO0 / 28 GPIO1 EEPROM -->
+  <circle cx="615" cy="154" r="7" fill="#bdc3c7" stroke="#666"/><text x="615" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">27</text>
+  <circle cx="615" cy="132" r="7" fill="#bdc3c7" stroke="#666"/><text x="615" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">28</text>
+  <text x="615" y="112" text-anchor="middle" font-size="6.5" font-family="Segoe UI, Arial" fill="#666">ID EEPROM</text>
+
+  <!-- pair 14: 29 GPIO5 / 30 GND -->
+  <circle cx="648" cy="154" r="7" fill="#16a085" stroke="#111"/><text x="648" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">29</text>
+  <circle cx="648" cy="132" r="7" fill="#1a1a1a" stroke="#111"/><text x="648" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">30</text>
+  <text x="648" y="112" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#111">GND</text>
+  <text x="648" y="186" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#0e6655" font-weight="700">mill A</text>
+  <text x="648" y="198" text-anchor="middle" font-size="6.5" font-family="Segoe UI, Arial" fill="#0e6655">BCM 5</text>
+
+  <!-- pair 15: 31 GPIO6 / 32 GPIO12 -->
+  <circle cx="681" cy="154" r="7" fill="#16a085" stroke="#111"/><text x="681" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">31</text>
+  <circle cx="681" cy="132" r="7" fill="#dfe4ea" stroke="#666"/><text x="681" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">32</text>
+  <text x="681" y="186" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#0e6655" font-weight="700">mill B</text>
+  <text x="681" y="198" text-anchor="middle" font-size="6.5" font-family="Segoe UI, Arial" fill="#0e6655">BCM 6</text>
+
+  <!-- pair 16: 33 GPIO13 / 34 GND -->
+  <circle cx="714" cy="154" r="7" fill="#dfe4ea" stroke="#666"/><text x="714" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">33</text>
+  <circle cx="714" cy="132" r="7" fill="#1a1a1a" stroke="#111"/><text x="714" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">34</text>
+  <text x="714" y="112" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#111">GND</text>
+
+  <!-- pair 17: 35 GPIO19 / 36 GPIO16 -->
+  <circle cx="747" cy="154" r="7" fill="#dfe4ea" stroke="#666"/><text x="747" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">35</text>
+  <circle cx="747" cy="132" r="7" fill="#dfe4ea" stroke="#666"/><text x="747" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">36</text>
+
+  <!-- pair 18: 37 GPIO26 / 38 GPIO20 -->
+  <circle cx="780" cy="154" r="7" fill="#dfe4ea" stroke="#666"/><text x="780" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">37</text>
+  <circle cx="780" cy="132" r="7" fill="#dfe4ea" stroke="#666"/><text x="780" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">38</text>
+  <text x="780" y="112" text-anchor="middle" font-size="6.5" font-family="Segoe UI, Arial" fill="#c0392b">not J2</text>
+
+  <!-- pair 19: 39 GND / 40 GPIO21 -->
+  <circle cx="813" cy="154" r="7" fill="#1a1a1a" stroke="#111"/><text x="813" y="157" text-anchor="middle" font-size="7" font-family="Consolas" fill="#fff">39</text>
+  <circle cx="813" cy="132" r="7" fill="#dfe4ea" stroke="#666"/><text x="813" y="135" text-anchor="middle" font-size="7" font-family="Consolas" fill="#333">40</text>
+  <text x="813" y="186" text-anchor="middle" font-size="7.5" font-family="Segoe UI, Arial" fill="#111">GND</text>
+
+  <!-- LOAD BCM note under pin 16 is crowded; add side note -->
+  <text x="450" y="100" text-anchor="middle" font-size="6.5" font-family="Segoe UI, Arial" fill="#9a7b00">BCM 24</text>
+</svg>
+
+<div class="legend">
+  <span><span class="sw" style="background:#e67e22"></span>3.3 V (encoders)</span>
+  <span><span class="sw" style="background:#c0392b"></span>5 V (LED rings only)</span>
+  <span><span class="sw" style="background:#1a1a1a"></span>GND (common)</span>
+  <span><span class="sw" style="background:#2980b9"></span>File EC11</span>
+  <span><span class="sw" style="background:#16a085"></span>Mill EC11</span>
+  <span><span class="sw" style="background:#27ae60"></span>LOAD green</span>
+  <span><span class="sw" style="background:#f1c40f"></span>SET yellow</span>
+  <span><span class="sw" style="background:#e74c3c"></span>RUN red</span>
+  <span><span class="sw" style="background:#8e44ad"></span>Sleep (optional)</span>
+  <span><span class="sw" style="background:#7f8c8d"></span>I²C1 reserved*</span>
+  <span><span class="sw" style="background:#dfe4ea"></span>Unused</span>
+</div>
+<p class="fine">* Pins 3 / 5 (BCM 2 / 3, I²C1 SDA / SCL) are left free for a future Qwiic keypad. Do not steal them for F2 or extra buttons. Grey dashed = reserved, not required. Pin 38 (BCM 20) is <strong>not</strong> the power button.</p>
+</section>
+
+<!-- ===================== PAGE 2: devices ===================== -->
+<section class="page">
+<h2>1. Front panel (as you face the kiosk)</h2>
+<svg viewBox="0 0 1000 210" width="100%" xmlns="http://www.w3.org/2000/svg">
+  <rect x="20" y="8" width="200" height="194" rx="6" fill="#222" stroke="#111"/>
+  <rect x="36" y="22" width="168" height="128" rx="3" fill="#3a3a3a"/>
+  <text x="120" y="88" text-anchor="middle" fill="#ccc" font-size="12" font-family="Segoe UI, Arial">LCD 800×600</text>
+  <text x="120" y="106" text-anchor="middle" fill="#999" font-size="10" font-family="Segoe UI, Arial">mounted portrait 600×800</text>
+  <text x="120" y="124" text-anchor="middle" fill="#999" font-size="10" font-family="Segoe UI, Arial">HDMI0</text>
+  <circle cx="70" cy="174" r="12" fill="#555" stroke="#ddd"/>
+  <circle cx="120" cy="174" r="12" fill="#555" stroke="#ddd"/>
+  <text x="70" y="200" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">file</text>
+  <text x="120" y="200" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">mill</text>
+  <rect x="150" y="164" width="14" height="20" rx="7" fill="#27ae60"/>
+  <rect x="168" y="164" width="14" height="20" rx="7" fill="#f1c40f"/>
+  <rect x="186" y="164" width="14" height="20" rx="7" fill="#e74c3c"/>
+  <text x="175" y="200" text-anchor="middle" fill="#111" font-size="8" font-family="Segoe UI, Arial">L S R</text>
+
+  <path d="M230 100 H268" stroke="#333" stroke-width="1.5"/>
+  <polygon points="268,96 278,100 268,104" fill="#333"/>
+  <text x="400" y="28" fill="#111" font-size="12" font-family="Segoe UI, Arial" font-weight="700">Buttons under the screen, left → right</text>
+
+  <g transform="translate(280,48)">
+    <circle cx="40" cy="40" r="28" fill="#27ae60" stroke="#145a32" stroke-width="3"/>
+    <text x="40" y="36" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" font-family="Segoe UI, Arial">LOAD</text>
+    <text x="40" y="50" text-anchor="middle" fill="#eafaf1" font-size="8" font-family="Segoe UI, Arial">green</text>
+    <text x="40" y="84" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">header 16</text>
+    <text x="40" y="96" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">BCM 23</text>
+  </g>
+  <g transform="translate(430,48)">
+    <circle cx="40" cy="40" r="28" fill="#f1c40f" stroke="#9a7b00" stroke-width="3"/>
+    <text x="40" y="36" text-anchor="middle" fill="#111" font-size="11" font-weight="700" font-family="Segoe UI, Arial">SET</text>
+    <text x="40" y="50" text-anchor="middle" fill="#111" font-size="8" font-family="Segoe UI, Arial">yellow</text>
+    <text x="40" y="84" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">header 18</text>
+    <text x="40" y="96" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">BCM 24</text>
+  </g>
+  <g transform="translate(580,48)">
+    <circle cx="40" cy="40" r="28" fill="#e74c3c" stroke="#7b241c" stroke-width="3"/>
+    <text x="40" y="36" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" font-family="Segoe UI, Arial">RUN</text>
+    <text x="40" y="50" text-anchor="middle" fill="#fdebd0" font-size="8" font-family="Segoe UI, Arial">red</text>
+    <text x="40" y="84" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">header 15</text>
+    <text x="40" y="96" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">BCM 22</text>
+  </g>
+  <g transform="translate(740,48)">
+    <circle cx="40" cy="40" r="28" fill="#fff" stroke="#8e44ad" stroke-width="3" stroke-dasharray="4 3"/>
+    <text x="40" y="36" text-anchor="middle" fill="#6c1b8a" font-size="10" font-weight="700" font-family="Segoe UI, Arial">SLEEP</text>
+    <text x="40" y="50" text-anchor="middle" fill="#6c1b8a" font-size="8" font-family="Segoe UI, Arial">optional</text>
+    <text x="40" y="84" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">header 22</text>
+    <text x="40" y="96" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">BCM 25</text>
+  </g>
+  <text x="820" y="168" fill="#333" font-size="9" font-family="Segoe UI, Arial">Leave SLEEP unwired: pin sits on pull-up, never fires.</text>
+  <text x="820" y="182" fill="#333" font-size="9" font-family="Segoe UI, Arial">POWER is J2, not this GPIO.</text>
+</svg>
+
+<div class="cols">
+  <div>
+    <h2>2. DFRobot Fermion EC11 (SEN0235)</h2>
+    <p>Two knobs, same module. 3.3–5&nbsp;V — power from <strong>3.3&nbsp;V only</strong>. Shaft click <strong>C unused</strong>.</p>
+    <table>
+      <tr><th>EC11 silk</th><th>File knob</th><th>Mill knob</th></tr>
+      <tr><td>VCC</td><td>pin 1 (3.3 V)</td><td>pin 1 or 17 (3.3 V)</td></tr>
+      <tr><td>GND</td><td>pin 6 (GND)</td><td>pin 30 (GND)</td></tr>
+      <tr><td>A (CLK)</td><td>pin 11 · BCM 17</td><td>pin 29 · BCM 5</td></tr>
+      <tr><td>B (DT)</td><td>pin 13 · BCM 27</td><td>pin 31 · BCM 6</td></tr>
+      <tr><td>C (push)</td><td colspan="2">not connected</td></tr>
+    </table>
+    <p class="fine">Wrong direction → settings <strong>Reverse</strong> (or swap A/B). 20 pulses/turn; start <strong>Ticks per tooth = 2</strong> if one click skips two names.</p>
+  </div>
+  <div>
+    <h2>3. 16 mm 5-pin vandal (LOAD / SET / RUN / optional SLEEP)</h2>
+    <p>Switch and ring LED are separate. Meter the tabs — clone silk varies. Rear view (typical):</p>
+    <svg viewBox="0 0 280 90" width="280" height="90" xmlns="http://www.w3.org/2000/svg">
+      <text x="40" y="16" font-size="11" font-family="Segoe UI, Arial">LED +</text>
+      <text x="200" y="16" font-size="11" font-family="Segoe UI, Arial">LED −</text>
+      <rect x="28" y="22" width="28" height="14" fill="#eee" stroke="#333"/>
+      <rect x="188" y="22" width="28" height="14" fill="#eee" stroke="#333"/>
+      <text x="20" y="58" font-size="11" font-family="Segoe UI, Arial">NO</text>
+      <text x="118" y="58" font-size="11" font-family="Segoe UI, Arial">C</text>
+      <text x="210" y="58" font-size="11" font-family="Segoe UI, Arial">NC unused</text>
+      <rect x="18" y="64" width="28" height="14" fill="#d5f5e3" stroke="#333"/>
+      <rect x="110" y="64" width="28" height="14" fill="#d5d8dc" stroke="#333"/>
+      <rect x="202" y="64" width="28" height="14" fill="#fadbd8" stroke="#333"/>
+    </svg>
+    <table>
+      <tr><th>Tab</th><th>To Pi</th></tr>
+      <tr><td>NO</td><td>GPIO (pull-up). Press = GND</td></tr>
+      <tr><td>C</td><td>common GND (pin 6 / 9 / 14 / 20 / 30)</td></tr>
+      <tr><td>NC</td><td>leave open</td></tr>
+      <tr><td>LED +</td><td>5 V pin 2 (or 4). Not 3.3 V</td></tr>
+      <tr><td>LED −</td><td>GND</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="cols">
+  <div>
+    <h2>4. Optional J2 power (not GPIO)</h2>
+    <p>Purple 2-pad header next to the RTC battery, GPIO pin-40 corner. Same switch as the PCB button.</p>
+    <table>
+      <tr><th>Do</th><th>Do not</th></tr>
+      <tr><td>Momentary NO across the two J2 pads</td><td>Tie J2 to BCM 25, BCM 20, or GPIO GND</td></tr>
+      <tr><td>Leave J2 open if unused — USB-C still boots</td><td>Expect Pi 4 <span class="mono">WAKE_ON_GPIO</span> on GPIO3</td></tr>
+      <tr><td>Keep the PCB button reachable</td><td>Put LED rings on J2 · set <span class="mono">WAIT_FOR_POWER_BUTTON</span> unless J2 is fitted</td></tr>
+    </table>
+  </div>
+  <div>
+    <h2>5. Power and USB (not GPIO)</h2>
+    <table>
+      <tr><th>Port</th><th>Use</th></tr>
+      <tr><td>USB-C (Pi)</td><td>Official 27 W PSU. Power only</td></tr>
+      <tr><td>micro-HDMI0</td><td>Kiosk LCD (port next to USB-C)</td></tr>
+      <tr><td>USB-A</td><td>Stick, and P047 <strong>data</strong> (printer has its own mains PSU)</td></tr>
+      <tr><td>Ethernet</td><td>Optional (git / UPDATE / company STEP share)</td></tr>
+    </table>
+    <p class="fine">Do not power the P047 from Pi USB. Rings stay on 5 V after halt unless you switch that 5 V.</p>
+  </div>
+</div>
+</section>
+
+<!-- ===================== PAGE 3: map + rules ===================== -->
+<section class="page">
+<h2>6. Default map (header pin → BCM → function)</h2>
+<table>
+  <tr><th>Header</th><th>BCM</th><th>Function</th><th>Required</th></tr>
+  <tr><td>1</td><td>—</td><td>3.3 V · encoder VCC</td><td>yes if knobs fitted</td></tr>
+  <tr><td>2 / 4</td><td>—</td><td>5 V · vandal LED +</td><td>rings only</td></tr>
+  <tr><td>3</td><td>2</td><td>I²C1 SDA — reserved, leave open</td><td>no</td></tr>
+  <tr><td>5</td><td>3</td><td>I²C1 SCL — reserved, leave open</td><td>no</td></tr>
+  <tr><td>6, 9, 14, 20, 30</td><td>—</td><td>GND · common for knobs, switches, LED −</td><td>yes</td></tr>
+  <tr><td>11</td><td>17</td><td>File encoder A (CLK)</td><td>yes</td></tr>
+  <tr><td>13</td><td>27</td><td>File encoder B (DT)</td><td>yes</td></tr>
+  <tr><td>15</td><td>22</td><td>RUN red NO</td><td>yes</td></tr>
+  <tr><td>16</td><td>23</td><td>LOAD green NO</td><td>yes</td></tr>
+  <tr><td>17</td><td>—</td><td>3.3 V spare (same rail as pin 1)</td><td>no</td></tr>
+  <tr><td>18</td><td>24</td><td>SET yellow NO</td><td>yes</td></tr>
+  <tr><td>22</td><td>25</td><td>SLEEP / wake NO</td><td>no — unconnected is fine</td></tr>
+  <tr><td>29</td><td>5</td><td>Mill encoder A (CLK)</td><td>yes</td></tr>
+  <tr><td>31</td><td>6</td><td>Mill encoder B (DT)</td><td>yes</td></tr>
+  <tr><td>J2 pads</td><td>—</td><td>Panel POWER (parallel with PCB button)</td><td>no — USB-C still boots</td></tr>
+</table>
+<p>Change BCM numbers in kiosk settings (<strong>F2</strong>) or <span class="mono">/etc/fh6parse-kiosk.ini</span>. Overlay: <span class="mono">~/.config/fh6parse/ui.ini</span>.</p>
+
+<div class="cols">
+  <div>
+    <h2>7. Common ground</h2>
+    <p>One GND net for encoders, every C tab, every LED −, and (if fitted) a Qwiic keypad. Tie them to any GND header pin listed above. Do not run a separate “button ground” to J2.</p>
+    <h2>8. Identify vandal tabs with a meter</h2>
+    <ol>
+      <li>Diode pair = LED + / − (one way ~1.8–3 V).</li>
+      <li>Unpressed: C–NC beeps, C–NO open.</li>
+      <li>Pressed: C–NO beeps. The tab that beeps in both tests is <strong>C</strong>.</li>
+    </ol>
+  </div>
+  <div>
+    <div class="warn">
+      <strong>Do not</strong>
+      <ul>
+        <li>Put 5 V on A / B / C / NO / NC or any BCM pin</li>
+        <li>Power EC11 VCC from pin 2 (5 V) unless a shifter is on A/B</li>
+        <li>Wire J2 to GPIO 25 or GPIO 20</li>
+        <li>Use <span class="mono">RPi.GPIO</span> on Pi 5 (RP1 needs lgpio)</li>
+        <li>Set <span class="mono">WAIT_FOR_POWER_BUTTON=1</span> without a J2 (or reachable PCB) button</li>
+      </ul>
+    </div>
+    <div class="note">
+      <strong>Without optional parts</strong> the kiosk still runs: idle blanks the panel; knobs / USB / keyboard wake it; USB-C plug-in boots the Pi. gpiozero pull-ups keep unused BCM 25 high.
+    </div>
+  </div>
+</div>
+
+<p class="fine">fh6parse 1.4.0 · Raspberry Pi 5 · gpiozero + lgpio · X11. This PDF is the hardware poster; daily operator sheet is LINUX-KIOSK-PL; install/update is LINUX-KIOSK.md.</p>
+</section>
+
+</body>
+</html>

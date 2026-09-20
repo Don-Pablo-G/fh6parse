@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from ._version import __version__
+from ._version import display_version
 from .parser import parse_nc_file
 from .report import (
     PAPER_80MM,
@@ -102,7 +102,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--version",
         action="version",
-        version=f"%(prog)s {__version__}",
+        version=f"%(prog)s {display_version()}",
     )
     return p
 

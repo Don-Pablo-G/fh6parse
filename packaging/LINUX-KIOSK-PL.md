@@ -37,7 +37,7 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 | **Z: wył.** | Firmowy udział (dysk Z:) nieosiągalny. Kij bez `.stp` = tylko tekst |
 | **brak CAD** | Na kiosku nie ma bibliotek 3D — serwis (`pip … [models]`). Drukuj tekst |
 | Izometria pod podświetleniem | Ten sam rysunek co na bilecie — zły STEP widać przed drukiem |
-| **v1.4.0** u góry | Wersja programu (numer może zostać, a żółty **AKTUALIZUJ** pokazuje skrót gita) |
+| **v1.4.0+……** u góry | Wersja programu (1.4.0) i skrót gita tego checkoutu. Żółty **AKTUALIZUJ** pojawia się, gdy origin jest nowszy |
 | Nazwa obrabiarki przy wersji | Drugie pokrętło (mill). Ta sama lista co **Dodaj obrabiarkę…** |
 | Chip **PL** / **EN** | Język ekranu i biletu. Domyślnie polski |
 | Trzy kolorowe pola na dole | Nad przyciskami: **zielony LOAD**, **żółty SET**, **czerwony RUN** (od lewej) |
@@ -145,4 +145,4 @@ Nie kopiuj programów na kiosk. Nie kasuj nic z udziału firmowego. Nie aktualiz
 
 ## 10. Serwis (nie operator)
 
-Okablowanie GPIO, X11, drukarka `/dev/usb/lp0`, git, udział `//serwer/…` → `/mnt/fh6parse-cad`: **`packaging/LINUX-KIOSK.md`**.
+Okablowanie GPIO, X11, drukarka `/dev/usb/lp0`, git, udział `//serwer/…` → `/mnt/fh6parse-cad`: **`packaging/LINUX-KIOSK.md`**. Plakat pinów Pi 5: **`packaging/LINUX-KIOSK-WIRING.pdf`**.

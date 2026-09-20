@@ -553,5 +553,37 @@ class TestWindowsExeRelease(unittest.TestCase):
             self.assertTrue(spawned)
 
 
+class TestDisplayVersion(unittest.TestCase):
+    def test_plain_number_when_build_unknown(self) -> None:
+        from unittest.mock import patch
+
+        from fh6parse._version import display_version
+
+        with patch("fh6parse._version.local_build", return_value=""):
+            self.assertEqual(display_version(), "1.4.0")
+
+    def test_appends_git_or_frozen_sha(self) -> None:
+        from unittest.mock import patch
+
+        from fh6parse._version import display_version
+
+        with patch("fh6parse._version.local_build", return_value="2e68429"):
+            self.assertEqual(display_version(), "1.4.0+2e68429")
+
+    def test_cli_version_includes_build(self) -> None:
+        from unittest.mock import patch
+
+        from fh6parse.cli import build_parser
+
+        with patch("fh6parse.cli.display_version", return_value="1.4.0+deadbee"):
+            parser = build_parser()
+            shown = [
+                getattr(action, "version", "")
+                for action in parser._actions
+                if "--version" in getattr(action, "option_strings", [])
+            ]
+            self.assertTrue(any("1.4.0+deadbee" in str(item) for item in shown))
+
+
 if __name__ == "__main__":
     unittest.main()

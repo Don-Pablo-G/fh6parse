@@ -15,7 +15,7 @@ import tkinter as tk
 from tkinter import font as tkfont
 
 from . import usbwatch
-from ._version import __version__
+from ._version import display_version
 from .cadmark import (
     apply_file_row,
     clear_file_tree,
@@ -934,7 +934,7 @@ class KioskApp(tk.Tk):
         self._iso_photo = None
         self._iso_path: Path | None = None
 
-        self.title(t(self._lang, "app_title_kiosk", version=__version__))
+        self.title(t(self._lang, "app_title_kiosk", version=display_version()))
         self.configure(bg=BG)
         self.geometry(f"{cfg.width}x{cfg.height}")
         self.minsize(480, 640)
@@ -987,7 +987,7 @@ class KioskApp(tk.Tk):
         self.lang_chip.bind("<Button-1>", self._on_config_pointer)
         self.version_lbl = tk.Label(
             title_row,
-            text=f"v{__version__}",
+            text=f"v{display_version()}",
             font=small,
             bg=BG,
             fg=MUTED,
@@ -2076,9 +2076,10 @@ class KioskApp(tk.Tk):
         self._arm_idle()
 
     def _apply_language(self) -> None:
-        self.title(self._tr("app_title_kiosk", version=__version__))
+        self.title(self._tr("app_title_kiosk", version=display_version()))
         self.brand_lbl.config(text=self._tr("brand"))
         self.lang_chip.config(text=self._tr("lang_chip"))
+        self.version_lbl.config(text=f"v{display_version()}")
         self._refresh_cad_chip()
         self._keys_hint.config(text=self._tr("keys_hint"))
         self._legend_load.config(text=self._tr("legend_load"))

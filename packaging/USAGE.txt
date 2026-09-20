@@ -106,6 +106,7 @@ preview, then Print A4 or Print 80 mm (paper size only — same ticks).
 
 Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
   Full wiring + OS + printer + update: packaging/LINUX-KIOSK.md
+  Pi 5 hardware poster: packaging/LINUX-KIOSK-WIRING.pdf
   Operator sheet (Polish): packaging/LINUX-KIOSK-PL.md
   64-bit Raspberry Pi OS Desktop. raspi-config: X11 + desktop autologin.
   Official 27 W USB-C PSU. micro-HDMI on HDMI0. Same BCM pins as Pi 3/4.
@@ -113,7 +114,7 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
   Do not install python3-rpi.gpio (Pi 5 RP1 GPIO needs lgpio).
   git clone https://github.com/Don-Pablo-G/fh6parse.git
   cd fh6parse && sudo pip3 install -e . --break-system-packages
-  python3 -m fh6parse --version          (expect fh6parse 1.4.0)
+  python3 -m fh6parse --version          (expect fh6parse 1.4.0+<git sha>)
   python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
   Copy packaging/fh6parse-kiosk.ini.example to /etc/fh6parse-kiosk.ini
   Autostart: packaging/fh6parse-kiosk.service
@@ -130,7 +131,7 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
     again after the screensaver wakes. If a newer commit exists, a yellow
     UPDATE to x.y.z button appears (touch or U).
     It does not update until you tap it; one tap pulls and restarts the kiosk.
-    Print still works offline. Screen shows v1.4.0 at the top.
+    Print still works offline. Screen shows v1.4.0+<sha> at the top.
     CLI:
       python3 -m fh6parse --version
       python3 -m fh6parse --update
