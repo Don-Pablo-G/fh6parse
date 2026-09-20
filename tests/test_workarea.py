@@ -163,5 +163,21 @@ M30
         self.assertIn("Stored offset is inside this box.", text)
 
 
+    def test_g68_r90_rotates_work_xy(self) -> None:
+        src = """O1
+T1 M6
+G90 G0 X0 Y0 Z10
+G68 X0 Y0 R90
+G1 X100 Y0 F200
+G69
+M30
+"""
+        box = parse_nc_text(src, "t.nc").work_bbox
+        self.assertAlmostEqual(box.min_x or 0, 0)
+        self.assertAlmostEqual(box.max_x or 0, 0)
+        self.assertAlmostEqual(box.min_y or 0, 0)
+        self.assertAlmostEqual(box.max_y or 0, 100)
+
+
 if __name__ == "__main__":
     unittest.main()

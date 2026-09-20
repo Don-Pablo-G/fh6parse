@@ -1189,5 +1189,92 @@ M30
         self.assertFalse(any("exceeds mill max" in w for w in r.usages[0].warnings))
 
 
+class TestG68(unittest.TestCase):
+    def test_g68_g69_warns_on_all_papers(self) -> None:
+        src = """O1
+T1 M6
+G90 G0 X0 Y0 Z10
+G68 X0 Y0 R90
+G1 X100 Y0 F200
+G69
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        msg = "G68 T1 L4 to G69 T1 L6"
+        self.assertIn(msg, r.operations[0].warnings)
+        a4 = format_report(r)
+        load = format_report(r, paper=PAPER_80MM_MIN)
+        sett = format_report(r, paper=PAPER_80MM_SET)
+        run = format_report(r, paper=PAPER_80MM)
+        self.assertIn(f"WARNING: {msg}", a4)
+        for text in (a4, load, sett, run):
+            self.assertIn(msg, text)
+        pl = format_report(r, lang="pl")
+        self.assertIn("G68 T1 L4 do G69 T1 L6", pl)
+        self.assertIn("UWAGA:", pl)
+
+    def test_g68_without_g69_warns(self) -> None:
+        src = """O1
+T1 M6
+G90 G0 X0 Y0 Z10
+G68 X0 Y0 R90
+G1 X100 Y0 F200
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        msg = "G68 T1 L4 without G69"
+        self.assertIn(msg, r.operations[0].warnings)
+        self.assertIn(msg, format_report(r, paper=PAPER_80MM_MIN))
+        self.assertIn("G68 T1 L4 bez G69", format_report(r, lang="pl"))
+
+    def test_g69_on_later_tool(self) -> None:
+        src = """O1
+T1 M6
+G90 G0 X0 Y0
+G68 X0 Y0 R45
+G1 X10 F200
+T2 M6
+G69
+G1 X20 F200
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertIn("G68 T1 L4 to G69 T2 L7", r.operations[0].warnings)
+
+    def test_g68_before_first_t(self) -> None:
+        src = """O1
+G90
+G68 X0 Y0 R90
+T1 M6
+G1 X100 Y0 F200
+G69
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertIn("G68 L3 to G69 T1 L6", r.operations[0].warnings)
+
+    def test_g69_m30_same_line_cancels(self) -> None:
+        src = """O1
+T1 M6
+G90 G0 X0 Y0
+G68 X0 Y0 R90
+G1 X10 F200
+G69 M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        warns = r.operations[0].warnings
+        self.assertTrue(any("to G69" in w for w in warns))
+        self.assertFalse(any("without G69" in w for w in warns))
+
+    def test_no_g68_is_quiet(self) -> None:
+        src = """O1
+T1 M6
+G1 X10 F200
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertFalse(any("G68" in w for w in r.operations[0].warnings))
+
+
 if __name__ == "__main__":
     unittest.main()

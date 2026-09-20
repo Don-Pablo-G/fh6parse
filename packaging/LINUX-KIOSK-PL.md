@@ -72,6 +72,8 @@ Kiosk **nie zapisuje i nie kasuje** plików na pendrive ani w firmowym folderze 
 | `brak posuwu (sonda/makro?)` | Narzędzie tylko na G0 (sonda / makro) — nie ma skrawania |
 | `G55 po starcie operacji (L…)` | G54–G59 tylko na początku pliku, przed pierwszym Txx M6 / M97. Późniejsza zmiana offsetu |
 | `S… przekracza max wrzeciona …` | Programowane S wyższe niż `max_rpm` obrabiarki |
+| `G68 T12 L40 do G69 T15 L80` | Obrót G68 — T12 włącza, T15 kasuje G69 |
+| `G68 T12 L40 bez G69` | Brak G69 przed M30 — kasuj obrót |
 | `! …` przy numerze linii | Uwaga programisty z komentarza z `!` |
 
 Pasujące H/D (= numer T) nie dają ostrzeżenia. `T12` i `M6` w dwóch liniach to ta sama wymiana (CAM często tak dzieli).

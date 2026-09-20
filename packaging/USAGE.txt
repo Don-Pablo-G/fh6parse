@@ -31,6 +31,10 @@ M00 / M0 is listed in EACH TOOL CHANGE (not the tool list) with comments above,
 on, and below that line when they exist. M01 is not listed.
 G54–G59 belong in the file preamble only (before the first Txx M6 or M97/M98).
 A later work offset prints WARNING: G55 after operation started (L…).
+G68 (coordinate rotation) always prints on LOAD / SET / RUN / A4: which T
+turned it on and which T cancelled with G69. Missing G69 is
+WARNING: G68 T… L… without G69 — cancel before M30. 2D G17 G68 X Y R rotates
+the work envelope; G68.2 / 3D is warned but not transformed.
 If the mill has max_rpm, a tool S above that prints WARNING: S… exceeds mill max ….
 Comments containing ! are listed as programmer notes.
 G95 (feed per rev) still on at the next T or M30 prints a WARNING to set G94.

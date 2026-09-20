@@ -548,7 +548,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 7. If the status line says **Pokrywa otwarta** / **Printer cover open**, **Brak papieru** / **No paper**, or **Zacięcie drukarki** / **Printer jam**, fix the P047 first. RUN / LOAD / SET will not cut a blank slip. Those messages also appear on their own while idle (polled about every 2 s).
 8. If there is no cube, print anyway. The slip is text only. The chip next to the cube legend says why: **3D ready**, **searching…** / **szuka…** (looking for a `.stp`), **rendering…** / **liczy…** (drawing a match), **no STEP** / **brak STEP**, **Z: off** / **Z: wył.** (company share down), or **no CAD** / **brak CAD** (install `[models]`).
 9. Status after a good print: **`device:/dev/usb/lp0`**. If it says `lp:…`, CUPS took the job — **§3.5**.
-10. **WARNING:** lines: `H{n} does not match T{tool}` on G43, `D{n} does not match T{tool}` on any D, `G95 still active…` if feed-per-rev was not cancelled with G94 before the next tool (or M30), empty-pocket (`Txx M6` with no motion) except the **last** tool change (spindle prep), `G55 after operation started (L…)` if G54–G59 appears after the first Txx M6 or M97/M98 (offset belongs in the file preamble only), and `S{n} exceeds mill max {rpm}` when that mill’s `max_rpm` is set. Matching H/D stay quiet. Comments with `!` print as **Programmer notes**.
+10. **WARNING:** lines: `H{n} does not match T{tool}` on G43, `D{n} does not match T{tool}` on any D, `G95 still active…` if feed-per-rev was not cancelled with G94 before the next tool (or M30), empty-pocket (`Txx M6` with no motion) except the **last** tool change (spindle prep), `G55 after operation started (L…)` if G54–G59 appears after the first Txx M6 or M97/M98 (offset belongs in the file preamble only), `S{n} exceeds mill max {rpm}` when that mill’s `max_rpm` is set, and `G68 T12 L40 to G69 T15 L80` / `G68 T12 L40 without G69` when coordinate rotation is used (cancel with G69 before M30). Matching H/D stay quiet. Comments with `!` print as **Programmer notes**.
 11. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
 12. Wake: either encoder, inserting a USB stick, a **keyboard / mouse**, or the spare GPIO. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored. Spare while awake does nothing.
 13. Settings: **F2** / **C** or the **PL**/**EN** chip (mouse) — **§3.6**. The file encoder does not open settings. Mill picker, **Add mill…**, pins, knob reverse, ticks per tooth, and print wait are on that panel.
@@ -771,6 +771,8 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Idle Txx M6 (not the last change) → empty-pocket warning | |
 | Last Txx M6 with no motion stays quiet (spindle prep) | |
 | `T12` then `M6` on the next line counts as one T12 change | |
+| `G68` then `G69` → `G68 T… L… to G69 T… L…` on LOAD / SET / RUN | |
+| `G68` with no `G69` → `G68 T… L… without G69` | |
 | `(…!…)` comments listed as programmer notes | |
 | Highlight preview: ops, cycle time, 3D ready, stacked isometric when ready | |
 

@@ -33,6 +33,8 @@ _ticket_lang: ContextVar[str] = ContextVar("ticket_lang", default=GUI_DEFAULT)
 _MISMATCH_RE = re.compile(r"^([A-Z]#?\d+) does not match (T#?\d+)$")
 _OFFSET_LATE_RE = re.compile(r"^(G\d+) after operation started \((L\d+)\)$")
 _S_MAX_RE = re.compile(r"^(S[0-9.]+) exceeds mill max ([0-9.]+)$")
+_G68_G69_RE = re.compile(r"^G68 (.+) to G69 (.+)$")
+_G68_OPEN_RE = re.compile(r"^G68 (.+) without G69$")
 _WARN_KEYS = {
     G95_NEXT_WARN: "ticket_warn_g95_next",
     G95_END_WARN: "ticket_warn_g95_end",
@@ -66,6 +68,14 @@ def _warn_text(warn: str) -> str:
     rpm = _S_MAX_RE.match(warn)
     if rpm:
         return _tr("ticket_warn_s_max", s=rpm.group(1), max=rpm.group(2))
+    g68g69 = _G68_G69_RE.match(warn)
+    if g68g69:
+        return _tr(
+            "ticket_warn_g68_g69", start=g68g69.group(1), end=g68g69.group(2)
+        )
+    g68open = _G68_OPEN_RE.match(warn)
+    if g68open:
+        return _tr("ticket_warn_g68_open", start=g68open.group(1))
     return warn
 
 

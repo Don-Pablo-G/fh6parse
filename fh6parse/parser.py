@@ -395,6 +395,50 @@ def _offset_late_warn(g: int, line_no: int) -> str:
     return f"G{g} after operation started (L{line_no})"
 
 
+def _g_values(line: Line) -> list[float]:
+    return [w.value for w in line.letters("G")]
+
+
+def _has_g68(line: Line) -> bool:
+    return any(68.0 <= v < 69.0 for v in _g_values(line))
+
+
+def _g68_is_2d(line: Line) -> bool:
+    """Plain G68 (not G68.2 / Euler)."""
+    return any(abs(v - 68.0) < 1e-9 for v in _g_values(line))
+
+
+def _has_g69(line: Line) -> bool:
+    return any(abs(v - 69.0) < 1e-9 for v in _g_values(line))
+
+
+def _rotate_xy(
+    x: float, y: float, ox: float, oy: float, deg: float
+) -> tuple[float, float]:
+    rad = math.radians(deg)
+    c, s = math.cos(rad), math.sin(rad)
+    dx, dy = x - ox, y - oy
+    return ox + dx * c - dy * s, oy + dx * s + dy * c
+
+
+def _g68_where(tool: int | None, line_no: int) -> str:
+    if tool:
+        return f"T{tool} L{line_no}"
+    return f"L{line_no}"
+
+
+def _g68_span_warn(
+    start_tool: int | None,
+    start_line: int,
+    end_tool: int | None,
+    end_line: int | None,
+) -> str:
+    start = _g68_where(start_tool, start_line)
+    if end_line is None:
+        return f"G68 {start} without G69"
+    return f"G68 {start} to G69 {_g68_where(end_tool, end_line)}"
+
+
 def _join_desc(*parts: str) -> str:
     out: list[str] = []
     for part in parts:
@@ -1011,14 +1055,86 @@ def _run_program(
     inch_now = inch
     changes: list[ToolUsage] = []
     bbox = WorkBBox()
+    plane = 17
+    g68_2d = False
+    g68_ox = 0.0
+    g68_oy = 0.0
+    g68_r = 0.0
+    g68_open: tuple[int | None, int] | None = None
+    g68_warns: list[str] = []
 
     def finish_current(end_line: int) -> None:
         nonlocal current
         if current is not None:
             current.line_end = max(current.line_end, end_line)
 
+    def work_xy(
+        x: float | None, y: float | None
+    ) -> tuple[float | None, float | None]:
+        if not g68_2d or x is None or y is None:
+            return x, y
+        return _rotate_xy(x, y, g68_ox, g68_oy, g68_r)
+
     def note_work() -> None:
-        bbox.add(abs_x, abs_y, abs_z)
+        wx, wy = work_xy(abs_x, abs_y)
+        bbox.add(wx, wy, abs_z)
+
+    def g68_tool() -> int | None:
+        if _is_tool_change(line, pending_t is not None) and pending_t is not None:
+            return pending_t[0] if pending_t[0] else None
+        if current is not None and not current.is_stop() and current.tool:
+            return current.tool
+        return None
+
+    def apply_g68_g69() -> None:
+        nonlocal plane, g68_2d, g68_ox, g68_oy, g68_r, g68_open, incremental
+        nonlocal abs_x, abs_y
+        gs = line.g_ints()
+        if 90 in gs:
+            incremental = False
+        if 91 in gs:
+            incremental = True
+        if 17 in gs:
+            plane = 17
+        elif 18 in gs:
+            plane = 18
+        elif 19 in gs:
+            plane = 19
+        if _has_g69(line):
+            if g68_2d:
+                wx, wy = work_xy(abs_x, abs_y)
+                abs_x, abs_y = wx, wy
+            g68_2d = False
+            if g68_open is not None:
+                st, sl = g68_open
+                msg = _g68_span_warn(st, sl, g68_tool(), line.number)
+                if msg not in g68_warns:
+                    g68_warns.append(msg)
+                g68_open = None
+        if not _has_g68(line):
+            return
+        tool = g68_tool()
+        if g68_open is None:
+            g68_open = (tool, line.number)
+        r_val = _letter_value(line, "R", hash_vars)
+        x_val = _letter_value(line, "X", hash_vars)
+        y_val = _letter_value(line, "Y", hash_vars)
+        if _g68_is_2d(line) and plane == 17 and r_val is not None:
+            nx, ny = abs_x, abs_y
+            if x_val is not None:
+                nx, _ = axis_delta(nx, x_val, incremental=incremental)
+            if y_val is not None:
+                ny, _ = axis_delta(ny, y_val, incremental=incremental)
+            ox, oy = work_xy(
+                nx if nx is not None else 0.0,
+                ny if ny is not None else 0.0,
+            )
+            g68_ox = ox if ox is not None else 0.0
+            g68_oy = oy if oy is not None else 0.0
+            g68_r = r_val
+            g68_2d = True
+        else:
+            g68_2d = False
 
     while 0 <= i < n and steps < max_steps:
         steps += 1
@@ -1026,12 +1142,16 @@ def _run_program(
         line = lines[i]
         _apply_hash_exprs(hash_vars, line.hash_assigns)
         _note_hash_descs(hash_descs, line)
+        if _has_t(line):
+            pending_t = _resolve_letter_int(line, "T", hash_vars)
 
         off = _work_offset_g(line)
         if off is not None and op_picked:
             msg = _offset_late_warn(off, line.number)
             if msg not in offset_warns:
                 offset_warns.append(msg)
+
+        apply_g68_g69()
 
         if line.if_goto is not None and line.if_cond is not None:
             if _eval_cond(line.if_cond, hash_vars):
@@ -1147,7 +1267,7 @@ def _run_program(
                 target = merge_pose(
                     prev,
                     work_to_g53(
-                        abs_x, abs_y, abs_z, abs_b, abs_c, mill, inch=inch_now
+                        *work_xy(abs_x, abs_y), abs_z, abs_b, abs_c, mill, inch=inch_now
                     ),
                 )
                 xy_t = rapid_seconds_mm(pose_linear_delta(
@@ -1250,9 +1370,6 @@ def _run_program(
             if p_word is not None:
                 cycle_p = p_word.value
 
-        if _has_t(line):
-            pending_t = _resolve_letter_int(line, "T", hash_vars)
-
         if _is_tool_change(line, pending_t is not None):
             op_picked = True
             if frame and current is not None:
@@ -1302,8 +1419,9 @@ def _run_program(
             cycle_z = None
             cycle_code = None
 
-        x_raw = _letter_value(line, "X", hash_vars)
-        y_raw = _letter_value(line, "Y", hash_vars)
+        g68_here = _has_g68(line)
+        x_raw = None if g68_here else _letter_value(line, "X", hash_vars)
+        y_raw = None if g68_here else _letter_value(line, "Y", hash_vars)
         z_raw = _letter_value(line, "Z", hash_vars)
         has_x = x_raw is not None
         has_y = y_raw is not None
@@ -1384,7 +1502,7 @@ def _run_program(
                         xy_tgt = merge_pose(
                             prev,
                             work_to_g53(
-                                abs_x, abs_y, None, abs_b, abs_c, mill, inch=inch_now
+                                *work_xy(abs_x, abs_y), None, abs_b, abs_c, mill, inch=inch_now
                             ),
                         )
                         xy_t = rapid_seconds_mm(
@@ -1425,13 +1543,14 @@ def _run_program(
                     if current is not None and cycle_z is not None and not g53:
                         current.consider_z(cycle_z, line.number)
                     note_work()
-                    bbox.add(abs_x, abs_y, cycle_r)
-                    bbox.add(abs_x, abs_y, cycle_z)
+                    wx, wy = work_xy(abs_x, abs_y)
+                    bbox.add(wx, wy, cycle_r)
+                    bbox.add(wx, wy, cycle_z)
                     if frame:
                         synced = merge_pose(
                             (g53_x, g53_y, g53_z, g53_b, g53_c),
                             work_to_g53(
-                                abs_x, abs_y, abs_z, abs_b, abs_c, mill, inch=inch_now
+                                *work_xy(abs_x, abs_y), abs_z, abs_b, abs_c, mill, inch=inch_now
                             ),
                         )
                         g53_x, g53_y, g53_z, g53_b, g53_c = synced
@@ -1454,7 +1573,11 @@ def _run_program(
                     r_arc = line.first("R")
                     i_word = line.first("I")
                     j_word = line.first("J")
-                    r_val = r_arc.value if r_arc is not None and not in_cycle else None
+                    r_val = (
+                        r_arc.value
+                        if r_arc is not None and not in_cycle and not g68_here
+                        else None
+                    )
                     xy_len = arc_xy_length(
                         x0,
                         y0,
@@ -1473,7 +1596,7 @@ def _run_program(
                     target = merge_pose(
                         prev,
                         work_to_g53(
-                            abs_x, abs_y, abs_z, abs_b, abs_c, mill, inch=inch_now
+                            *work_xy(abs_x, abs_y), abs_z, abs_b, abs_c, mill, inch=inch_now
                         ),
                     )
                     if motion == 0:
@@ -1553,11 +1676,16 @@ def _run_program(
         i += 1
 
     finish_current(lines[-1].number if lines else 0)
+    if g68_open is not None:
+        st, sl = g68_open
+        msg = _g68_span_warn(st, sl, None, None)
+        if msg not in g68_warns:
+            g68_warns.append(msg)
     if current is not None and feed_per_rev and G95_NEXT_WARN not in current.warnings:
         current.warnings.append(G95_END_WARN)
     _flag_empty_pockets(changes)
     _flag_rpm_limit(changes, mill)
-    return executed, bbox, offset_warns
+    return executed, bbox, offset_warns + g68_warns
 
 
 def _simulate_path(
