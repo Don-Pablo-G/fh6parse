@@ -24,10 +24,13 @@ from .kiosk import (
     MILL_FORM_OFFSET,
     MILL_FORM_SCALARS,
     MILL_FORM_TRAVEL,
+    FileStamp,
+    file_stamp,
     load_kiosk_config,
     machine_display_name,
     mill_from_form_entries,
     parse_gui_paper,
+    preview_cache_stale,
     save_kiosk_values,
     save_machine_profile,
     save_model_roots,
@@ -51,6 +54,18 @@ from .safepath import ProtectedWriteError, is_protected
 from .update import UpdateCheck
 
 
+def nc_keys_to_reload(
+    stamps: dict[str, FileStamp | None],
+    disk: dict[str, FileStamp | None],
+) -> list[str]:
+    """Open NC keys whose mtime/size no longer match the last parse."""
+    return [
+        key
+        for key, cached in stamps.items()
+        if preview_cache_stale(cached, disk.get(key))
+    ]
+
+
 class ToolReportApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
@@ -59,7 +74,10 @@ class ToolReportApp(tk.Tk):
         self.minsize(760, 500)
 
         self._results: dict[str, tuple[Path, ParseResult]] = {}
+        self._stamps: dict[str, FileStamp | None] = {}
         self._order: list[str] = []
+        self._reload_gen = 0
+        self._reload_inflight: set[str] = set()
         self._out_dir: Path | None = None
         cfg = load_kiosk_config()
         self._cfg_source = cfg.source
@@ -378,10 +396,13 @@ class ToolReportApp(tk.Tk):
             pass
 
     def _reparse_open(self) -> None:
+        self._reload_gen += 1
+        self._reload_inflight.clear()
         mill = self._active_machine()
         for key, (path, _) in list(self._results.items()):
             try:
                 self._results[key] = (path, parse_nc_file(path, machine=mill))
+                self._stamps[key] = file_stamp(path)
             except Exception:
                 continue
         if self._results:
@@ -581,6 +602,7 @@ class ToolReportApp(tk.Tk):
 
     def _poll_models(self) -> None:
         self._model_job = self.after(500, self._poll_models)
+        self._reload_stale_nc()
         if self._models is None or not self._order:
             return
         changed = False
@@ -610,6 +632,59 @@ class ToolReportApp(tk.Tk):
             extra = self._cad_status_extra()
             self._status_loaded(extra)
             self._refresh_iso()
+
+    def _reload_stale_nc(self) -> None:
+        """Re-parse open files when CAM overwrites them (mtime and size)."""
+        if not self._results or self._updating:
+            return
+        disk = {key: file_stamp(path) for key, (path, _) in self._results.items()}
+        for key in nc_keys_to_reload(self._stamps, disk):
+            if key in self._reload_inflight:
+                continue
+            path = self._results[key][0]
+            if self._selected_key() == key:
+                self.status.config(text=self._tr("preview_reading"))
+            self._reload_inflight.add(key)
+            mill = self._active_machine()
+            gen = self._reload_gen
+            threading.Thread(
+                target=self._reload_nc_worker,
+                args=(key, path, mill, gen),
+                daemon=True,
+            ).start()
+
+    def _reload_nc_worker(self, key: str, path: Path, mill, gen: int) -> None:
+        stamp = file_stamp(path)
+        result = None
+        try:
+            result = parse_nc_file(path, machine=mill)
+        except Exception:
+            result = None
+
+        def done() -> None:
+            self._reload_inflight.discard(key)
+            if gen != self._reload_gen or key not in self._results:
+                return
+            now = file_stamp(path)
+            if preview_cache_stale(stamp, now):
+                return
+            if result is None:
+                return
+            self._results[key] = (path, result)
+            self._stamps[key] = now
+            if self._models is not None:
+                self._models.invalidate(path)
+            extra = self._cad_status_extra()
+            if self._selected_key() == key:
+                self._on_select()
+                self._status_loaded(f"  ·  {self._tr('gui_reloaded', name=path.name)}{extra}")
+            else:
+                self._status_loaded(extra)
+
+        try:
+            self.after(0, done)
+        except tk.TclError:
+            pass
 
     def choose_model_roots(self) -> None:
         chosen = filedialog.askdirectory(title=self._tr("choose_step"))
@@ -661,6 +736,7 @@ class ToolReportApp(tk.Tk):
                     path,
                     parse_nc_file(path, machine=self._active_machine()),
                 )
+                self._stamps[str(path)] = file_stamp(path)
             except Exception as exc:  # noqa: BLE001
                 errors.append(f"{path.name}: {exc}")
         self._refresh_list()
@@ -820,6 +896,7 @@ class ToolReportApp(tk.Tk):
         if event.widget is not self:
             return
         self._start_update_check()
+        self._reload_stale_nc()
 
     def _check_update_worker(self) -> None:
         from .update import check_for_update, check_github_windows_exe

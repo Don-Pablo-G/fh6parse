@@ -76,6 +76,8 @@ preview, then Print A4 or Print 80 mm (paper size only — same ticks).
   same fh6parse-kiosk.ini as STEP folders (and in %USERPROFILE%\.config\fh6parse\ui.ini).
   Last NC folder, report output folder, A4 vs 80 mm preview, and the
   report section checklist are stored there too.
+  If CAM overwrites an open .nc (same path, new mtime or size), the
+  preview reloads from disk. Wait until Reading… / Reloaded … before print.
   Machine: combo on the preview row. Add mill… writes a [machine.<id>]
   section (rapids, B/C rapid, tool-change seconds, optional max rpm,
   optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). The kiosk has the same form in settings (F2). You can still add
