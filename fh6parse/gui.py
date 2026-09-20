@@ -375,6 +375,7 @@ class ToolReportApp(tk.Tk):
             g54=ticks.get("g54", True),
             cycle=cycle,
             chart=cycle,
+            timesplit=ticks.get("timesplit", False),
             tools=ticks.get("tools", True),
             changes=ticks.get("changes", True),
             warnings=ticks.get("warnings", True),

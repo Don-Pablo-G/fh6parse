@@ -629,7 +629,8 @@ M30
         self.assertNotIn("SHARE", sett)
         self.assertIn("Cycle", sett)
         self.assertIn("EACH CHANGE", run)
-        self.assertIn("SHARE", run)
+        self.assertIn("SPLIT", run)
+        self.assertNotIn("SHARE", run)
         self.assertNotIn("Cycle", load)
         self.assertNotIn("EACH CHANGE", load)
         for paper_text in (sett, run, load):

@@ -161,6 +161,44 @@ class Line:
         return any(c in ms for c in codes)
 
 
+TIME_KINDS = ("rapid", "feed", "rotary", "canned", "probe", "atc")
+
+
+@dataclass
+class TimeSplit:
+    """Programmed seconds by motion kind (sums to ToolUsage.time_s)."""
+
+    rapid: float = 0.0
+    feed: float = 0.0
+    rotary: float = 0.0
+    canned: float = 0.0
+    probe: float = 0.0
+    atc: float = 0.0
+
+    def add(self, kind: str, seconds: float) -> None:
+        if seconds <= 0:
+            return
+        if kind not in TIME_KINDS:
+            kind = "feed"
+        setattr(self, kind, getattr(self, kind) + seconds)
+
+    def plus(self, other: TimeSplit) -> TimeSplit:
+        out = TimeSplit()
+        for kind in TIME_KINDS:
+            setattr(out, kind, getattr(self, kind) + getattr(other, kind))
+        return out
+
+    def total(self) -> float:
+        return sum(getattr(self, kind) for kind in TIME_KINDS)
+
+    def nonzero(self) -> list[tuple[str, float]]:
+        return [
+            (kind, getattr(self, kind))
+            for kind in TIME_KINDS
+            if getattr(self, kind) > 1e-9
+        ]
+
+
 @dataclass
 class ToolUsage:
     tool: int
@@ -185,6 +223,8 @@ class ToolUsage:
     warnings: list[str] = field(default_factory=list)
     time_s: float = 0.0
     time_incomplete: bool = False
+    split: TimeSplit = field(default_factory=TimeSplit)
+    feeds: list[float] = field(default_factory=list)
     had_work: bool = False
     had_cut: bool = False
     event: str = "tool"
@@ -197,11 +237,21 @@ class ToolUsage:
             self.min_z = z
             self.min_z_line = line_no
 
-    def add_time(self, seconds: float | None) -> None:
+    def note_feed(self, fpm: float | None) -> None:
+        if fpm is None or fpm <= 0:
+            return
+        key = round(float(fpm), 4)
+        if key not in self.feeds:
+            self.feeds.append(key)
+
+    def add_time(self, seconds: float | None, kind: str = "feed") -> None:
         if seconds is None:
             self.time_incomplete = True
             return
+        if seconds <= 0:
+            return
         self.time_s += seconds
+        self.split.add(kind, seconds)
 
 
 @dataclass
@@ -214,6 +264,8 @@ class ToolSummary:
     usages: list[ToolUsage]
     time_s: float = 0.0
     time_incomplete: bool = False
+    split: TimeSplit = field(default_factory=TimeSplit)
+    feeds: list[float] = field(default_factory=list)
 
 
 @dataclass
@@ -1292,8 +1344,9 @@ def _run_program(
                 profile=mill,
             )
             if current is not None:
-                current.add_time(xy_t)
-                current.add_time(z_t)
+                current.add_time(xy_t, "rapid")
+                current.add_time(z_t, "probe")
+                current.note_feed(fpm_probe)
                 current.line_end = line.number
                 if gx is not None or gy is not None or gz is not None:
                     current.had_work = True
@@ -1378,7 +1431,7 @@ def _run_program(
                     mill.atc_pose(),
                     mill,
                 )
-                current.add_time(travel)
+                current.add_time(travel, "atc")
                 current.line_end = line.number
                 g53_x, g53_y, g53_z, g53_b, g53_c = mill.atc_pose()
             finish_current(line.number - 1)
@@ -1414,7 +1467,7 @@ def _run_program(
             if feed_per_rev and G95_NEXT_WARN not in current.warnings:
                 current.warnings.append(G95_NEXT_WARN)
             if mill.tool_change_s > 0:
-                current.add_time(mill.tool_change_s)
+                current.add_time(mill.tool_change_s, "atc")
             cycle_active = False
             cycle_z = None
             cycle_code = None
@@ -1633,8 +1686,17 @@ def _run_program(
                 note_work()
 
         if current is not None:
-            current.add_time(timed)
-            current.add_time(rot)
+            current.add_time(
+                timed,
+                "canned"
+                if cycle_line
+                else "rapid"
+                if g53 or motion == 0
+                else "feed",
+            )
+            if cycle_line or (not g53 and motion in (1, 2, 3)):
+                current.note_feed(fpm)
+            current.add_time(rot, "rotary")
             current.line_end = line.number
             if not _is_program_stop(line):
                 _apply_line_to_usage(current, line, cycle_active, hash_vars)
@@ -1875,9 +1937,15 @@ def _summarize(usages: list[ToolUsage], called_only: bool) -> list[ToolSummary]:
         min_u = None
         time_s = 0.0
         time_incomplete = False
+        split = TimeSplit()
+        feeds: list[float] = []
         for u in group:
             time_s += u.time_s
             time_incomplete = time_incomplete or u.time_incomplete
+            split = split.plus(u.split)
+            for fpm in u.feeds:
+                if fpm not in feeds:
+                    feeds.append(fpm)
             if u.min_z is None:
                 continue
             if min_u is None or u.min_z < min_u.min_z:  # type: ignore[operator]
@@ -1892,6 +1960,8 @@ def _summarize(usages: list[ToolUsage], called_only: bool) -> list[ToolSummary]:
                 usages=group,
                 time_s=time_s,
                 time_incomplete=time_incomplete,
+                split=split,
+                feeds=feeds,
             )
         )
     return summaries

@@ -21,6 +21,7 @@ from fh6parse.report import (
     PAPER_80MM_MIN,
     PAPER_80MM_SET,
     PAPER_A4,
+    ReportSections,
     THERMAL_WIDTH,
     format_print_html,
     format_report,
@@ -227,14 +228,21 @@ M30
             text = format_report(r, paper=paper)
             self.assertIn("Cycle 0:24", text, msg=paper)
             self.assertIn(" 50%", text, msg=paper)
-            self.assertIn(BAR_FILL, text, msg=paper)
-            self.assertTrue("SHARE" in text or "Share of cycle" in text, msg=paper)
+        a4 = format_report(r, paper=PAPER_A4)
+        self.assertIn(BAR_FILL, a4)
+        self.assertTrue("SHARE" in a4 or "Share of cycle" in a4)
+        run = format_report(r, paper=PAPER_80MM)
+        self.assertIn("SPLIT", run)
+        self.assertIn("F 500", run)
+        self.assertNotIn("SHARE", run)
         sett = format_report(r, paper=PAPER_80MM_SET)
         self.assertIn("Cycle 0:24", sett)
         self.assertNotIn(BAR_FILL, sett)
+        self.assertNotIn("SPLIT", sett)
         load = format_report(r, paper=PAPER_80MM_MIN)
         self.assertNotIn("Cycle 0:24", load)
         self.assertNotIn(BAR_FILL, load)
+        self.assertNotIn("SPLIT", load)
 
     def test_full_each_change_has_share_not_a_second_chart(self) -> None:
         r = self._equal_tools()
@@ -245,8 +253,8 @@ M30
         self.assertEqual(tail.count(" 50%"), 2)
         mm = format_report(r, paper=PAPER_80MM)
         head_mm, _, tail_mm = mm.partition("EACH CHANGE")
-        self.assertIn(BAR_FILL, head_mm)
-        self.assertNotIn(BAR_FILL, tail_mm)
+        self.assertIn("SPLIT", head_mm)
+        self.assertNotIn("SPLIT", tail_mm)
         self.assertEqual(tail_mm.count(" 50%"), 2)
         for paper in (PAPER_80MM, PAPER_80MM_MIN):
             for line in format_report(r, paper=paper).splitlines():
@@ -262,8 +270,9 @@ M30
         self.assertIn("Each tool change", a4)
         mm = format_print_html(r, paper=PAPER_80MM)
         self.assertIn("Cycle 0:24", mm)
-        self.assertIn("SHARE", mm)
-        self.assertIn(BAR_FILL, mm)
+        self.assertIn("SPLIT", mm)
+        self.assertIn("F 500", mm)
+        self.assertNotIn("SHARE", mm)
         self.assertIn("EACH CHANGE", mm)
         mini = format_print_html(r, paper=PAPER_80MM_MIN)
         self.assertIn("CNC TOOLS LOAD", mini)
@@ -355,6 +364,69 @@ M30
         self.assertEqual(a.tool, 1)
         self.assertEqual(b.tool, 1)
         self.assertAlmostEqual(a.time_s, b.time_s)
+
+
+class TestTimeSplit(unittest.TestCase):
+    def test_kinds_feeds_and_run_ticket(self) -> None:
+        src = """O1
+T1 M6
+G90 G94
+G0 X0 Y0 Z0
+G0 X20000
+G1 X20100 F500
+T2 M6
+G1 X20200 F200
+M30
+"""
+        mill = MachineProfile(id="atc", name="ATC mill", tool_change_s=10)
+        r = parse_nc_text(src, "t.nc", machine=mill)
+        t1, t2 = r.usages
+        self.assertGreater(t1.split.rapid, 50)
+        self.assertAlmostEqual(t1.split.feed, 12.0, places=2)
+        self.assertIn(500.0, t1.feeds)
+        self.assertAlmostEqual(t2.split.atc, 10.0)
+        self.assertIn(200.0, t2.feeds)
+        run = format_report(r, paper=PAPER_80MM)
+        self.assertIn("SPLIT", run)
+        self.assertIn("F 500", run)
+        self.assertIn("ATC", run)
+        self.assertIn("G=G0", run)
+        a4 = format_report(r, paper=PAPER_A4)
+        self.assertNotIn("SPLIT", a4)
+        self.assertIn("Share of cycle", a4)
+        extra = format_report(
+            r, paper=PAPER_A4, sections=ReportSections(timesplit=True, chart=False)
+        )
+        self.assertIn("Time split", extra)
+        self.assertNotIn("Share of cycle", extra)
+        for line in run.splitlines():
+            self.assertLessEqual(len(line), THERMAL_WIDTH, msg=repr(line))
+
+    def test_g81_counts_as_canned(self) -> None:
+        src = """O1
+T1 M6
+G90 G94 G0 X0 Y0 Z50
+G98 G81 X0 Y0 Z26 R33 F40
+G80
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertGreater(u.split.canned, 0)
+        self.assertEqual(u.split.feed, 0)
+
+    def test_parametric_f_is_listed(self) -> None:
+        src = """O1
+T1 M6
+G90 G94
+#108=500.
+G0 X0 Y0 Z0
+G1 X100 F#108
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertIn(500.0, r.usages[0].feeds)
+        self.assertIn("F 500", format_report(r, paper=PAPER_80MM))
+
 
 
 class TestG53FrameTime(unittest.TestCase):

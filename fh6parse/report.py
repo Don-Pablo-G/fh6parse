@@ -21,6 +21,7 @@ from .parser import (
     NO_MOTION_WARN,
     Operation,
     ParseResult,
+    TimeSplit,
     ToolSummary,
     ToolUsage,
 )
@@ -112,6 +113,7 @@ SECTION_ORDER = (
     "g54",
     "cycle",
     "chart",
+    "timesplit",
     "tools",
     "changes",
     "warnings",
@@ -123,6 +125,7 @@ GUI_SECTION_KEYS = (
     "step",
     "g54",
     "cycle",
+    "timesplit",
     "tools",
     "changes",
     "warnings",
@@ -138,6 +141,7 @@ class ReportSections:
     g54: bool = True
     cycle: bool = True
     chart: bool = True
+    timesplit: bool = False
     tools: bool = True
     changes: bool = True
     warnings: bool = True
@@ -154,14 +158,16 @@ SECTIONS_LOAD = ReportSections(
     g54=False,
     cycle=False,
     chart=False,
+    timesplit=False,
     changes=False,
 )
 SECTIONS_SET = ReportSections(
     chart=False,
+    timesplit=False,
     tools=False,
     changes=False,
 )
-SECTIONS_RUN = SECTIONS_ALL
+SECTIONS_RUN = ReportSections(timesplit=True)
 
 
 def normalize_paper(paper: str | None) -> str:
@@ -181,6 +187,8 @@ def sections_for_paper(paper: str | None) -> ReportSections:
         return SECTIONS_LOAD
     if kind == PAPER_80MM_SET:
         return SECTIONS_SET
+    if kind == PAPER_80MM_RUN:
+        return SECTIONS_RUN
     return SECTIONS_ALL
 
 
@@ -338,6 +346,230 @@ def _share_chart_pre(op: Operation, bar_width: int) -> str:
         f'<div class="tline">{escape(head)}</div>'
         f'<pre class="chart">{body}</pre>'
     )
+
+
+SPLIT_MARK = {
+    "rapid": "G",
+    "feed": "F",
+    "rotary": "R",
+    "canned": "C",
+    "probe": "P",
+    "atc": "A",
+}
+
+
+def _split_of(obj: object) -> TimeSplit:
+    split = getattr(obj, "split", None)
+    return split if isinstance(split, TimeSplit) else TimeSplit()
+
+
+def _feeds_of(obj: object) -> list[float]:
+    feeds = getattr(obj, "feeds", None)
+    return list(feeds) if feeds else []
+
+
+def _op_split(op: Operation) -> TimeSplit:
+    out = TimeSplit()
+    for s in op.summaries:
+        out = out.plus(_split_of(s))
+    return out
+
+
+def _fmt_feed_list(feeds: list[float]) -> str:
+    if not feeds:
+        return ""
+    bits: list[str] = []
+    for fpm in feeds:
+        if abs(fpm - round(fpm)) < 1e-9:
+            bits.append(str(int(round(fpm))))
+        else:
+            bits.append(f"{fpm:g}")
+    return _tr("ticket_split_feeds", feeds=" ".join(bits))
+
+
+def _split_kind_label(kind: str) -> str:
+    return _tr(f"ticket_split_{kind}")
+
+
+def _split_table_line(split: TimeSplit, *, feeds: list[float] | None = None) -> str:
+    parts = [
+        f"{_split_kind_label(kind)} {_fmt_time(sec)}"
+        for kind, sec in split.nonzero()
+    ]
+    feed_txt = _fmt_feed_list(feeds or [])
+    if feed_txt:
+        parts.append(feed_txt)
+    return "  ".join(parts)
+
+
+def _stack_marks(split: TimeSplit, filled: int) -> str:
+    parts = split.nonzero()
+    if not parts or filled <= 0:
+        return ""
+    tot = split.total()
+    if tot <= 0:
+        return ""
+    raw: list[list[object]] = []
+    used = 0
+    fracs: list[tuple[float, int]] = []
+    for i, (kind, sec) in enumerate(parts):
+        exact = filled * sec / tot
+        n = int(exact)
+        raw.append([kind, n])
+        fracs.append((exact - n, i))
+        used += n
+    need = filled - used
+    for _, i in sorted(fracs, reverse=True):
+        if need <= 0:
+            break
+        raw[i][1] = int(raw[i][1]) + 1
+        need -= 1
+    return "".join(
+        SPLIT_MARK[str(kind)] * int(n) for kind, n in raw if int(n) > 0
+    )
+
+
+def _split_bar_line(
+    label: str, obj: object, cycle_s: float, bar_width: int
+) -> str:
+    split = _split_of(obj)
+    share = _pct(split.total() or _seconds_of(obj), cycle_s)
+    prefix = f"{label:<4} {_time_of(obj):>8} {share:3d}% "
+    room = max(0, CHART_PREFIX + bar_width - len(prefix))
+    filled = int(round(room * share / 100.0))
+    if share > 0:
+        filled = max(1, min(room, filled))
+    else:
+        filled = 0
+    marks = _stack_marks(split, filled)
+    if not marks and filled:
+        marks = BAR_FILL * filled
+    return (prefix + marks)[: CHART_PREFIX + bar_width]
+
+
+def _split_chart_text(
+    op: Operation, bar_width: int, *, short: bool = True, width: int = THERMAL_WIDTH
+) -> list[str]:
+    if not op.summaries:
+        return []
+    cycle_s, _ = _op_cycle(op)
+    whole = _op_split(op)
+    heading = _tr("ticket_split_short" if short else "ticket_split")
+    lines = [heading]
+    lines.extend(_wrap(_tr("ticket_split_legend"), width))
+    all_label = _tr("ticket_split_all")
+    dummy = ToolSummary(
+        tool=0,
+        descriptions=[],
+        min_z=None,
+        min_z_line=None,
+        called=True,
+        usages=[],
+        time_s=whole.total(),
+        split=whole,
+    )
+    lines.append(_split_bar_line(all_label, dummy, cycle_s, bar_width))
+    detail = _split_table_line(whole)
+    if detail:
+        lines.extend(_wrap(detail, width))
+    for s in op.summaries:
+        lines.append(_split_bar_line(f"T{s.tool}", s, cycle_s, bar_width))
+        row = _split_table_line(_split_of(s), feeds=_feeds_of(s))
+        if row:
+            lines.extend(_wrap(row, width))
+    return lines
+
+
+def _split_chart_html(op: Operation) -> str:
+    if not op.summaries:
+        return ""
+    cycle_s, _ = _op_cycle(op)
+    rows: list[str] = []
+
+    def row_html(label: str, obj: object, feeds: list[float] | None = None) -> str:
+        split = _split_of(obj)
+        share = _pct(split.total() or _seconds_of(obj), cycle_s)
+        tot = split.total()
+        segs = ""
+        if tot > 0:
+            segs = "".join(
+                f'<span class="k-{kind}" style="width:{100.0 * sec / tot:.2f}%"></span>'
+                for kind, sec in split.nonzero()
+            )
+        detail = escape(_split_table_line(split, feeds=feeds))
+        return (
+            "<tr>"
+            f'<td class="t">{escape(label)}</td>'
+            f'<td class="n">{escape(_time_of(obj))}</td>'
+            f'<td class="n">{share}%</td>'
+            '<td class="bar"><div class="track">'
+            f'<div class="fill" style="width:{share}%">{segs}</div>'
+            "</div>"
+            f'<div class="split-d">{detail}</div></td>'
+            "</tr>"
+        )
+
+    whole = _op_split(op)
+    dummy = ToolSummary(
+        tool=0,
+        descriptions=[],
+        min_z=None,
+        min_z_line=None,
+        called=True,
+        usages=[],
+        time_s=whole.total(),
+        split=whole,
+    )
+    rows.append(row_html(_tr("ticket_split_all"), dummy))
+    for s in op.summaries:
+        rows.append(row_html(f"T{s.tool}", s, _feeds_of(s)))
+    return (
+        f'<p class="cycle-sub">{escape(_tr("ticket_split"))}</p>'
+        f'<p class="fine">{escape(_tr("ticket_split_legend"))}</p>'
+        '<table class="chart"><tbody>'
+        + "".join(rows)
+        + "</tbody></table>"
+    )
+
+
+def _split_chart_pre(op: Operation, bar_width: int) -> str:
+    lines = _split_chart_text(op, bar_width)
+    if not lines:
+        return ""
+    head, *rows = lines
+    body = "\n".join(escape(p) for p in rows)
+    return (
+        f'<div class="tline">{escape(head)}</div>'
+        f'<pre class="chart">{body}</pre>'
+    )
+
+
+def _op_time_chart_text(
+    op: Operation, bar_width: int, *, short: bool, width: int, sections: ReportSections
+) -> list[str]:
+    if sections.timesplit:
+        return _split_chart_text(op, bar_width, short=short, width=width)
+    if sections.chart:
+        return _share_chart_text(op, bar_width, short=short)
+    return []
+
+
+def _op_time_chart_html(op: Operation, sections: ReportSections) -> str:
+    if sections.timesplit:
+        return _split_chart_html(op)
+    if sections.chart:
+        return _share_chart_html(op)
+    return ""
+
+
+def _op_time_chart_pre(
+    op: Operation, bar_width: int, sections: ReportSections
+) -> str:
+    if sections.timesplit:
+        return _split_chart_pre(op, bar_width)
+    if sections.chart:
+        return _share_chart_pre(op, bar_width)
+    return ""
 
 
 def _fmt_z(z: float | None) -> str:
@@ -635,9 +867,10 @@ def _format_text_a4(
             cycle_s, _ = _op_cycle(op)
             if sections.cycle:
                 w(_cycle_label(op))
-            if sections.chart:
-                for line in _share_chart_text(op, A4_BAR_WIDTH, short=False):
-                    w(line)
+            for line in _op_time_chart_text(
+                op, A4_BAR_WIDTH, short=False, width=w78, sections=sections
+            ):
+                w(line)
             none = _tr("ticket_no_comment")
             minz = _tr("ticket_minz")
             time_lbl = _tr("ticket_time")
@@ -767,9 +1000,10 @@ def _format_text_80mm(
             cycle_s, _ = _op_cycle(op)
             if sections.cycle:
                 w(_cycle_label(op))
-            if sections.chart:
-                for line in _share_chart_text(op, THERMAL_BAR_WIDTH):
-                    w(line)
+            for line in _op_time_chart_text(
+                op, THERMAL_BAR_WIDTH, short=True, width=n, sections=sections
+            ):
+                w(line)
             if sections.tools:
                 if not op.summaries:
                     w(_tr("ticket_no_tools"))
@@ -953,6 +1187,15 @@ table.chart td.n { width: 16mm; }
 table.chart td.bar { padding-right: 0; }
 .track { height: 8pt; border: 1pt solid #000; background: #fff; }
 .track > span { display: block; height: 100%; background: #000; }
+.track .fill { display: flex; height: 100%; }
+.track .fill > span { display: block; height: 100%; }
+.k-rapid { background: #b0b0b0; }
+.k-feed { background: #000; }
+.k-rotary { background: #666; }
+.k-canned { background: #444; }
+.k-probe { background: #888; }
+.k-atc { background: #d0d0d0; }
+.split-d { font-size: 8pt; font-family: Consolas, "Courier New", monospace; margin-top: 2pt; }
 .box { display: inline-block; width: 11pt; height: 11pt; border: 1.2pt solid #000; vertical-align: middle; }
 .warn { font-size: 8.5pt; }
 .sign { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16pt; margin-top: 16pt; }
@@ -1067,8 +1310,9 @@ table.chart td.bar { padding-right: 0; }
                     )
             if sections.cycle:
                 op_html.append(f'<p class="cycle">{escape(_cycle_label(op))}</p>')
-            if sections.chart:
-                op_html.append(_share_chart_html(op))
+            chart = _op_time_chart_html(op, sections)
+            if chart:
+                op_html.append(chart)
             if sections.tools:
                 op_html.append(
                     "<table><thead><tr>"
@@ -1247,10 +1491,9 @@ pre.chart {
                     a(f'<div class="warn">{escape(_warn_line(warn, prefix="! "))}</div>')
             if sections.cycle:
                 a(f'<div class="cycle">{escape(_cycle_label(op))}</div>')
-            if sections.chart:
-                chart = _share_chart_pre(op, THERMAL_BAR_WIDTH)
-                if chart:
-                    a(chart)
+            chart = _op_time_chart_pre(op, THERMAL_BAR_WIDTH, sections)
+            if chart:
+                a(chart)
             if sections.tools:
                 if not op.summaries:
                     a(f"<div>{escape(_tr('ticket_no_tools'))}</div>")

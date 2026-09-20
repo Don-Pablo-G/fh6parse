@@ -532,6 +532,7 @@ class TestKioskConfig(unittest.TestCase):
         from fh6parse.kiosk import save_kiosk_values, ui_overlay_path
         from fh6parse.report import (
             SECTIONS_LOAD,
+            SECTIONS_RUN,
             normalize_paper,
             parse_report_sections,
         )
@@ -542,6 +543,8 @@ class TestKioskConfig(unittest.TestCase):
         self.assertIn("header", csv)
         self.assertNotIn("chart", csv.split(","))
         self.assertFalse(parse_report_sections(csv).cycle)
+        self.assertTrue(SECTIONS_RUN.timesplit)
+        self.assertFalse(parse_report_sections("header,cycle,tools").timesplit)
         with tempfile.TemporaryDirectory() as home:
             with patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
                 with tempfile.TemporaryDirectory() as raw:
