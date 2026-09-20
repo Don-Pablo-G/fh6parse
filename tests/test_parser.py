@@ -440,6 +440,100 @@ M30
         self.assertIn("WARNING: G95 still active at M30", format_report(r))
 
 
+class TestSplitTM6(unittest.TestCase):
+    def test_t_then_m6_counts_as_tool_change(self) -> None:
+        src = """O1
+T12
+M6
+G90 G43 Z10. H12
+G1 Z-2. F100
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertEqual([u.tool for u in r.usages], [12])
+        self.assertTrue(r.usages[0].called_from_main)
+        self.assertEqual(r.usages[0].min_z, -2.0)
+        self.assertEqual(r.usages[0].h_offset, 12)
+
+    def test_comment_on_t_line_joins_split_m6(self) -> None:
+        src = """O1
+T12 (FREZ FI12)
+M6
+G43 Z10. H12
+G1 Z-1. F100
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.tool, 12)
+        self.assertEqual(u.description, "FREZ FI12")
+
+    def test_comment_above_t_joins_split_m6(self) -> None:
+        src = """O1
+(FREZ FI12)
+T12
+M6
+G43 Z10. H12
+G1 Z-1. F100
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.description, "FREZ FI12")
+
+    def test_comment_below_split_m6_joins(self) -> None:
+        src = """O1
+T1
+M6 (WIERTO)
+(FI 8.5 x 30)
+G43 Z10. H1
+G1 Z-1.
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.description, "WIERTO / FI 8.5 x 30")
+
+    def test_preselect_t_not_a_change_until_m6(self) -> None:
+        src = """O1
+T1 M6
+G43 Z10. H1
+G1 Z-1. F100
+T2
+G1 X10. F100
+T2 M6
+G43 Z10. H2
+G1 Z-3. F100
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertEqual([u.tool for u in r.usages], [1, 2])
+        self.assertEqual(r.usages[0].min_z, -1.0)
+        self.assertEqual(r.usages[1].min_z, -3.0)
+
+    def test_m6_without_any_t_is_not_a_tool(self) -> None:
+        src = """O1
+G90
+M6
+G1 Z-1. F100
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        self.assertEqual(r.usages, [])
+
+    def test_split_t_hash_m6_uses_assign_comment(self) -> None:
+        src = """O1
+#100=12 (Frez fi12)
+T#100
+M6
+G43 Z10. H#100
+G1 Z-1. F100
+M30
+"""
+        u = parse_nc_text(src, "t.nc").usages[0]
+        self.assertEqual(u.tool, 12)
+        self.assertEqual(u.tool_hash, 100)
+        self.assertEqual(u.description, "Frez fi12")
+        self.assertEqual(u.h_offset, 12)
+
+
 class TestReport(unittest.TestCase):
     def test_report_contains_operator_sections(self) -> None:
         r = parse_nc_file(SAMPLES / "D0134078.nc")

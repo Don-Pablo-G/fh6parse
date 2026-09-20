@@ -21,10 +21,12 @@ Output folder
 
 Header comments like (N10 - OP1) / (N20 - OP2) get a separate tool list each,
 as if you changed M97 P# in main. Each list follows M97/M99 until M30.
-Tool description: comment on the Txx M6 line, or the line above, plus the
-line immediately below. T#n / H#n / D#n use the #n= value (and the comment
-on that assign, e.g. #100=1 (Frez fi12) then T#100 prints T1 (#100)). H# / D#
-must use the same # as T# or a literal that equals that tool; otherwise WARNING.
+Tool change: Txx M6 on one line, or T then M6 (common CAM split). A T without
+M6 is only a carousel preselect until M6. Tool description: comment on the
+T / M6 line, or the line above, plus the line immediately below. T#n / H#n /
+D#n use the #n= value (and the comment on that assign, e.g. #100=1 (Frez fi12)
+then T#100 prints T1 (#100)). H# / D# must use the same # as T# or a literal
+that equals that tool; otherwise WARNING.
 M00 / M0 is listed in EACH TOOL CHANGE (not the tool list) with comments above,
 on, and below that line when they exist. M01 is not listed.
 G54–G59 belong in the file preamble only (before the first Txx M6 or M97/M98).

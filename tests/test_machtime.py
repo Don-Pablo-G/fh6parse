@@ -335,6 +335,27 @@ M30
         self.assertNotIn("ATC mill", load)
         self.assertNotIn("Tchg 10s", load)
 
+    def test_split_t_then_m6_gets_the_same_tool_change_s(self) -> None:
+        together = """O1
+T1 M6
+G90 G94 G0 X0 Y0 Z0
+G1 X100 F500
+M30
+"""
+        split = """O1
+T1
+M6
+G90 G94 G0 X0 Y0 Z0
+G1 X100 F500
+M30
+"""
+        mill = MachineProfile(id="atc", name="ATC mill", tool_change_s=10)
+        a = parse_nc_text(together, "t.nc", machine=mill).usages[0]
+        b = parse_nc_text(split, "t.nc", machine=mill).usages[0]
+        self.assertEqual(a.tool, 1)
+        self.assertEqual(b.tool, 1)
+        self.assertAlmostEqual(a.time_s, b.time_s)
+
 
 class TestG53FrameTime(unittest.TestCase):
     mill = MachineProfile(

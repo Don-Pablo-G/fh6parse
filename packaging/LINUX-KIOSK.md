@@ -770,6 +770,7 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | G95 then next T without G94 → `WARNING: G95 still active…` | |
 | Idle Txx M6 (not the last change) → empty-pocket warning | |
 | Last Txx M6 with no motion stays quiet (spindle prep) | |
+| `T12` then `M6` on the next line counts as one T12 change | |
 | `(…!…)` comments listed as programmer notes | |
 | Highlight preview: ops, cycle time, 3D ready, stacked isometric when ready | |
 

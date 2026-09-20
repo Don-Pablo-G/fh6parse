@@ -1,4 +1,4 @@
-"""Fanuc/Haas G-code parser: tools (Txx M6) and lowest work-coordinate Z."""
+"""Fanuc/Haas G-code parser: tools (Txx M6, or T then M6) and lowest Z."""
 
 from __future__ import annotations
 
@@ -361,11 +361,18 @@ def _letter_hash(line: Line, letter: str) -> int | None:
     return None
 
 
-def _is_tool_change(line: Line) -> bool:
-    return bool(
-        line.has_m(6)
-        and (line.first("T") is not None or _letter_hash(line, "T") is not None)
-    )
+def _has_t(line: Line) -> bool:
+    return line.first("T") is not None or _letter_hash(line, "T") is not None
+
+
+def _is_t_select(line: Line) -> bool:
+    """T without M6: carousel preselect, or the T half of a split T / M6."""
+    return _has_t(line) and not line.has_m(6)
+
+
+def _is_tool_change(line: Line, pending_t: bool = False) -> bool:
+    """M6 with T on this line, or M6 using the last T (CAM often splits them)."""
+    return bool(line.has_m(6) and (_has_t(line) or pending_t))
 
 
 def _is_program_stop(line: Line) -> bool:
@@ -374,7 +381,7 @@ def _is_program_stop(line: Line) -> bool:
 
 
 def _is_change_or_stop(line: Line) -> bool:
-    return _is_tool_change(line) or _is_program_stop(line)
+    return line.has_m(6) or _is_program_stop(line)
 
 
 def _work_offset_g(line: Line) -> int | None:
@@ -451,6 +458,8 @@ def _description_for(lines: list[Line], idx: int) -> str:
         for j in range(idx - 1, -1, -1):
             prev = lines[j]
             if _is_pad_line(prev):
+                continue
+            if _is_t_select(prev) and not prev.comments:
                 continue
             if prev.comments and not _is_change_or_stop(prev):
                 comment = _last_comment(prev)
@@ -896,9 +905,12 @@ def _collect_tool_usages(lines: list[Line]) -> list[ToolUsage]:
     usages: list[ToolUsage] = []
     hash_vals: dict[int, float] = {}
     hash_descs: dict[int, str] = {}
+    pending_t: tuple[int | None, int | None] | None = None
     for i, line in enumerate(lines):
         _apply_hash_exprs(hash_vals, line.hash_assigns)
         _note_hash_descs(hash_descs, line)
+        if _has_t(line):
+            pending_t = _resolve_letter_int(line, "T", hash_vals)
         if _is_program_stop(line):
             sub, sub_c = _current_n_context(lines, i)
             usages.append(
@@ -913,9 +925,9 @@ def _collect_tool_usages(lines: list[Line]) -> list[ToolUsage]:
                 )
             )
             continue
-        if not _is_tool_change(line):
+        if not _is_tool_change(line, pending_t is not None):
             continue
-        t_val, t_hash = _resolve_letter_int(line, "T", hash_vals)
+        t_val, t_hash = pending_t if pending_t is not None else (None, None)
         sub, sub_c = _current_n_context(lines, i)
         desc = _tool_description(
             lines, i, t_hash=t_hash, hash_descs=hash_descs
@@ -995,6 +1007,7 @@ def _run_program(
     motion = 0
     hash_vars: dict[int, float] = {}
     hash_descs: dict[int, str] = {}
+    pending_t: tuple[int | None, int | None] | None = None
     inch_now = inch
     changes: list[ToolUsage] = []
     bbox = WorkBBox()
@@ -1237,7 +1250,10 @@ def _run_program(
             if p_word is not None:
                 cycle_p = p_word.value
 
-        if _is_tool_change(line):
+        if _has_t(line):
+            pending_t = _resolve_letter_int(line, "T", hash_vars)
+
+        if _is_tool_change(line, pending_t is not None):
             op_picked = True
             if frame and current is not None:
                 travel = rapid_z_then_xy(
@@ -1249,7 +1265,7 @@ def _run_program(
                 current.line_end = line.number
                 g53_x, g53_y, g53_z, g53_b, g53_c = mill.atc_pose()
             finish_current(line.number - 1)
-            t_val, t_hash = _resolve_letter_int(line, "T", hash_vars)
+            t_val, t_hash = pending_t if pending_t is not None else (None, None)
             desc = _tool_description(
                 lines, i, t_hash=t_hash, hash_descs=hash_descs
             )
@@ -1582,6 +1598,7 @@ def parse_nc_text(
     header_comments: list[str] = []
     units = "unknown"
     first_tool_idx: int | None = None
+    pending_header_t = False
 
     for i, line in enumerate(lines):
         o_match = O_WORD_RE.search(strip_comments(line.raw))
@@ -1593,7 +1610,9 @@ def parse_nc_text(
             units = "mm"
         elif line.has_g(20):
             units = "inch"
-        if _is_tool_change(line) and first_tool_idx is None:
+        if _has_t(line):
+            pending_header_t = True
+        if _is_tool_change(line, pending_header_t) and first_tool_idx is None:
             first_tool_idx = i
         if first_tool_idx is None:
             for c in line.comments:

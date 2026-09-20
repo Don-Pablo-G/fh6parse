@@ -74,7 +74,7 @@ Kiosk **nie zapisuje i nie kasuje** plików na pendrive ani w firmowym folderze 
 | `S… przekracza max wrzeciona …` | Programowane S wyższe niż `max_rpm` obrabiarki |
 | `! …` przy numerze linii | Uwaga programisty z komentarza z `!` |
 
-Pasujące H/D (= numer T) nie dają ostrzeżenia.
+Pasujące H/D (= numer T) nie dają ostrzeżenia. `T12` i `M6` w dwóch liniach to ta sama wymiana (CAM często tak dzieli).
 
 ---
 
