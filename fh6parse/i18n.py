@@ -80,16 +80,24 @@ STRINGS: dict[str, dict[str, str]] = {
         "cad_chip_share_down": "Z: off",
         "settings": "Settings",
         "settings_blurb": (
-            "Language, mill, LOAD / SET / RUN content, BCM pins (file knob, "
-            "mill knob, green LOAD / yellow SET / red RUN, optional "
-            "sleep/wake), reverse "
-            "each knob, ticks from one tooth valley to the next, and wait "
-            "after a ticket. Rest is the file; the highlight changes halfway "
-            "to the next tooth. File and mill lists wrap from last to first."
+            "Language, mill, and screen size on this page. Ticket ticks, "
+            "GPIO pins, and knobs are their own menus. Esc goes back."
         ),
+        "settings_back": "Back",
+        "settings_page_reports": "LOAD / SET / RUN tickets",
+        "settings_page_gpio": "GPIO pins",
+        "settings_page_knobs": "Knobs and print wait",
         "language": "Language",
         "lang_pl": "Polski",
         "lang_en": "English",
+        "screen_size": "Screen (px)",
+        "screen_width": "Width",
+        "screen_height": "Height",
+        "screen_native": "1024×600",
+        "screen_size_blurb": (
+            "Waveshare 13857 is 1024×600. Change if the panel is different. "
+            "Saved like language (ui.ini). Fullscreen still fills the real display."
+        ),
         "machine": "Machine",
         "machine_detail": "Rapids {rapid}  ·  tool change {tchg}",
         "machine_add": "Add mill…",
@@ -148,8 +156,7 @@ STRINGS: dict[str, dict[str, str]] = {
             "not print two slips. 0 = no wait."
         ),
         "settings_keys": (
-            "F2 / C / Esc  close     arrows change language     "
-            "+ / −  mill, pins, ticks and wait"
+            "F2 / C  close     Esc  back     arrows  language on this page"
         ),
         "settings_saved": "Saved {path}",
         "settings_save_fail": "Could not save settings ({detail})",
@@ -430,17 +437,24 @@ STRINGS: dict[str, dict[str, str]] = {
         "cad_chip_share_down": "Z: wył.",
         "settings": "Ustawienia",
         "settings_blurb": (
-            "Język, obrabiarka, treść LOAD / SET / RUN, piny BCM (pokrętło "
-            "pliku, pokrętło mill, zielony LOAD / żółty SET / czerwony RUN, "
-            "opcjonalny sen/budzenie), kierunek każdego pokrętła, impulsy od "
-            "jednej doliny "
-            "zęba do następnej i pauza po bilecie. Spoczynek to plik; "
-            "podświetlenie zmienia się w połowie drogi do następnego zęba. "
-            "Lista plików i obrabiarek zawija się z ostatniego na pierwszy."
+            "Język, obrabiarka i rozdzielczość na tej stronie. Zawartość "
+            "biletów, piny GPIO i pokrętła są w osobnych menu. Esc wraca."
         ),
+        "settings_back": "Wstecz",
+        "settings_page_reports": "Bilety LOAD / SET / RUN",
+        "settings_page_gpio": "Piny GPIO",
+        "settings_page_knobs": "Pokrętła i pauza po druku",
         "language": "Język",
         "lang_pl": "Polski",
         "lang_en": "English",
+        "screen_size": "Ekran (px)",
+        "screen_width": "Szerokość",
+        "screen_height": "Wysokość",
+        "screen_native": "1024×600",
+        "screen_size_blurb": (
+            "Waveshare 13857 to 1024×600. Zmień, jeśli panel jest inny. "
+            "Zapis jak język (ui.ini). Pełny ekran i tak wypełnia wyświetlacz."
+        ),
         "machine": "Obrabiarka",
         "machine_detail": "Szybkie {rapid}  ·  wymiana narzędzia {tchg}",
         "machine_add": "Dodaj obrabiarkę…",
@@ -500,8 +514,7 @@ STRINGS: dict[str, dict[str, str]] = {
             "nie dało dwóch kartek. 0 = bez pauzy."
         ),
         "settings_keys": (
-            "F2 / C / Esc  zamknij     strzałki zmieniają język     "
-            "+ / −  obrabiarka, piny, impulsy i pauza"
+            "F2 / C  zamknij     Esc  wstecz     strzałki  język na tej stronie"
         ),
         "settings_saved": "Zapisano {path}",
         "settings_save_fail": "Nie udało się zapisać ustawień ({detail})",

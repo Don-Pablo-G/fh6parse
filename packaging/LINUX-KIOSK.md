@@ -2,7 +2,7 @@
 
 Operator sheet (Polish, daily use only): **[LINUX-KIOSK-PL.md](LINUX-KIOSK-PL.md)**. Pi 5 pinout and wire poster: **[LINUX-KIOSK-WIRING.pdf](LINUX-KIOSK-WIRING.pdf)**. Hardware buy list (SKU / EAN if shops die): **[HARDWARE.md](HARDWARE.md)**. This file is the full English install / update manual.
 
-**Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.0**). Three 16 mm vandal print buttons under the screen, left→right **green LOAD** (operator slip), **yellow SET** (setter), **red RUN** (full ticket). The same three colour chips sit on the bottom of the panel. List, preview, and those chips use large high-contrast type. An optional fourth GPIO button sleeps and wakes the panel (leave it unwired). An optional Pi 5 **J2** switch is the hardware power button (not GPIO). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C rapid, tool-change time, optional max rpm, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Tickets then show a labeled G53 rectangle of where the work offset may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.0** badge; the yellow **UPDATE** button then shows a short hash. The Windows / Linux office GUI is one report with a **section checklist** (no LOAD / SET / RUN presets). The same single-click yellow **UPDATE to …** bar appears under the mill/print row: frozen Windows exe against a GitHub Release (tag **vX.Y.Z** builds it), git checkout against origin.
+**Version 1.4.0.** Raspberry Pi 5 kiosk: Waveshare **1024×600** (SKU **13857**, native landscape), MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.0**). Three 16 mm vandal print buttons under the screen, left→right **green LOAD** (operator slip), **yellow SET** (setter), **red RUN** (full ticket). The same three colour chips sit on the bottom of the panel. List, preview, and those chips use large high-contrast type. An optional fourth GPIO button sleeps and wakes the panel (leave it unwired). An optional Pi 5 **J2** switch is the hardware power button (not GPIO). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C rapid, tool-change time, tool length, optional max rpm, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Tickets then show a labeled G53 rectangle of where the work offset may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.0** badge; the yellow **UPDATE** button then shows a short hash. The Windows / Linux office GUI is one report with a **section checklist** (no LOAD / SET / RUN presets). The same single-click yellow **UPDATE to …** bar appears under the mill/print row: frozen Windows exe against a GitHub Release (tag **vX.Y.Z** builds it), git checkout against origin.
 
 Python **3.10+** is required (Bookworm ships 3.11). Use **Raspberry Pi OS 64-bit Desktop** (Bookworm or later). Pi 5 has no 32-bit OS.
 
@@ -28,8 +28,10 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 | Raspberry Pi **Active Cooler** | Required in the closed kiosk box. Heatsink + PWM fan on the SoC FAN header. [Botland RPI-23925](https://botland.store/raspberry-pi-5-mounting-elements/23925-raspberry-pi-active-cooler-heatsink-fan-for-raspberry-pi-5-5056561803357.html). **§2.12**. |
 | Pimoroni NVMe Base Duo (PIM704) | **Under** the Pi 5. PCIe FPC, not GPIO. [Botland](https://botland.com.pl/rozszerzenia-gpio-i-nakladki-hat-do-raspberry-pi-5/24851-plytka-rozszerzen-nvme-base-duo-do-raspberry-pi-5-pimoroni-pim704-769894025024.html). Do **not** use the Raspberry Pi M.2 HAT+ from the SSD kit. |
 | Official Raspberry Pi NVMe **512 GB** (2230) | **Disk only** from [Raspberry Pi SSD Kit 512 GB](https://botland.com.pl/raspberry-pi-hat-nakladki-pci-express/25484-raspberry-pi-ssd-kit-512gb-zestaw-z-dyskiem-ssd-do-raspberry-pi-5-5056561805023.html) (RPI-25484). Unscrew it from the kit HAT+ and fit **slot A** on the Duo. Second Duo slot empty. |
-| micro-HDMI cable | Pi 5 has two **micro-HDMI** ports. Use **HDMI0** (the port next to USB-C power) for the kiosk panel. |
-| 800×600 LCD, mounted vertically | After rotation the framebuffer is **600×800**. That is what the app uses. |
+| micro-HDMI cable | Pi 5 has two **micro-HDMI** ports. Use **HDMI0** (the port next to USB-C power) for the kiosk panel. **Clamp** USB-C and HDMI0 to the case. **No USB-C extension** on the 27 W PSU. |
+| Case (3D print) | **PETG**, not PLA. Vents **above** the Active Cooler and **below** the Duo. **§2.13**. |
+| Spare PCIe flex (drawer) | Pimoroni **PIM703** (35 mm) or **PIM702** (50 mm). The OS cable; clips break. |
+| Waveshare 7″ HDMI LCD (C) **13857** | Native **1024×600** landscape. HDMI0. App geometry is 1024×600. Do **not** rotate unless the panel is physically turned. |
 | DFRobot Fermion EC11 (file) | SEN0235. Phase **A** and **B** only. Shaft push (**C**) unused. Selects the NC file. |
 | DFRobot Fermion EC11 (mill) | Second knob, same wiring. Cycles mills in settings / `kiosk.machine`. |
 | Three 16 mm 5-pin vandal buttons | Momentary, ring LED **5 V**: **green LOAD**, **yellow SET**, **red RUN**. Mount **under the screen**, left→right matching the colour chips on the panel. |
@@ -68,11 +70,11 @@ Land every GPIO / 3.3 V / 5 V LED wire on the **screw terminal board** on the 40
 
 **Wiring poster (print this at the bench):** [LINUX-KIOSK-WIRING.pdf](LINUX-KIOSK-WIRING.pdf) — Raspberry Pi 5 top view, colour 40-pin map, panel layout, EC11 / vandal / J2, **screw terminal**, **NVMe Base Duo**, **panel USB**, **Active Cooler**, wire gauge and colours. Source: [LINUX-KIOSK-WIRING.html](LINUX-KIOSK-WIRING.html). The sections below are the same facts in text.
 
-**Buy list (survives dead shop links):** [HARDWARE.md](HARDWARE.md) — SKU / EAN / size / substitute. Manufacturer PDFs in [hardware-archive/](hardware-archive/).
+**Buy list (survives dead shop links):** [HARDWARE.md](HARDWARE.md) — SKU / EAN / size / substitute, **must do** and shop suggestions. Manufacturer PDFs in [hardware-archive/](hardware-archive/). Assemble checklist: **§2.13**.
 
 ### 2.1 Power and USB
 
-- Pi 5 on the official USB-C 5 V / 5 A supply. USB-C on the Pi is **power only**.
+- Pi 5 on the official USB-C 5 V / 5 A supply. USB-C on the Pi is **power only**. **Clamp** that plug and **HDMI0** to the case. Do **not** use a USB-C extension.
 - Optional panel **power** is **J2**, not GPIO — **§2.8**. Without it, plug in USB-C and the Pi boots.
 - P047 on its own supply; USB cable to a Pi **USB 2** port is **data only** if the printer has a separate PSU.
 - USB stick through the **27 mm panel USB 3.0** socket — **§2.11**. Automount under `/media/<user>/…` or `/run/media/…` is enough; the kiosk polls those paths.
@@ -176,9 +178,9 @@ DFRobot Fermion EC11 (SEN0235) silk:
 
 If turning the **file** knob moves the highlight the wrong way, use **Reverse** on the file knob in settings (or `encoder_swap = true`, or swap A and B). Same for the mill knob (`encoder_mill_swap`). SEN0235 is **20 pulses** per turn (one detent per pulse). **Ticks per tooth** is shared: GPIO ticks from one rest valley to the next. Start at **2** if one click skips two files. The list (or mill) changes halfway, so a small wiggle at rest does not skip. The file list and the mill list **wrap**: past the last name is the first, past the first is the last.
 
-### 2.5 Screen orientation
+### 2.5 Screen (Waveshare 13857)
 
-The panel is 800×600 landscape electronics, mounted as portrait. The OS must present **600×800**.
+The panel is a Waveshare **7″ HDMI LCD (C)** (SKU **13857**). Native mode is **1024×600** landscape. That is what the app uses (`width = 1024`, `height = 600`). Plug micro-HDMI into **HDMI0** (next to USB-C). Do **not** rotate the desktop unless the LCD is physically mounted on its side. If `/etc/fh6parse-kiosk.ini` still has `width = 600` / `height = 800` from the old panel, change those two lines **or** set **Screen** in **F2** (saved to `ui.ini`, overlay wins).
 
 On Raspberry Pi OS the default is **Wayland**. Switch to **X11** (tkinter + screensaver `xset` are unreliable on Wayland/labwc):
 
@@ -190,19 +192,17 @@ sudo raspi-config
 - **System Options → Boot / Auto Login → Desktop autologin**
 - Reboot
 
-Then rotate. Either:
-
-**Screen Configuration** (desktop): HDMI output → Orientation **right** or **left** until the picture matches the physical panel. Apply and “OK”.
+Then confirm the mode. **Screen Configuration** (desktop): HDMI output should show **1024×600**. Apply and “OK”.
 
 Or in a terminal after login:
 
 ```
-xrandr --output HDMI-A-1 --rotate right
+xrandr --output HDMI-A-1 --mode 1024x600
 ```
 
-(Use `xrandr` with no arguments to see the output name: `HDMI-A-1`, `HDMI-1`, … . Pi 5 KMS is usually `HDMI-A-1` for HDMI0.)
+(Use `xrandr` with no arguments to see the output name: `HDMI-A-1`, `HDMI-1`, … . Pi 5 KMS is usually `HDMI-A-1` for HDMI0.) Rotate only if the case is portrait: `xrandr --output HDMI-A-1 --rotate right` then set `width = 600` and `height = 1024` in the kiosk ini.
 
-To make rotation survive reboot, add the same `xrandr` line to `~/.config/autostart/` or `/etc/xdg/lxsession/LXDE-pi/autostart`.
+To make a mode or rotation survive reboot, add the same `xrandr` line to `~/.config/autostart/` or `/etc/xdg/lxsession/LXDE-pi/autostart`.
 
 Do not use legacy `display_rotate=` in `/boot/firmware/config.txt`. Pi 5 is KMS-only.
 
@@ -344,7 +344,33 @@ Keep the P047 on a **separate** Pi USB-A (USB 2 is enough). Do not daisy the pri
 
 ### 2.12 Active Cooler
 
-Official Raspberry Pi **Active Cooler** (heatsink + PWM fan) — [Botland RPI-23925](https://botland.store/raspberry-pi-5-mounting-elements/23925-raspberry-pi-active-cooler-heatsink-fan-for-raspberry-pi-5-5056561803357.html). Pi 5 only. Clip the heatsink onto the SoC; plug the **4-pin** lead into the **FAN** header next to GPIO pin 1 (VCC, GND, PWM, tach). Firmware drives the fan; fh6parse does not. Compatible with the NVMe Duo **under** the Pi. Seat this cable **before** the GPIO screw terminal. If the terminal still will not clear the cooler, use a GPIO riser (**§2.9**). The spring clips are not meant for repeated removal.
+Official Raspberry Pi **Active Cooler** (heatsink + PWM fan) — [Botland RPI-23925](https://botland.store/raspberry-pi-5-mounting-elements/23925-raspberry-pi-active-cooler-heatsink-fan-for-raspberry-pi-5-5056561803357.html). Pi 5 only. Clip the heatsink onto the SoC; plug the **4-pin** lead into the **FAN** header next to GPIO pin 1 (VCC, GND, PWM, tach). Firmware drives the fan; fh6parse does not. Compatible with the NVMe Duo **under** the Pi. Seat this cable **before** the GPIO screw terminal. If the terminal still will not clear the cooler, use a GPIO riser (**§2.9**). The spring clips are not meant for repeated removal. Print the case in **PETG** with vents above this fan and below the Duo (**§2.13**).
+
+### 2.13 Must do and shop suggestions
+
+Same tables: [HARDWARE.md](HARDWARE.md). The parts list is coherent; shop failures are **connectors and heat**, not missing SKUs.
+
+**Must do at assemble**
+
+| Do | If you skip it |
+| --- | --- |
+| Never put **5 V** on a BCM pin. LED rings on pin 2 only. RUN is **brown**, not red. | Dead Pi |
+| Seat the **PCIe flex** with power off, both clips locked, no crease. The four Duo standoffs carry the sandwich. Keep a spare **PIM702 / PIM703** in the drawer. | Black screen; OS is on that cable; SD slot often blocked |
+| **Clamp USB-C and micro-HDMI0** to the case. Official 27 W cable only — **no USB-C extension** (PD 5 A dies). | Undervoltage / blank panel after vibration |
+| Screw-terminal silk is **BCM** (`IO17` = GPIO 17, not header pin 17). Pin 1 at USB-C. Do not rotate a riser. | 3.3 V on a GPIO or one-pin-over short |
+| **PETG** case, vents **above** the Active Cooler and **below** the Duo. Do not pack foam on the blower. | Thermal throttle / PLA warp |
+| Strain-relieve the GPIO bundle and the USB 3 pigtail to the **case**, not the Pi. Thick boss + nut/washer on the 27 mm USB hole. | Walked header / cracked print |
+
+**Suggestions (first month in the shop)**
+
+- Keep the USB 3 pigtail off the encoder loom (USB 3 is noisy).
+- Solder or glue the EC11 Dupont end; the Pi end is already screws.
+- Cable-tie a GPIO riser so it cannot lift.
+- Threadlocker on the 2230 M2; check after a week of vibration.
+- Dummy USB plug when idle; coarse foam on the cooler intake (CNC dust).
+- 27 W brick close to the Pi.
+
+Leave unless it bites: J2 halt, UPS, slot B clone, PCIe Gen 3, RAID. Git **UPDATE** does not rewrite the boot partition; a power cut during `apt` / EEPROM still can.
 
 ---
 
@@ -440,6 +466,7 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `idle_seconds` | 60 | Black screen after this many seconds. `0` disables. |
+| `width` / `height` | 1024 / 600 | Waveshare 13857 native. Change in **settings** (**F2**) or here. Saved in `ui.ini`. Window size when fullscreen is off. |
 | `encoder_clk` / `encoder_dt` | 17 / 27 | File knob BCM pins (EC11 **A** / **B**). Change in **settings** or here. |
 | `encoder_mill_clk` / `encoder_mill_dt` | 5 / 6 | Mill knob BCM pins (header 29 / 31). |
 | `encoder_swap` / `encoder_mill_swap` | false | Reverse file knob / mill knob if the list moves the wrong way. Same as **Reverse** in settings. |
@@ -453,7 +480,7 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | `extensions` | `.nc,.tap` | File types (case-insensitive) |
 | `extra_roots` | (empty) | Extra folders to list, comma-separated (for testing) |
 | `model_roots` | (empty) | Optional company `.stp` folders. USB stick is searched first. See **§3.7**. |
-| `language` | `pl` | Screen language: `pl` (default) or `en`. Change on the kiosk in **settings** (**F2** / **C**, or click **PL** / **EN**). GPIO pins, mill, and encoder ticks are on the same panel. Stored in `~/.config/fh6parse/ui.ini` (and in this ini if it is writable). |
+| `language` | `pl` | Screen language: `pl` (default) or `en`. Change on the kiosk in **settings** (**F2** / **C**, or click **PL** / **EN**). Mill is on that first page; ticket ticks, GPIO, and knobs are submenus. Stored in `~/.config/fh6parse/ui.ini` (and in this ini if it is writable). |
 | `machine` | `default` | Id of the mill used for cycle time (`[machine.<id>]` below). Change in **settings**. |
 | `fullscreen` | true | Shop display. Escape once exits fullscreen. |
 
@@ -730,11 +757,12 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | **Add mill…** missing / mill list is only Default | Clone is older than this pull. Settings → **Add mill…**. Saved in `ui.ini` (`[machine.<id>]`). Travel keys `x_min`…`z_max` print the offset rectangle. |
 | Screen stays in English and **F2** does nothing | Wake first if the screen is black. Click the **EN** chip next to **v…**. Encoder never opens settings. |
 | Black screen immediately | Desktop blanking plus app DPMS. Disable LXDE idle blank; keep kiosk `idle_seconds = 60`. |
-| Wrong aspect / sideways UI | Rotate until `xdpyinfo` (or Screen Configuration) shows 600×800. App geometry is 600×800 fullscreen. Pi 5 output is often `HDMI-A-1`. |
+| Wrong aspect / sideways UI | `xdpyinfo` / Screen Configuration should show **1024×600**. App geometry is 1024×600 fullscreen. Do not rotate a landscape Waveshare 13857. Pi 5 output is often `HDMI-A-1`. |
 | Service dead, UI never starts | `echo $DISPLAY` in a desktop terminal should be `:0`. `raspi-config` → X11, desktop autologin. `journalctl -u fh6parse-kiosk`. Unit `User=` must be `kiosk`. |
 | Pi stays on after halt / no panel power | J2 is optional. USB-C unplug/replug boots. Do not set `WAIT_FOR_POWER_BUTTON=1` unless J2 is wired. PCB power button is the same as J2. See **§2.8**. |
-| Undervoltage / random reboots | Official 27 W PSU. A phone charger or Pi 3 supply is not enough. The Pi 512 GB SSD is 2.8 W max; LED rings stay on the same PSU. |
-| `lsblk` has no `nvme0n1` | Power off. Reseat both FPC clips: **ADDON** on the Duo, **RPI 5** on the Pi. Firmware `sudo rpi-eeprom-update` dated 2024-05-17 or later. Official Pi **2230** SSD in Duo **slot A** (2230 hole, not 2280). Do not leave it on the kit M.2 HAT+. |
+| Undervoltage / random reboots | Official 27 W PSU, **no USB-C extension**, cable clamped. A phone charger or Pi 3 supply is not enough. The Pi 512 GB SSD is 2.8 W max; LED rings stay on the same PSU. |
+| `lsblk` has no `nvme0n1` | Power off. Reseat both FPC clips: **ADDON** on the Duo, **RPI 5** on the Pi. No crease in the flex. Firmware `sudo rpi-eeprom-update` dated 2024-05-17 or later. Official Pi **2230** SSD in Duo **slot A** (2230 hole, not 2280). Do not leave it on the kit M.2 HAT+. Spare flex: PIM702 / PIM703. |
+| Blank / flickering LCD | micro-HDMI0 walked off — clamp it. Port next to USB-C. |
 | Cannot reach the microSD slot | Normal with the Duo **under** the Pi. Boot from NVMe. Rescue SD goes in **before** folding the flex. |
 | Python 3.9 | Wrong image. Flash 64-bit Raspberry Pi OS Desktop for Pi 5. |
 | `--update` says one-file package | This Pi is running the ARM tarball. Copy a new tarball or reinstall from git (**§3.2**). |
@@ -769,7 +797,7 @@ python3 -m fh6parse --format 80mm --stdout /path/program.nc
 | --- | --- |
 | `/home/kiosk/fh6parse` | Source checkout (shop update path) |
 | `/etc/fh6parse-kiosk.ini` | Pins, printer, idle, `model_roots` (never overwritten by **UPDATE**) |
-| `/home/kiosk/.config/fh6parse/ui.ini` | Screen language, mill (including **Add mill…**), GPIO pins, encoder ticks. Written by settings. Survives **UPDATE**. |
+| `/home/kiosk/.config/fh6parse/ui.ini` | Screen language, mill (including **Add mill…**), GPIO pins, encoder ticks, **width / height**. Written by settings. Survives **UPDATE**. |
 | `/etc/systemd/system/fh6parse-kiosk.service` | Autostart |
 | `/etc/sudoers.d/fh6parse-kiosk` | NOPASSWD restart for on-screen **UPDATE** |
 | `packaging/fh6parse-kiosk.ini.example` | Template |
@@ -936,12 +964,14 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Through-holes as ellipses, not filled blobs | |
 | Long shaft is a thin strip across 80 mm | |
 | Print without a cube is still text-only, no wait | |
-| Settings (**F2** / **PL** chip): language, mill / **Add mill…**, LOAD|SET|RUN ticks, file + mill pins, reverse, RUN / LOAD / SET / optional sleep, ticks per tooth, print wait; survives restart | |
+| Settings (**F2** / **PL** chip): language + mill / **Add mill…** on the first page; **LOAD / SET / RUN tickets**, **GPIO pins**, **Knobs and print wait** as submenus (scrollbar + Esc back); mill form has tool length, ATC, offset, G53 travel; survives restart | |
 | Optional spare GPIO (unwired OK): press sleeps, press wakes; print buttons still ignored while black | |
 | Optional J2 power: omit it and USB-C still boots; do not set WAIT_FOR_POWER_BUTTON without J2 | |
 | NVMe Base Duo under the Pi, official 512 GB 2230 in slot A: `lsblk` shows `nvme0n1`; git checkout lives on that disk | |
 | Panel USB 3.0 (27 mm): stick in the enclosure socket lists `.nc`; P047 still on a separate Pi USB-A | |
 | Official Active Cooler on FAN header; GPIO screw terminal on the header **or** a 40-pin riser if it will not fit | |
+| USB-C and HDMI0 clamped to the case; no USB-C extension on the 27 W PSU | |
+| PETG case, vents above the cooler and below the Duo; PCIe flex not creased | |
 | File knob: rest is stable; highlight changes halfway to the next tooth | |
 | Mill knob: mill name next to **v…** changes; persists like **Add mill…** | |
 | Colour chips on the bottom of the screen: green LOAD, yellow SET, red RUN left→right | |

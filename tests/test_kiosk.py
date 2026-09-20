@@ -217,6 +217,64 @@ class TestPrinterStatus(unittest.TestCase):
 
 
 class TestKioskConfig(unittest.TestCase):
+    def test_default_geometry_is_waveshare(self) -> None:
+        from fh6parse.kiosk import KioskConfig
+
+        cfg = KioskConfig()
+        self.assertEqual((cfg.width, cfg.height), (1024, 600))
+
+    def test_overlay_overrides_screen_size(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        from fh6parse.kiosk import save_kiosk_values, ui_overlay_path
+
+        with tempfile.TemporaryDirectory() as home:
+            with patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
+                with tempfile.TemporaryDirectory() as raw:
+                    main = Path(raw) / "kiosk.ini"
+                    main.write_text(
+                        "[kiosk]\nwidth = 800\nheight = 480\n",
+                        encoding="utf-8",
+                    )
+                    save_kiosk_values(
+                        {"width": "1280", "height": "720"},
+                        ui_overlay_path(),
+                    )
+                    cfg = load_kiosk_config(main)
+                    self.assertEqual((cfg.width, cfg.height), (1280, 720))
+
+    def test_screen_size_clamped(self) -> None:
+        from fh6parse.kiosk import _clamp_px
+
+        self.assertEqual(_clamp_px(100, 480, 1920), 480)
+        self.assertEqual(_clamp_px(4000, 480, 1920), 1920)
+
+    def test_mill_form_lists_travel_and_tool_length(self) -> None:
+        from fh6parse.kiosk import MILL_FORM_FIELDS
+
+        keys = {key for key, _default in MILL_FORM_FIELDS}
+        for need in (
+            "machine_tool_len",
+            "machine_atc_x",
+            "machine_offset_z",
+            "machine_x_min",
+            "machine_x_max",
+            "machine_y_min",
+            "machine_z_max",
+        ):
+            self.assertIn(need, keys)
+
+    def test_wheel_steps(self) -> None:
+        from types import SimpleNamespace
+
+        from fh6parse.kiosk import wheel_steps
+
+        self.assertEqual(wheel_steps(SimpleNamespace(num=4, delta=0)), -1)
+        self.assertEqual(wheel_steps(SimpleNamespace(num=5, delta=0)), 1)
+        self.assertEqual(wheel_steps(SimpleNamespace(num=None, delta=120)), -1)
+        self.assertEqual(wheel_steps(SimpleNamespace(num=None, delta=-120)), 1)
+
     def test_reads_idle_and_pins(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "kiosk.ini"
@@ -472,27 +530,32 @@ class TestKioskConfig(unittest.TestCase):
             self.assertAlmostEqual(got.z_min or 0, -508)
 
     def test_reads_last_folder_and_paper(self) -> None:
+        import os
+        from unittest.mock import patch
+
         from fh6parse.kiosk import parse_gui_paper
         from fh6parse.report import PAPER_80MM
 
         self.assertEqual(parse_gui_paper("80mm"), PAPER_80MM)
         self.assertEqual(parse_gui_paper("thermal"), PAPER_80MM)
         self.assertEqual(parse_gui_paper("nope"), "a4")
-        with tempfile.TemporaryDirectory() as raw:
-            path = Path(raw) / "kiosk.ini"
-            nc = Path(raw) / "stick"
-            nc.mkdir()
-            path.write_text(
-                "[kiosk]\n"
-                f"last_nc_dir = {nc.as_posix()}\n"
-                f"last_out_dir = {Path(raw).as_posix()}\n"
-                "last_paper = 80mm\n",
-                encoding="utf-8",
-            )
-            cfg = load_kiosk_config(path)
-            self.assertEqual(Path(cfg.last_nc_dir), nc)
-            self.assertEqual(Path(cfg.last_out_dir), Path(raw))
-            self.assertEqual(cfg.last_paper, PAPER_80MM)
+        with tempfile.TemporaryDirectory() as home:
+            with patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
+                with tempfile.TemporaryDirectory() as raw:
+                    path = Path(raw) / "kiosk.ini"
+                    nc = Path(raw) / "stick"
+                    nc.mkdir()
+                    path.write_text(
+                        "[kiosk]\n"
+                        f"last_nc_dir = {nc.as_posix()}\n"
+                        f"last_out_dir = {Path(raw).as_posix()}\n"
+                        "last_paper = 80mm\n",
+                        encoding="utf-8",
+                    )
+                    cfg = load_kiosk_config(path)
+                    self.assertEqual(Path(cfg.last_nc_dir), nc)
+                    self.assertEqual(Path(cfg.last_out_dir), Path(raw))
+                    self.assertEqual(cfg.last_paper, PAPER_80MM)
 
     def test_overlay_overrides_last_paper(self) -> None:
         import os

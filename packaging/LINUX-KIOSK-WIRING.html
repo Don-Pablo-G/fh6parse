@@ -273,8 +273,8 @@ GPIO is <strong>3.3&nbsp;V</strong>. BCM numbers, not header pin numbers. Option
 <svg viewBox="0 0 1000 186" width="100%" xmlns="http://www.w3.org/2000/svg">
   <rect x="20" y="8" width="200" height="194" rx="6" fill="#222" stroke="#111"/>
   <rect x="36" y="22" width="168" height="128" rx="3" fill="#3a3a3a"/>
-  <text x="120" y="88" text-anchor="middle" fill="#ccc" font-size="12" font-family="Segoe UI, Arial">LCD 800×600</text>
-  <text x="120" y="106" text-anchor="middle" fill="#999" font-size="10" font-family="Segoe UI, Arial">mounted portrait 600×800</text>
+  <text x="120" y="88" text-anchor="middle" fill="#ccc" font-size="12" font-family="Segoe UI, Arial">LCD 1024×600</text>
+  <text x="120" y="106" text-anchor="middle" fill="#999" font-size="10" font-family="Segoe UI, Arial">Waveshare 13857 native</text>
   <text x="120" y="124" text-anchor="middle" fill="#999" font-size="10" font-family="Segoe UI, Arial">HDMI0</text>
   <circle cx="70" cy="174" r="12" fill="#555" stroke="#ddd"/>
   <circle cx="120" cy="174" r="12" fill="#555" stroke="#ddd"/>
@@ -498,7 +498,7 @@ Land these on the <strong>52Pi screw terminal</strong> (same header numbers). Do
       <li>LED rings are tens of mA; pin 2 is enough. The official <strong>USB-C 5&nbsp;V / 5&nbsp;A</strong> cable is the only high-current wire.</li>
       <li>Sleeve the run in PET braid. Hot-glue strain relief at the panel.</li>
     </ul>
-    <p class="fine">One kiosk: ferrule + Faston + braid. FAN cable (Active Cooler) before the GPIO block. Terminal on a 40-pin riser if it will not fit. NVMe Base Duo under the Pi. Official Pi 512&nbsp;GB 2230 in slot A. Panel USB 3.0 27&nbsp;mm to a Pi USB 3 port; P047 on USB 2.</p>
+    <p class="fine">Must: no 5&nbsp;V on BCM; PCIe flex seated, no crease; clamp USB-C + HDMI0 (no USB-C extension); PETG vents above cooler / below Duo; strain-relieve to the case. One kiosk: ferrule + Faston + braid. Terminal on a 40-pin riser if it will not fit. Official Pi 512&nbsp;GB 2230 in Duo slot A. Panel USB 3.0 27&nbsp;mm to Pi USB 3; P047 on USB 2.</p>
   </div>
 </div>
 <p class="fine">fh6parse 1.4.0 · Raspberry Pi 5. Same facts in LINUX-KIOSK.md §2.9.</p>

@@ -8,9 +8,9 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 
 ## 1. Codziennie
 
-1. Włącz kiosk. Na ekranie: **Włóż pendrive** (albo lista z poprzedniego kija, jeśli został w gnieździe).
-2. Włóż pendrive. Programy **`.nc` / `.tap` w katalogu głównym** kija (nie w podfolderach) pojawiają się na liście. Przy liczbie plików: **Można wyjąć** = wolno wyciągnąć kij. **Czytanie pendrive — czekaj** = kiosk jeszcze czyta (podgląd albo kopiuje STEP) — nie wyrywaj.
-3. Pokrętłem **pliku** podświetl program (za ostatnim wraca na pierwszy). Drugie pokrętło wybiera obrabiarkę (też się zawija; nazwa obok wersji). Pod listą widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz. Jeśli na kiju nadpiszesz ten sam `.nc`, podgląd sam się odświeży — poczekaj aż zniknie **Czytanie…**, potem LOAD / SET / RUN. Lista i trzy kolorowe pola na dole są duże — pola stoją nad przyciskami.
+1. Włącz kiosk. Na ekranie: **Włóż pendrive** (albo lista z poprzedniego pendrive, jeśli został w gnieździe).
+2. Włóż pendrive. Programy **`.nc` / `.tap` w katalogu głównym** pendrive (nie w podfolderach) pojawiają się na liście. Przy liczbie plików: **Można wyjąć** = wolno wyciągnąć pendrive. **Czytanie pendrive — czekaj** = kiosk jeszcze czyta (podgląd albo kopiuje STEP) — nie wyrywaj.
+3. Pokrętłem **pliku** podświetl program (za ostatnim wraca na pierwszy). Drugie pokrętło wybiera obrabiarkę (też się zawija; nazwa obok wersji). Pod listą widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz. Jeśli na pendrive nadpiszesz ten sam `.nc`, podgląd sam się odświeży — poczekaj aż zniknie **Czytanie…**, potem LOAD / SET / RUN. Lista i trzy kolorowe pola na dole są duże — pola stoją nad przyciskami.
 4. Przycisk **zielony LOAD** (lewy, pod ekranem) — bilet operatora (T, H/D/S, Min Z, kratki załadunku, podpis). Treść zmieniasz w **F2**.
 5. Przycisk **żółty SET** (środek) — bilet ustawiacza (program, mill, STEP gdy gotowy, prostokąt offsetu, czas cyklu bez wykresu, uwagi `!`).
 6. Przycisk **czerwony RUN** (prawy) — pełny bilet 80 mm (STEP, offset, operacje, czas, rozkład G0/skrawanie/ATC, lista narzędzi, każda wymiana Txx / M00). Bez kratek załadunku i podpisu.
@@ -26,15 +26,15 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 
 | Widok | Znaczenie |
 | --- | --- |
-| **Włóż pendrive** | Brak kija albo brak `.nc` / `.tap` w korzeniu kija |
-| **Można wyjąć** przy liczbie plików | Kiosk nie czyta kija — wolno wyciągnąć |
-| **Czytanie pendrive — czekaj** | Podgląd albo kopia STEP z kija — nie wyrywaj |
+| **Włóż pendrive** | Brak pendrive albo brak `.nc` / `.tap` w korzeniu pendrive |
+| **Można wyjąć** przy liczbie plików | Kiosk nie czyta pendrive — wolno wyciągnąć |
+| **Czytanie pendrive — czekaj** | Podgląd albo kopia STEP z pendrive — nie wyrywaj |
 | Żółta **kostka 3D** przy pliku | Widok izometryczny gotowy do druku |
 | **3D gotowe** przy kostce | Ten plik ma rysunek — można drukować z izometrią |
-| **szuka…** | Szuka pasującego `.stp` na kiju albo udziale — poczekaj albo drukuj tekst |
+| **szuka…** | Szuka pasującego `.stp` na pendrive albo udziale — poczekaj albo drukuj tekst |
 | **liczy…** | Znalazł model, rysuje izometrię — poczekaj albo drukuj tekst |
-| **brak STEP** | Brak pasującego `.stp` (kij i udział). Drukuj tekst |
-| **Z: wył.** | Firmowy udział (dysk Z:) nieosiągalny. Kij bez `.stp` = tylko tekst |
+| **brak STEP** | Brak pasującego `.stp` (pendrive i udział). Drukuj tekst |
+| **Z: wył.** | Firmowy udział (dysk Z:) nieosiągalny. Pendrive bez `.stp` = tylko tekst |
 | **brak CAD** | Na kiosku nie ma bibliotek 3D — serwis (`pip … [models]`). Drukuj tekst |
 | Izometria pod podświetleniem | Ten sam rysunek co na bilecie — zły STEP widać przed drukiem |
 | **v1.4.0+……** u góry | Wersja programu (1.4.0) i skrót gita tego checkoutu. Żółty **AKTUALIZUJ** pojawia się, gdy origin jest nowszy |
@@ -96,10 +96,10 @@ Pokrętło **nie otwiera** ustawień.
 
 | Co | Jak |
 | --- | --- |
-| Otwórz ustawienia | **F2** albo **C**, albo kliknij **PL** / **EN** przy wersji. Tam treść LOAD / SET / RUN |
+| Otwórz ustawienia | **F2** albo **C**, albo kliknij **PL** / **EN** przy wersji. Język, obrabiarka i rozdzielczość na pierwszej stronie; bilety, GPIO i pokrętła w osobnych menu |
 | Język | **Polski** / **English** — dotyczy ekranu **i** biletu |
-| Obrabiarka | Drugie pokrętło, **+** / **−**, albo **Dodaj obrabiarkę…** (nazwa, szybkie m/min, B/C, czas wymiany, opcjonalnie max obr./min, ATC X/Y/Z, offset X/Y/Z i skok min/max) — od tego liczony jest czas cyklu i prostokąt offsetu |
-| Zamknij | **Esc**: najpierw formularz obrabiarki, potem ustawienia |
+| Obrabiarka | Drugie pokrętło, **+** / **−**, albo **Dodaj obrabiarkę…** (nazwa, szybkie m/min, B/C, czas wymiany, długość narzędzia, max obr./min, ATC X/Y/Z, offset X/Y/Z i skok min/max) — od tego liczony jest czas cyklu i prostokąt offsetu |
+| Zamknij | **Esc**: formularz obrabiarki, potem menu, potem ustawienia |
 
 Język i obrabiarka zapamiętują się po restarcie.
 
@@ -116,8 +116,8 @@ Język i obrabiarka zapamiętują się po restarcie.
 
 ## 8. Widok 3D i dokumentacja firmowa
 
-- Najlepiej: `.stp` / `.step` **obok** `.nc` na pendrive (albo w podfolderze na tym samym kiju).
-- Jeśli kija nie ma modelu, kiosk może czytać firmowy udział (to, co na biurze jest dyskiem **Z:**), **tylko do odczytu**.
+- Najlepiej: `.stp` / `.step` **obok** `.nc` na pendrive (albo w podfolderze na tym samym pendrive).
+- Jeśli na pendrive nie ma modelu, kiosk może czytać firmowy udział (to, co na biurze jest dyskiem **Z:**), **tylko do odczytu**.
 - Kostka 3D = rysunek gotowy. Brak kostki = drukuj tekst. Nie czekaj.
 - Zły detal na podglądzie izometrii = zły STEP albo zła rewizja — nie drukuj w ciemno.
 
@@ -127,7 +127,7 @@ Język i obrabiarka zapamiętują się po restarcie.
 
 | Objaw | Co spróbować |
 | --- | --- |
-| Włóż pendrive i pusto | Pliki `.nc` / `.tap` **w korzeniu** kija, FAT32. Wyjmij i włóż ponownie |
+| Włóż pendrive i pusto | Pliki `.nc` / `.tap` **w korzeniu** pendrive, FAT32. Wyjmij i włóż ponownie |
 | Podgląd nie zgadza się z plikiem | Nadpisany `.nc` o tej samej nazwie? Czekaj na koniec **Czytanie…**. Nie wyrywaj przy **Czytanie pendrive — czekaj** |
 | Pokrętło pliku nic nie robi | Ekran czarny? Najpierw obudź. Dalej — serwis (przewody CLK/DT 17/27) |
 | Pokrętło mill nic nie robi | Druga obrabiarka w ustawieniach? Przewody 5/6 (złącze 29/31). Serwis |
@@ -145,4 +145,4 @@ Nie kopiuj programów na kiosk. Nie kasuj nic z udziału firmowego. Nie aktualiz
 
 ## 10. Serwis (nie operator)
 
-Okablowanie GPIO, X11, drukarka `/dev/usb/lp0`, git, udział `//serwer/…` → `/mnt/fh6parse-cad`: **`packaging/LINUX-KIOSK.md`**. Plakat pinów Pi 5 i **przewody** (przekrój, kolory, Faston): **`packaging/LINUX-KIOSK-WIRING.pdf`**. Lista zakupów (SKU / EAN gdy sklep padnie): **`packaging/HARDWARE.md`**. Tablica zaciskowa GPIO ([Kamami 588019](https://kamami.pl/prototypowanie-raspberry-pi/588019-modul-hat-ze-zlaczami-srubowymi-dla-raspberry-pi-5906623475650.html)) na 40 pinach — ten sam układ co Pi 4B; jeśli nie wejdzie obok Active Cooler, na **przedłużce GPIO** (riser). Płytka dysku: **NVMe Base Duo** (Pimoroni PIM704) **pod** Pi 5. Dysk: oficjalny Raspberry Pi **512 GB 2230** z zestawu SSD Kit (Botland RPI-25484) — **tylko SSD**, nie HAT+ z pudełka. Chłodzenie: oficjalny **Active Cooler** (Botland RPI-23925) na złączu FAN. Pendrive: metalowe gniazdo USB 3.0 A **27 mm** na obudowie ([Allegro](https://allegro.pl/oferta/gniazdo-usb-3-0-typu-a-metalowe-do-zabudowy-na-pendrive-panelowe-27-mm-17741983408)), pigtail do USB 3 w Pi.
+Okablowanie GPIO, X11, drukarka `/dev/usb/lp0`, git, udział `//serwer/…` → `/mnt/fh6parse-cad`: **`packaging/LINUX-KIOSK.md`**. Plakat pinów Pi 5 i **przewody** (przekrój, kolory, Faston): **`packaging/LINUX-KIOSK-WIRING.pdf`**. Lista zakupów (SKU / EAN gdy sklep padnie) i **must-do** (klips PCIe, zacisk USB-C/HDMI0, PETG, otwory wentylacyjne): **`packaging/HARDWARE.md`**, **`LINUX-KIOSK.md` §2.13**. Tablica zaciskowa GPIO ([Kamami 588019](https://kamami.pl/prototypowanie-raspberry-pi/588019-modul-hat-ze-zlaczami-srubowymi-dla-raspberry-pi-5906623475650.html)) na 40 pinach — ten sam układ co Pi 4B; jeśli nie wejdzie obok Active Cooler, na **przedłużce GPIO** (riser). Płytka dysku: **NVMe Base Duo** (Pimoroni PIM704) **pod** Pi 5. Dysk: oficjalny Raspberry Pi **512 GB 2230** z zestawu SSD Kit (Botland RPI-25484) — **tylko SSD**, nie HAT+ z pudełka. Chłodzenie: oficjalny **Active Cooler** (Botland RPI-23925) na złączu FAN. Pendrive: metalowe gniazdo USB 3.0 A **27 mm** na obudowie ([Allegro](https://allegro.pl/oferta/gniazdo-usb-3-0-typu-a-metalowe-do-zabudowy-na-pendrive-panelowe-27-mm-17741983408)), pigtail do USB 3 w Pi.

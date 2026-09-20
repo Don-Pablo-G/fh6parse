@@ -1,4 +1,4 @@
-"""Portrait USB kiosk for Raspberry Pi 5: file + mill encoders, three print buttons, optional sleep GPIO, screensaver."""
+"""Landscape USB kiosk for Raspberry Pi 5 (Waveshare 1024×600): file + mill encoders, three print buttons, optional sleep GPIO, screensaver."""
 
 from __future__ import annotations
 
@@ -85,6 +85,12 @@ BCM_MAX = 27
 ENCODER_STEPS_MAX = 16
 BUTTON_DELAY_MAX = 30.0
 BUTTON_DELAY_STEP = 0.5
+PX_WIDTH_MIN = 480
+PX_WIDTH_MAX = 1920
+PX_HEIGHT_MIN = 320
+PX_HEIGHT_MAX = 1200
+PX_STEP = 8
+SCREEN_NATIVE = (1024, 600)
 PREVIEW_DEBOUNCE_MS = 180
 PREVIEW_CACHE_MAX = 40
 FileStamp = tuple[float, int]
@@ -103,6 +109,8 @@ UI_OVERLAY_KEYS = (
     "button_set",
     "button_spare",
     "button_delay",
+    "width",
+    "height",
     "machine",
     "report_load",
     "report_set",
@@ -214,10 +222,44 @@ def format_button_delay(seconds: float) -> str:
     return f"{float(seconds):.1f} s"
 
 
+def wheel_steps(event: tk.Event) -> int:
+    """Mouse-wheel / trackpad delta as integer canvas scroll units."""
+    num = getattr(event, "num", None)
+    if num == 4:
+        return -1
+    if num == 5:
+        return 1
+    delta = int(getattr(event, "delta", 0) or 0)
+    if not delta:
+        return 0
+    if abs(delta) >= 120:
+        return int(-delta / 120)
+    return -1 if delta > 0 else 1
+
+
+def bind_mousewheel(widget: tk.Misc, handler) -> None:
+    widget.bind("<MouseWheel>", handler)
+    widget.bind("<Button-4>", handler)
+    widget.bind("<Button-5>", handler)
+
+
+def bind_mousewheel_tree(widget: tk.Misc, handler) -> None:
+    bind_mousewheel(widget, handler)
+    for child in widget.winfo_children():
+        bind_mousewheel_tree(child, handler)
+
+
+def scroll_canvas(canvas: tk.Canvas, event: tk.Event) -> str:
+    steps = wheel_steps(event)
+    if steps:
+        canvas.yview_scroll(steps, "units")
+    return "break"
+
+
 @dataclass
 class KioskConfig:
-    width: int = 600
-    height: int = 800
+    width: int = 1024
+    height: int = 600
     fullscreen: bool = True
     idle_seconds: float = 60.0
     encoder_clk: int = 17
@@ -735,6 +777,25 @@ def _clamp_button_delay(value: float) -> float:
     return max(0.0, min(BUTTON_DELAY_MAX, round(v, 1)))
 
 
+def _clamp_px(value: int, lo: int, hi: int) -> int:
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return lo
+    return max(lo, min(hi, v))
+
+
+def _apply_size_section(cfg: KioskConfig, src: configparser.SectionProxy) -> None:
+    if "width" in src:
+        cfg.width = _clamp_px(
+            src.getint("width", fallback=cfg.width), PX_WIDTH_MIN, PX_WIDTH_MAX
+        )
+    if "height" in src:
+        cfg.height = _clamp_px(
+            src.getint("height", fallback=cfg.height), PX_HEIGHT_MIN, PX_HEIGHT_MAX
+        )
+
+
 def _ini_bcm(src: configparser.SectionProxy, *keys: str, default: int) -> int:
     for key in keys:
         if key in src:
@@ -802,6 +863,7 @@ def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
             src = parser["kiosk"]
             cfg.width = src.getint("width", fallback=cfg.width)
             cfg.height = src.getint("height", fallback=cfg.height)
+            _apply_size_section(cfg, src)
             cfg.fullscreen = src.getboolean("fullscreen", fallback=cfg.fullscreen)
             cfg.idle_seconds = src.getfloat("idle_seconds", fallback=cfg.idle_seconds)
             _apply_gpio_section(cfg, src)
@@ -836,6 +898,7 @@ def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
             if over:
                 cfg.language = parse_language(over, default=KIOSK_DEFAULT)
             _apply_gpio_section(cfg, over_sec)
+            _apply_size_section(cfg, over_sec)
             over_m = over_sec.get("machine", "").strip()
             if over_m:
                 machine_id = over_m
@@ -917,6 +980,7 @@ class KioskApp(tk.Tk):
         self._pending_update: UpdateCheck | None = None
         self._lang = parse_language(cfg.language, default=KIOSK_DEFAULT)
         self._config_open = False
+        self._config_page = "home"
         self._mill_open = False
         self._enc_leftover = 0
         self._mill_leftover = 0
@@ -937,7 +1001,7 @@ class KioskApp(tk.Tk):
         self.title(t(self._lang, "app_title_kiosk", version=display_version()))
         self.configure(bg=BG)
         self.geometry(f"{cfg.width}x{cfg.height}")
-        self.minsize(480, 640)
+        self.minsize(800, 480)
         if cfg.fullscreen:
             self.attributes("-fullscreen", True)
         self.bind("<Escape>", self._on_escape)
@@ -1137,6 +1201,34 @@ class KioskApp(tk.Tk):
             setattr(self, attr, lbl)
         row.pack(fill=tk.X, pady=(10, 0))
 
+    def _settings_wrap(self, extra: int = 120) -> int:
+        return max(200, int(self.cfg.width) - extra)
+
+    def _make_scroll_body(self, parent: tk.Frame):
+        body = tk.Frame(parent, bg="#1a1a1a")
+        canvas = tk.Canvas(body, bg="#1a1a1a", highlightthickness=0, bd=0)
+        scroll = tk.Scrollbar(body, command=canvas.yview, width=18)
+        inner = tk.Frame(canvas, bg="#1a1a1a")
+        win = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _inner_cfg(_event=None) -> None:
+            bbox = canvas.bbox("all")
+            if bbox is not None:
+                canvas.configure(scrollregion=bbox)
+
+        def _canvas_cfg(event) -> None:
+            canvas.itemconfigure(win, width=max(1, event.width))
+
+        inner.bind("<Configure>", _inner_cfg)
+        canvas.bind("<Configure>", _canvas_cfg)
+        canvas.configure(yscrollcommand=scroll.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        handler = lambda e, c=canvas: scroll_canvas(c, e)
+        bind_mousewheel(canvas, handler)
+        bind_mousewheel(inner, handler)
+        return body, canvas, inner, handler
+
     def _build_config_panel(self, small, update_font) -> None:
         panel = tk.Frame(
             self,
@@ -1147,71 +1239,68 @@ class KioskApp(tk.Tk):
             pady=8,
         )
         self._config = panel
-        canvas = tk.Canvas(
-            panel, bg="#1a1a1a", highlightthickness=0, bd=0
-        )
-        scroll = tk.Scrollbar(panel, command=canvas.yview)
-        inner = tk.Frame(canvas, bg="#1a1a1a")
-        self._config_inner = inner
-        win = canvas.create_window((0, 0), window=inner, anchor="nw")
-
-        def _inner_cfg(_event=None) -> None:
-            canvas.configure(scrollregion=canvas.bbox("all"))
-
-        def _canvas_cfg(event) -> None:
-            canvas.itemconfigure(win, width=max(1, event.width))
-
-        inner.bind("<Configure>", _inner_cfg)
-        canvas.bind("<Configure>", _canvas_cfg)
-        canvas.configure(yscrollcommand=scroll.set)
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scroll.pack(side=tk.RIGHT, fill=tk.Y)
-
-        def _wheel(event) -> str:
-            delta = int(-event.delta / 120) if event.delta else 0
-            if event.num == 4:
-                delta = -1
-            elif event.num == 5:
-                delta = 1
-            if delta:
-                canvas.yview_scroll(delta, "units")
-            return "break"
-
-        for widget in (canvas, inner):
-            widget.bind("<MouseWheel>", _wheel)
-            widget.bind("<Button-4>", _wheel)
-            widget.bind("<Button-5>", _wheel)
-        self._config_canvas = canvas
-        self._bind_config_wheel = _wheel
-        panel = inner
-
+        head = tk.Frame(panel, bg="#1a1a1a")
+        head.pack(fill=tk.X, padx=4, pady=(4, 0))
         self._config_title = tk.Label(
-            inner,
+            head,
             text=t(self._lang, "settings"),
             font=update_font,
             bg="#1a1a1a",
             fg=ACCENT,
         )
-        self._config_title.pack(anchor="w", padx=10, pady=(8, 0))
+        self._config_title.pack(side=tk.LEFT, anchor="w")
+        self._btn_config_back = tk.Button(
+            head,
+            text=t(self._lang, "settings_back"),
+            font=small,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+            cursor="hand2",
+            command=lambda: self._show_config_page("home"),
+        )
+
+        body, canvas, inner, handler = self._make_scroll_body(panel)
+        self._config_canvas = canvas
+        self._config_inner = inner
+        self._bind_config_wheel = handler
+        body.pack(fill=tk.BOTH, expand=True, pady=(4, 0))
+
+        wrap = self._settings_wrap()
+        self._config_pages: dict[str, tk.Frame] = {}
+        home = tk.Frame(inner, bg="#1a1a1a")
+        reports = tk.Frame(inner, bg="#1a1a1a")
+        gpio = tk.Frame(inner, bg="#1a1a1a")
+        knobs = tk.Frame(inner, bg="#1a1a1a")
+        self._config_pages = {
+            "home": home,
+            "reports": reports,
+            "gpio": gpio,
+            "knobs": knobs,
+        }
+
         self._config_blurb = tk.Label(
-            inner,
+            home,
             text=t(self._lang, "settings_blurb"),
             font=small,
             bg="#1a1a1a",
             fg=MUTED,
-            wraplength=self.cfg.width - 80,
+            wraplength=wrap,
             justify="left",
         )
-        self._config_blurb.pack(anchor="w", padx=10, pady=(8, 12))
+        self._config_blurb.pack(anchor="w", pady=(0, 10))
         self._config_lang_lbl = tk.Label(
-            inner,
+            home,
             text=t(self._lang, "language"),
             font=small,
             bg="#1a1a1a",
             fg="#eeeeee",
         )
         self._config_lang_lbl.pack(anchor="w", pady=(0, 8))
-        row = tk.Frame(panel, bg="#1a1a1a")
+        row = tk.Frame(home, bg="#1a1a1a")
         row.pack(fill=tk.X, pady=(0, 12))
         self._btn_pl = tk.Button(
             row,
@@ -1236,15 +1325,135 @@ class KioskApp(tk.Tk):
         )
         self._btn_en.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0), ipady=10)
 
+        self._config_screen_lbl = tk.Label(
+            home,
+            text=t(self._lang, "screen_size"),
+            font=small,
+            bg="#1a1a1a",
+            fg="#eeeeee",
+        )
+        self._config_screen_lbl.pack(anchor="w", pady=(4, 4))
+        size_row = tk.Frame(home, bg="#1a1a1a")
+        size_row.pack(fill=tk.X)
+        self._config_width_lbl = tk.Label(
+            size_row,
+            text=t(self._lang, "screen_width"),
+            font=small,
+            bg="#1a1a1a",
+            fg=MUTED,
+        )
+        self._config_width_lbl.pack(side=tk.LEFT)
+        tk.Button(
+            size_row,
+            text="−",
+            font=update_font,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            relief="flat",
+            bd=0,
+            width=3,
+            cursor="hand2",
+            command=lambda: self._bump_screen("width", -PX_STEP),
+        ).pack(side=tk.LEFT, padx=(8, 0))
+        self._width_value_lbl = tk.Label(
+            size_row,
+            text=str(self.cfg.width),
+            font=update_font,
+            bg="#1a1a1a",
+            fg=ACCENT,
+            width=5,
+        )
+        self._width_value_lbl.pack(side=tk.LEFT, padx=6)
+        tk.Button(
+            size_row,
+            text="+",
+            font=update_font,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            relief="flat",
+            bd=0,
+            width=3,
+            cursor="hand2",
+            command=lambda: self._bump_screen("width", PX_STEP),
+        ).pack(side=tk.LEFT)
+        height_row = tk.Frame(home, bg="#1a1a1a")
+        height_row.pack(fill=tk.X, pady=(4, 0))
+        self._config_height_lbl = tk.Label(
+            height_row,
+            text=t(self._lang, "screen_height"),
+            font=small,
+            bg="#1a1a1a",
+            fg=MUTED,
+        )
+        self._config_height_lbl.pack(side=tk.LEFT)
+        tk.Button(
+            height_row,
+            text="−",
+            font=update_font,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            relief="flat",
+            bd=0,
+            width=3,
+            cursor="hand2",
+            command=lambda: self._bump_screen("height", -PX_STEP),
+        ).pack(side=tk.LEFT, padx=(8, 0))
+        self._height_value_lbl = tk.Label(
+            height_row,
+            text=str(self.cfg.height),
+            font=update_font,
+            bg="#1a1a1a",
+            fg=ACCENT,
+            width=5,
+        )
+        self._height_value_lbl.pack(side=tk.LEFT, padx=6)
+        tk.Button(
+            height_row,
+            text="+",
+            font=update_font,
+            bg="#333333",
+            fg="#eeeeee",
+            activebackground="#444444",
+            relief="flat",
+            bd=0,
+            width=3,
+            cursor="hand2",
+            command=lambda: self._bump_screen("height", PX_STEP),
+        ).pack(side=tk.LEFT)
+        self._btn_screen_native = tk.Button(
+            home,
+            text=t(self._lang, "screen_native"),
+            font=small,
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+            cursor="hand2",
+            command=self._set_screen_native,
+        )
+        self._btn_screen_native.pack(anchor="w", pady=(6, 0), ipady=6)
+        self._config_screen_blurb = tk.Label(
+            home,
+            text=t(self._lang, "screen_size_blurb"),
+            font=small,
+            bg="#1a1a1a",
+            fg=MUTED,
+            wraplength=wrap,
+            justify="left",
+        )
+        self._config_screen_blurb.pack(anchor="w", pady=(4, 12))
+
         self._config_machine_lbl = tk.Label(
-            panel,
+            home,
             text=t(self._lang, "machine"),
             font=small,
             bg="#1a1a1a",
             fg="#eeeeee",
         )
         self._config_machine_lbl.pack(anchor="w")
-        mill_row = tk.Frame(panel, bg="#1a1a1a")
+        mill_row = tk.Frame(home, bg="#1a1a1a")
         mill_row.pack(fill=tk.X, pady=(4, 0))
         tk.Button(
             mill_row,
@@ -1281,17 +1490,17 @@ class KioskApp(tk.Tk):
             command=lambda: self._bump_machine(1),
         ).pack(side=tk.RIGHT)
         self._machine_detail_lbl = tk.Label(
-            panel,
+            home,
             text="",
             font=small,
             bg="#1a1a1a",
             fg=MUTED,
-            wraplength=self.cfg.width - 80,
+            wraplength=wrap,
             justify="left",
         )
         self._machine_detail_lbl.pack(anchor="w", pady=(2, 4))
         self._btn_machine_add = tk.Button(
-            panel,
+            home,
             text=t(self._lang, "machine_add"),
             font=small,
             bg="#333333",
@@ -1304,20 +1513,45 @@ class KioskApp(tk.Tk):
             cursor="hand2",
             command=self._show_mill_form,
         )
-        self._btn_machine_add.pack(anchor="w", pady=(0, 12), ipady=6)
-        self._build_section_matrix(panel, small)
+        self._btn_machine_add.pack(anchor="w", pady=(0, 14), ipady=8)
+
+        pages = (
+            ("settings_page_reports", "reports"),
+            ("settings_page_gpio", "gpio"),
+            ("settings_page_knobs", "knobs"),
+        )
+        self._btn_page: dict[str, tk.Button] = {}
+        for key, page in pages:
+            btn = tk.Button(
+                home,
+                text=t(self._lang, key),
+                font=update_font,
+                bg="#333333",
+                fg="#eeeeee",
+                activebackground="#444444",
+                activeforeground="#eeeeee",
+                relief="flat",
+                bd=0,
+                highlightthickness=0,
+                cursor="hand2",
+                command=lambda p=page: self._show_config_page(p),
+            )
+            btn.pack(fill=tk.X, pady=(0, 8), ipady=12)
+            self._btn_page[page] = btn
+
+        self._build_section_matrix(reports, small)
 
         self._config_gpio_lbl = tk.Label(
-            panel,
+            gpio,
             text=t(self._lang, "gpio_pins"),
             font=small,
             bg="#1a1a1a",
             fg="#eeeeee",
         )
-        self._config_gpio_lbl.pack(anchor="w", pady=(4, 4))
+        self._config_gpio_lbl.pack(anchor="w", pady=(0, 4))
         self._pin_captions: dict[str, tk.Label] = {}
         self._pin_value_lbls: dict[str, tk.Label] = {}
-        pins = tk.Frame(panel, bg="#1a1a1a")
+        pins = tk.Frame(gpio, bg="#1a1a1a")
         pins.pack(fill=tk.X, pady=(0, 8))
         pins.columnconfigure(0, weight=1)
         pins.columnconfigure(1, weight=1)
@@ -1335,14 +1569,14 @@ class KioskApp(tk.Tk):
         self._add_pin_stepper(pins, 3, 1, "button_spare", "pin_spare", small, update_font)
 
         self._config_knob_lbl = tk.Label(
-            panel,
+            knobs,
             text=t(self._lang, "encoder_knob"),
             font=small,
             bg="#1a1a1a",
             fg="#eeeeee",
         )
-        self._config_knob_lbl.pack(anchor="w", pady=(4, 4))
-        swap_row = tk.Frame(panel, bg="#1a1a1a")
+        self._config_knob_lbl.pack(anchor="w", pady=(0, 4))
+        swap_row = tk.Frame(knobs, bg="#1a1a1a")
         swap_row.pack(fill=tk.X, pady=(0, 8))
         self._btn_swap_off = tk.Button(
             swap_row,
@@ -1368,14 +1602,14 @@ class KioskApp(tk.Tk):
         self._btn_swap_on.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0), ipady=8)
 
         self._config_mill_knob_lbl = tk.Label(
-            panel,
+            knobs,
             text=t(self._lang, "encoder_knob_mill"),
             font=small,
             bg="#1a1a1a",
             fg="#eeeeee",
         )
         self._config_mill_knob_lbl.pack(anchor="w", pady=(4, 4))
-        mill_swap_row = tk.Frame(panel, bg="#1a1a1a")
+        mill_swap_row = tk.Frame(knobs, bg="#1a1a1a")
         mill_swap_row.pack(fill=tk.X, pady=(0, 8))
         self._btn_mill_swap_off = tk.Button(
             mill_swap_row,
@@ -1405,14 +1639,14 @@ class KioskApp(tk.Tk):
         )
 
         self._config_steps_lbl = tk.Label(
-            panel,
+            knobs,
             text=t(self._lang, "encoder_steps"),
             font=small,
             bg="#1a1a1a",
             fg="#eeeeee",
         )
         self._config_steps_lbl.pack(anchor="w")
-        steps_row = tk.Frame(panel, bg="#1a1a1a")
+        steps_row = tk.Frame(knobs, bg="#1a1a1a")
         steps_row.pack(fill=tk.X, pady=(4, 0))
         tk.Button(
             steps_row,
@@ -1450,25 +1684,25 @@ class KioskApp(tk.Tk):
             command=lambda: self._bump_encoder_steps(1),
         ).pack(side=tk.LEFT)
         self._config_steps_blurb = tk.Label(
-            panel,
+            knobs,
             text=t(self._lang, "encoder_steps_blurb"),
             font=small,
             bg="#1a1a1a",
             fg=MUTED,
-            wraplength=self.cfg.width - 80,
+            wraplength=wrap,
             justify="left",
         )
         self._config_steps_blurb.pack(anchor="w", pady=(4, 8))
 
         self._config_delay_lbl = tk.Label(
-            panel,
+            knobs,
             text=t(self._lang, "button_delay"),
             font=small,
             bg="#1a1a1a",
             fg="#eeeeee",
         )
         self._config_delay_lbl.pack(anchor="w")
-        delay_row = tk.Frame(panel, bg="#1a1a1a")
+        delay_row = tk.Frame(knobs, bg="#1a1a1a")
         delay_row.pack(fill=tk.X, pady=(4, 0))
         tk.Button(
             delay_row,
@@ -1506,40 +1740,47 @@ class KioskApp(tk.Tk):
             command=lambda: self._bump_button_delay(BUTTON_DELAY_STEP),
         ).pack(side=tk.LEFT)
         self._config_delay_blurb = tk.Label(
-            panel,
+            knobs,
             text=t(self._lang, "button_delay_blurb"),
             font=small,
             bg="#1a1a1a",
             fg=MUTED,
-            wraplength=self.cfg.width - 80,
+            wraplength=wrap,
             justify="left",
         )
         self._config_delay_blurb.pack(anchor="w", pady=(4, 8))
 
+        foot = tk.Frame(panel, bg="#1a1a1a")
+        foot.pack(fill=tk.X, padx=4, pady=(4, 0))
         self._config_saved = tk.Label(
-            panel,
+            foot,
             text="",
             font=small,
             bg="#1a1a1a",
             fg=OK,
-            wraplength=self.cfg.width - 80,
+            wraplength=wrap,
             justify="left",
         )
         self._config_saved.pack(anchor="w")
         self._config_keys = tk.Label(
-            panel,
+            foot,
             text=t(self._lang, "settings_keys"),
             font=small,
             bg="#1a1a1a",
             fg=MUTED,
-            wraplength=self.cfg.width - 80,
+            wraplength=wrap,
             justify="left",
         )
-        self._config_keys.pack(anchor="w", pady=(10, 0))
+        self._config_keys.pack(anchor="w", pady=(4, 0))
+
+        for page_frame in self._config_pages.values():
+            bind_mousewheel_tree(page_frame, handler)
+        bind_mousewheel(panel, handler)
         self._style_lang_buttons()
         self._style_swap_buttons()
         self._refresh_gpio_labels()
         self._refresh_pack_labels()
+        self._show_config_page("home")
 
     def _current_packs(self) -> dict[str, object]:
         return {
@@ -1566,7 +1807,7 @@ class KioskApp(tk.Tk):
             font=small,
             bg="#1a1a1a",
             fg=MUTED,
-            wraplength=self.cfg.width - 80,
+            wraplength=self._settings_wrap(),
             justify="left",
         )
         self._section_safety_lbl.pack(anchor="w", pady=(0, 6))
@@ -1605,7 +1846,7 @@ class KioskApp(tk.Tk):
                 fg="#eeeeee",
                 anchor="w",
                 justify="left",
-                wraplength=self.cfg.width - 220,
+                wraplength=self._settings_wrap(280),
             )
             name.grid(row=row, column=0, sticky="w", pady=1)
             self._section_row_lbls[key] = name
@@ -1721,8 +1962,8 @@ class KioskApp(tk.Tk):
             bg="#1a1a1a",
             highlightbackground=ACCENT,
             highlightthickness=2,
-            padx=18,
-            pady=12,
+            padx=12,
+            pady=8,
         )
         self._mill = panel
         self._mill_title = tk.Label(
@@ -1732,30 +1973,44 @@ class KioskApp(tk.Tk):
             bg="#1a1a1a",
             fg=ACCENT,
         )
-        self._mill_title.pack(anchor="w")
+        self._mill_title.pack(anchor="w", padx=4)
+        body, canvas, inner, handler = self._make_scroll_body(panel)
+        self._mill_canvas = canvas
+        self._bind_mill_wheel = handler
+        body.pack(fill=tk.BOTH, expand=True, pady=(6, 4))
+
+        cols = tk.Frame(inner, bg="#1a1a1a")
+        cols.pack(fill=tk.BOTH, expand=True)
+        left = tk.Frame(cols, bg="#1a1a1a")
+        right = tk.Frame(cols, bg="#1a1a1a")
+        left.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=(0, 10))
+        right.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
         self._mill_field_lbls: list[tuple[tk.Label, str]] = []
         self._mill_entries: dict[str, tk.Entry] = {}
         for key, default in MILL_FORM_SCALARS:
-            self._mill_pack_field(panel, key, default, small, update_font)
+            self._mill_pack_field(left, key, default, small)
         self._mill_pack_triplet(
-            panel, "machine_atc_group", MILL_FORM_ATC, small, update_font
+            right, "machine_atc_group", MILL_FORM_ATC, small
         )
         self._mill_pack_triplet(
-            panel, "machine_offset_group", MILL_FORM_OFFSET, small, update_font
+            right, "machine_offset_group", MILL_FORM_OFFSET, small
         )
-        self._mill_pack_travel(panel, small, update_font)
+        self._mill_pack_travel(right, small)
+
+        foot = tk.Frame(panel, bg="#1a1a1a")
+        foot.pack(fill=tk.X, padx=4, pady=(4, 0))
         self._mill_err = tk.Label(
-            panel,
+            foot,
             text="",
             font=small,
             bg="#1a1a1a",
             fg=ERR,
-            wraplength=self.cfg.width - 80,
+            wraplength=self._settings_wrap(),
             justify="left",
         )
-        self._mill_err.pack(anchor="w", pady=(8, 4))
-        row = tk.Frame(panel, bg="#1a1a1a")
-        row.pack(fill=tk.X, pady=(4, 0))
+        self._mill_err.pack(anchor="w", pady=(0, 4))
+        row = tk.Frame(foot, bg="#1a1a1a")
+        row.pack(fill=tk.X)
         self._btn_mill_cancel = tk.Button(
             row,
             text=t(self._lang, "machine_cancel"),
@@ -1782,6 +2037,8 @@ class KioskApp(tk.Tk):
             command=self._save_mill_form,
         )
         self._btn_mill_save.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0), ipady=8)
+        bind_mousewheel_tree(inner, handler)
+        bind_mousewheel(panel, handler)
 
     def _mill_remember_label(self, lbl: tk.Label, key: str) -> None:
         self._mill_field_lbls.append((lbl, key))
@@ -1802,7 +2059,7 @@ class KioskApp(tk.Tk):
         return ent
 
     def _mill_pack_field(
-        self, panel: tk.Frame, key: str, default: str, small, update_font
+        self, panel: tk.Frame, key: str, default: str, small
     ) -> None:
         lbl = tk.Label(
             panel,
@@ -1811,9 +2068,9 @@ class KioskApp(tk.Tk):
             bg="#1a1a1a",
             fg="#eeeeee",
         )
-        lbl.pack(anchor="w", pady=(2, 0))
+        lbl.pack(anchor="w", pady=(6, 0))
         self._mill_remember_label(lbl, key)
-        self._mill_entry(panel, key, default, update_font).pack(fill=tk.X)
+        self._mill_entry(panel, key, default, small).pack(fill=tk.X, ipady=4)
 
     def _mill_pack_triplet(
         self,
@@ -1821,7 +2078,6 @@ class KioskApp(tk.Tk):
         heading: str,
         keys: tuple[str, ...],
         small,
-        font,
     ) -> None:
         head = tk.Label(
             panel,
@@ -1847,9 +2103,9 @@ class KioskApp(tk.Tk):
             )
             lbl.pack(anchor="w")
             self._mill_remember_label(lbl, axis_keys[i])
-            self._mill_entry(col, key, "", font).pack(fill=tk.X)
+            self._mill_entry(col, key, "", small).pack(fill=tk.X, ipady=4)
 
-    def _mill_pack_travel(self, panel: tk.Frame, small, font) -> None:
+    def _mill_pack_travel(self, panel: tk.Frame, small) -> None:
         head = tk.Label(
             panel,
             text=t(self._lang, "machine_travel_group"),
@@ -1874,7 +2130,7 @@ class KioskApp(tk.Tk):
                 )
                 lbl.pack(anchor="w")
                 self._mill_remember_label(lbl, key)
-                self._mill_entry(col, key, "", font).pack(fill=tk.X)
+                self._mill_entry(col, key, "", small).pack(fill=tk.X, ipady=4)
 
     def _add_pin_stepper(
         self,
@@ -1964,6 +2220,17 @@ class KioskApp(tk.Tk):
             lbl.config(text=str(getattr(self.cfg, attr)))
         self._steps_value_lbl.config(text=str(self.cfg.encoder_steps))
         self._delay_value_lbl.config(text=format_button_delay(self.cfg.button_delay))
+        self._width_value_lbl.config(text=str(self.cfg.width))
+        self._height_value_lbl.config(text=str(self.cfg.height))
+        native = (self.cfg.width, self.cfg.height) == SCREEN_NATIVE
+        if native:
+            self._btn_screen_native.config(
+                bg=ACCENT, fg="#111111", activebackground="#ffd54a"
+            )
+        else:
+            self._btn_screen_native.config(
+                bg="#333333", fg="#eeeeee", activebackground="#444444"
+            )
         mill = self.cfg.active_machine()
         self._machine_value_lbl.config(text=machine_display_name(mill, self._lang))
         self.mill_chip.config(text=machine_display_name(mill, self._lang))
@@ -1992,6 +2259,8 @@ class KioskApp(tk.Tk):
             "button_set": str(self.cfg.button_set),
             "button_spare": str(self.cfg.button_spare),
             "button_delay": f"{self.cfg.button_delay:.1f}",
+            "width": str(self.cfg.width),
+            "height": str(self.cfg.height),
             "report_load": self.cfg.report_load,
             "report_set": self.cfg.report_set,
             "report_run": self.cfg.report_run,
@@ -2042,6 +2311,56 @@ class KioskApp(tk.Tk):
         self._persist_ui_settings()
         self._arm_idle()
 
+    def _set_screen_native(self) -> None:
+        self._set_screen_size(*SCREEN_NATIVE)
+
+    def _bump_screen(self, attr: str, delta: int) -> None:
+        if attr == "width":
+            nxt = _clamp_px(self.cfg.width + delta, PX_WIDTH_MIN, PX_WIDTH_MAX)
+        else:
+            nxt = _clamp_px(self.cfg.height + delta, PX_HEIGHT_MIN, PX_HEIGHT_MAX)
+        if nxt == getattr(self.cfg, attr):
+            return
+        setattr(self.cfg, attr, nxt)
+        self._apply_window_size()
+        self._refresh_gpio_labels()
+        self._persist_ui_settings()
+        self._arm_idle()
+
+    def _set_screen_size(self, width: int, height: int) -> None:
+        width = _clamp_px(width, PX_WIDTH_MIN, PX_WIDTH_MAX)
+        height = _clamp_px(height, PX_HEIGHT_MIN, PX_HEIGHT_MAX)
+        if width == self.cfg.width and height == self.cfg.height:
+            return
+        self.cfg.width = width
+        self.cfg.height = height
+        self._apply_window_size()
+        self._refresh_gpio_labels()
+        self._persist_ui_settings()
+        self._arm_idle()
+
+    def _apply_window_size(self) -> None:
+        self.geometry(f"{self.cfg.width}x{self.cfg.height}")
+        wrap = max(80, self.cfg.width - 40)
+        for widget in (self.hint, self.preview, self._keys_hint, self.status):
+            widget.config(wraplength=wrap)
+        sw = self._settings_wrap()
+        for widget in (
+            self._config_blurb,
+            self._config_screen_blurb,
+            self._machine_detail_lbl,
+            self._config_steps_blurb,
+            self._config_delay_blurb,
+            self._config_saved,
+            self._config_keys,
+            self._section_safety_lbl,
+            self._mill_err,
+        ):
+            widget.config(wraplength=sw)
+        row_wrap = self._settings_wrap(280)
+        for lbl in self._section_row_lbls.values():
+            lbl.config(wraplength=row_wrap)
+
     def _bump_machine(self, delta: int) -> None:
         mills = self.cfg.machines
         if len(mills) <= 1:
@@ -2085,11 +2404,24 @@ class KioskApp(tk.Tk):
         self._legend_load.config(text=self._tr("legend_load"))
         self._legend_set.config(text=self._tr("legend_set"))
         self._legend_run.config(text=self._tr("legend_run"))
-        self._config_title.config(text=self._tr("settings"))
+        self._btn_config_back.config(text=self._tr("settings_back"))
         self._config_blurb.config(text=self._tr("settings_blurb"))
+        page_keys = {
+            "reports": "settings_page_reports",
+            "gpio": "settings_page_gpio",
+            "knobs": "settings_page_knobs",
+        }
+        for page, btn in self._btn_page.items():
+            btn.config(text=self._tr(page_keys[page]))
+        self._show_config_page(self._config_page)
         self._config_lang_lbl.config(text=self._tr("language"))
         self._btn_pl.config(text=self._tr("lang_pl"))
         self._btn_en.config(text=self._tr("lang_en"))
+        self._config_screen_lbl.config(text=self._tr("screen_size"))
+        self._config_width_lbl.config(text=self._tr("screen_width"))
+        self._config_height_lbl.config(text=self._tr("screen_height"))
+        self._btn_screen_native.config(text=self._tr("screen_native"))
+        self._config_screen_blurb.config(text=self._tr("screen_size_blurb"))
         self._config_machine_lbl.config(text=self._tr("machine"))
         self._btn_machine_add.config(text=self._tr("machine_add"))
         self._config_gpio_lbl.config(text=self._tr("gpio_pins"))
@@ -2235,6 +2567,9 @@ class KioskApp(tk.Tk):
         self._mill_open = True
         self._mill.place(relx=0.04, rely=0.06, relwidth=0.92, relheight=0.88)
         self._mill.lift()
+        canvas = getattr(self, "_mill_canvas", None)
+        if canvas is not None:
+            canvas.yview_moveto(0)
         self._mill_entries["machine_name"].focus_set()
         self._arm_idle()
 
@@ -2287,9 +2622,38 @@ class KioskApp(tk.Tk):
             return False
         return isinstance(widget, tk.Entry)
 
+    def _show_config_page(self, name: str) -> None:
+        if name not in self._config_pages:
+            name = "home"
+        self._config_page = name
+        for page, frame in self._config_pages.items():
+            if page == name:
+                frame.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
+            else:
+                frame.pack_forget()
+        titles = {
+            "home": "settings",
+            "reports": "settings_page_reports",
+            "gpio": "settings_page_gpio",
+            "knobs": "settings_page_knobs",
+        }
+        self._config_title.config(text=self._tr(titles[name]))
+        if name == "home":
+            self._btn_config_back.pack_forget()
+        elif not self._btn_config_back.winfo_ismapped():
+            self._btn_config_back.pack(side=tk.RIGHT, padx=(8, 0), ipadx=10, ipady=6)
+        canvas = getattr(self, "_config_canvas", None)
+        if canvas is not None:
+            canvas.yview_moveto(0)
+            self.after_idle(
+                lambda c=canvas: c.configure(scrollregion=c.bbox("all") or (0, 0, 0, 0))
+            )
+        self._arm_idle()
+
     def _show_config(self) -> None:
         self._config_open = True
         self._refresh_gpio_labels()
+        self._show_config_page("home")
         self._config.place(relx=0.04, rely=0.06, relwidth=0.92, relheight=0.88)
         self._config.lift()
         self._style_lang_buttons()
@@ -2334,12 +2698,15 @@ class KioskApp(tk.Tk):
         return "break"
 
     def _dismiss_config(self) -> bool:
-        """Close mill form, then settings. True if something was open."""
+        """Close mill form, then a settings submenu, then settings. True if something was open."""
         if self._mill_open:
             self._hide_mill_form()
             return True
         if not self._config_open:
             return False
+        if self._config_page != "home":
+            self._show_config_page("home")
+            return True
         self._hide_config()
         return True
 
@@ -2404,7 +2771,10 @@ class KioskApp(tk.Tk):
             self._arm_idle()
             return "break"
         if self._config_open:
-            self._set_language("en" if self._lang == "pl" else "pl")
+            if self._config_page == "home":
+                self._set_language("en" if self._lang == "pl" else "pl")
+            else:
+                self._config_canvas.yview_scroll(delta, "units")
             self._arm_idle()
             return "break"
         self._on_encoder(delta)
@@ -2414,6 +2784,18 @@ class KioskApp(tk.Tk):
         self._wake_hid()
         return "break"
 
+    def _scroll_open_overlay(self, event: tk.Event) -> bool:
+        """True if settings or mill overlay ate the wheel."""
+        if self._mill_open:
+            scroll_canvas(self._mill_canvas, event)
+            self._arm_idle()
+            return True
+        if self._config_open:
+            scroll_canvas(self._config_canvas, event)
+            self._arm_idle()
+            return True
+        return False
+
     def _on_wheel(self, event: tk.Event) -> str:
         if event.delta:
             delta = -1 if event.delta > 0 else 1
@@ -2421,12 +2803,7 @@ class KioskApp(tk.Tk):
             delta = 1
         if self._wake_hid():
             return "break"
-        if self._mill_open:
-            self._arm_idle()
-            return "break"
-        if self._config_open:
-            self._set_language("en" if self._lang == "pl" else "pl")
-            self._arm_idle()
+        if self._scroll_open_overlay(event):
             return "break"
         self._on_encoder(delta)
         return "break"
@@ -2435,10 +2812,11 @@ class KioskApp(tk.Tk):
         if self._wake_hid():
             return "break"
         if self._mill_open:
+            self._mill_canvas.yview_scroll(delta, "units")
             self._arm_idle()
             return "break"
         if self._config_open:
-            self._set_language("en" if self._lang == "pl" else "pl")
+            self._config_canvas.yview_scroll(delta, "units")
             self._arm_idle()
             return "break"
         self._on_encoder(delta)

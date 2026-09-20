@@ -11,8 +11,9 @@
 # packaging/LINUX-KIOSK.md §8 (fh6parse 1.4.0). This file is never overwritten.
 
 [kiosk]
-width = 600
-height = 800
+width = 1024
+height = 600
+# Change in settings (F2) too; ui.ini overlay wins. Waveshare 13857 is 1024x600.
 fullscreen = true
 idle_seconds = 60
 # Screen language: pl (default on the kiosk) or en. Change in settings (F2 / mouse).

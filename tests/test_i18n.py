@@ -216,3 +216,5 @@ class TestLanguageIni(unittest.TestCase):
         self.assertIn("encoder_mill_clk", UI_OVERLAY_KEYS)
         self.assertIn("report_load", UI_OVERLAY_KEYS)
         self.assertIn("report_run", UI_OVERLAY_KEYS)
+        self.assertIn("width", UI_OVERLAY_KEYS)
+        self.assertIn("height", UI_OVERLAY_KEYS)

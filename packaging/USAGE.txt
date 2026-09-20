@@ -104,7 +104,7 @@ preview, then Print A4 or Print 80 mm (paper size only — same ticks).
   Local fallback: packaging\build_windows.bat then packaging\publish_windows.ps1
   (needs gh). Keep the ini next to the exe.
 
-Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
+Raspberry Pi 5 kiosk (Waveshare 13857, native 1024x600) — version 1.4.0
   Full wiring + OS + printer + update: packaging/LINUX-KIOSK.md
   Pi 5 hardware poster (pins + wires): packaging/LINUX-KIOSK-WIRING.pdf
   Hardware archive (SKU/EAN if shops die): packaging/HARDWARE.md
@@ -113,6 +113,8 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
   Disk: official Raspberry Pi 512 GB 2230 from SSD Kit RPI-25484 (disk only; not the kit HAT+).
   Cooler: official Raspberry Pi Active Cooler (Botland RPI-23925) on the FAN header.
   Stick port: metal USB 3.0 Type-A 27 mm panel socket (Allegro 17741983408) to a Pi USB 3 port.
+  Case: PETG, vents above cooler and below Duo. Clamp USB-C and HDMI0; no USB-C extension.
+  Must-do / shop notes: packaging/HARDWARE.md and LINUX-KIOSK.md §2.13.
   Harness: 24 AWG GPIO, 22 AWG 3.3 V / 5 V / GND, Faston on vandals.
   Operator sheet (Polish): packaging/LINUX-KIOSK-PL.md
   64-bit Raspberry Pi OS Desktop. raspi-config: X11 + desktop autologin.
