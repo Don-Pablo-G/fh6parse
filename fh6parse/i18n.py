@@ -81,7 +81,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "settings": "Settings",
         "settings_blurb": (
             "Language, mill, LOAD / SET / RUN content, BCM pins (file knob, "
-            "mill knob, green LOAD / yellow SET / red RUN, spare), reverse "
+            "mill knob, green LOAD / yellow SET / red RUN, optional "
+            "sleep/wake), reverse "
             "each knob, ticks from one tooth valley to the next, and wait "
             "after a ticket. Rest is the file; the highlight changes halfway "
             "to the next tooth. File and mill lists wrap from last to first."
@@ -126,7 +127,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "pin_run": "RUN button (red)",
         "pin_load": "LOAD button (green)",
         "pin_set": "SET button (yellow)",
-        "pin_spare": "Spare (reserved)",
+        "pin_spare": "Sleep / wake (optional)",
         "pin_full": "RUN button (red)",
         "pin_min": "LOAD button (green)",
         "encoder_knob": "File knob",
@@ -431,7 +432,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "settings_blurb": (
             "Język, obrabiarka, treść LOAD / SET / RUN, piny BCM (pokrętło "
             "pliku, pokrętło mill, zielony LOAD / żółty SET / czerwony RUN, "
-            "zapasowy), kierunek każdego pokrętła, impulsy od jednej doliny "
+            "opcjonalny sen/budzenie), kierunek każdego pokrętła, impulsy od "
+            "jednej doliny "
             "zęba do następnej i pauza po bilecie. Spoczynek to plik; "
             "podświetlenie zmienia się w połowie drogi do następnego zęba. "
             "Lista plików i obrabiarek zawija się z ostatniego na pierwszy."
@@ -476,7 +478,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "pin_run": "Przycisk RUN (czerwony)",
         "pin_load": "Przycisk LOAD (zielony)",
         "pin_set": "Przycisk SET (żółty)",
-        "pin_spare": "Zapasowy (zarezerwowany)",
+        "pin_spare": "Sen / budzenie (opcjonalny)",
         "pin_full": "Przycisk RUN (czerwony)",
         "pin_min": "Przycisk LOAD (zielony)",
         "encoder_knob": "Pokrętło pliku",

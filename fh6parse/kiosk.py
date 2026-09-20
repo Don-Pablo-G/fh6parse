@@ -1,4 +1,4 @@
-"""Portrait USB kiosk for Raspberry Pi 5: file + mill encoders, three print buttons, screensaver."""
+"""Portrait USB kiosk for Raspberry Pi 5: file + mill encoders, three print buttons, optional sleep GPIO, screensaver."""
 
 from __future__ import annotations
 
@@ -2519,7 +2519,6 @@ class KioskApp(tk.Tk):
             run = Button(self.cfg.button_run, pull_up=True, bounce_time=0.08)
             load = Button(self.cfg.button_load, pull_up=True, bounce_time=0.08)
             sett = Button(self.cfg.button_set, pull_up=True, bounce_time=0.08)
-            spare = Button(self.cfg.button_spare, pull_up=True, bounce_time=0.08)
             run.when_pressed = lambda: self._queue(
                 lambda: self._on_print(PAPER_80MM)
             )
@@ -2529,13 +2528,21 @@ class KioskApp(tk.Tk):
             sett.when_pressed = lambda: self._queue(
                 lambda: self._on_print(PAPER_80MM_SET)
             )
-            spare.when_pressed = lambda: self._queue(self._on_spare)
-            self._gpio.extend([enc, mill_enc, run, load, sett, spare])
+            self._gpio.extend([enc, mill_enc, run, load, sett])
         except Exception as exc:  # GPIO missing or pin busy
             self._set_status(
                 self._tr("gpio_off", detail=_gpio_fail_hint(exc, self._lang)),
                 error=True,
             )
+            return
+        # Optional: unconnected spare sits on the internal pull-up and never
+        # fires. A failure here must not take down knobs or print buttons.
+        try:
+            spare = Button(self.cfg.button_spare, pull_up=True, bounce_time=0.08)
+            spare.when_pressed = lambda: self._queue(self._on_spare)
+            self._gpio.append(spare)
+        except Exception:
+            pass
 
     def _on_encoder_gpio(self, delta: int) -> None:
         if self.cfg.encoder_swap:
@@ -2584,13 +2591,16 @@ class KioskApp(tk.Tk):
             self._arm_idle()
 
     def _on_spare(self) -> str | None:
-        if self.gate.asleep:
-            self.gate.encoder()
+        action = self.gate.spare()
+        if action == "wake":
             self._hide_saver()
             self._arm_idle()
             self._claim_input()
             return "break"
-        self._arm_idle()
+        if self._idle_job:
+            self.after_cancel(self._idle_job)
+            self._idle_job = None
+        self._show_saver()
         return "break"
 
     def _roots(self) -> list[Path]:

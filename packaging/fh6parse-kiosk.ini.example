@@ -5,6 +5,8 @@
 # Do not put 5 V on a GPIO. DFRobot Fermion EC11 (SEN0235): A = CLK, B = DT,
 # C unused. Power encoder VCC from 3.3 V, not 5 V. Pi 5 needs lgpio, not RPi.GPIO.
 # Panel left→right under the screen: green LOAD, yellow SET, red RUN.
+# button_spare (BCM 25) is optional sleep/wake. Leave the pin unwired: the
+# internal pull-up never fires. Pi 5 J2 power is also optional (not GPIO).
 # Updates are not configured here. Git checkout + on-screen UPDATE: see
 # packaging/LINUX-KIOSK.md §8 (fh6parse 1.4.0). This file is never overwritten.
 
@@ -34,6 +36,7 @@ encoder_steps = 1
 button_run = 22
 button_load = 23
 button_set = 24
+# Optional sleep/wake. Unconnected is fine (never prints).
 button_spare = 25
 # Seconds to ignore LOAD / SET / RUN after a ticket (stops a double press).
 # 0 = no wait. Change in settings (F2) or here.

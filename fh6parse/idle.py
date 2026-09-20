@@ -6,7 +6,8 @@ from __future__ import annotations
 class ScreensaverGate:
     """GPIO print buttons do not wake the display.
 
-    Wake: encoder, USB insert, or a plugged-in keyboard / mouse (troubleshooting).
+    Wake: encoder, USB insert, optional spare GPIO, or a plugged-in
+    keyboard / mouse (troubleshooting). Spare also blanks the panel.
     """
 
     def __init__(self, idle_seconds: float = 60.0) -> None:
@@ -23,6 +24,18 @@ class ScreensaverGate:
             return False
         self.asleep = True
         return True
+
+    def spare(self) -> str:
+        """Optional sleep/wake GPIO. 'wake' if asleep, else 'sleep'.
+
+        Works even when idle_seconds is 0 (no auto-blank). An unconnected
+        pin never fires this.
+        """
+        if self.asleep:
+            self.asleep = False
+            return "wake"
+        self.asleep = True
+        return "sleep"
 
     def encoder(self) -> str:
         """'wake' if this rotation only turns the screen on, else 'step'."""

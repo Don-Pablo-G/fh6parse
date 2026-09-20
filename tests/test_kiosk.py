@@ -49,6 +49,23 @@ class TestScreensaverGate(unittest.TestCase):
         self.assertFalse(gate.sleep())
         self.assertFalse(gate.asleep)
 
+    def test_spare_toggles_sleep_and_wake(self) -> None:
+        gate = ScreensaverGate(60)
+        self.assertEqual(gate.spare(), "sleep")
+        self.assertTrue(gate.asleep)
+        self.assertFalse(gate.allow_print())
+        self.assertEqual(gate.spare(), "wake")
+        self.assertFalse(gate.asleep)
+        self.assertTrue(gate.allow_print())
+
+    def test_spare_sleeps_when_auto_idle_is_off(self) -> None:
+        gate = ScreensaverGate(0)
+        self.assertFalse(gate.enabled)
+        self.assertEqual(gate.spare(), "sleep")
+        self.assertTrue(gate.asleep)
+        self.assertEqual(gate.encoder(), "wake")
+        self.assertFalse(gate.asleep)
+
 
 class TestUsbWatch(unittest.TestCase):
     def test_lists_nc_in_root_only_by_default(self) -> None:

@@ -2,7 +2,7 @@
 
 Operator sheet (Polish, daily use only): **[LINUX-KIOSK-PL.md](LINUX-KIOSK-PL.md)**. This file is the full English install / wiring / update manual.
 
-**Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.0**). Three 16 mm vandal print buttons under the screen, left→right **green LOAD** (operator slip), **yellow SET** (setter), **red RUN** (full ticket). The same three colour chips sit on the bottom of the panel. List, preview, and those chips use large high-contrast type. Spare GPIO is reserved (wake-only). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C rapid, tool-change time, optional max rpm, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Tickets then show a labeled G53 rectangle of where the work offset may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.0** badge; the yellow **UPDATE** button then shows a short hash. The Windows / Linux office GUI is one report with a **section checklist** (no LOAD / SET / RUN presets). The same single-click yellow **UPDATE to …** bar appears under the mill/print row: frozen Windows exe against a GitHub Release (tag **vX.Y.Z** builds it), git checkout against origin.
+**Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.0**). Three 16 mm vandal print buttons under the screen, left→right **green LOAD** (operator slip), **yellow SET** (setter), **red RUN** (full ticket). The same three colour chips sit on the bottom of the panel. List, preview, and those chips use large high-contrast type. An optional fourth GPIO button sleeps and wakes the panel (leave it unwired). An optional Pi 5 **J2** switch is the hardware power button (not GPIO). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C rapid, tool-change time, optional max rpm, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Tickets then show a labeled G53 rectangle of where the work offset may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.0** badge; the yellow **UPDATE** button then shows a short hash. The Windows / Linux office GUI is one report with a **section checklist** (no LOAD / SET / RUN presets). The same single-click yellow **UPDATE to …** bar appears under the mill/print row: frozen Windows exe against a GitHub Release (tag **vX.Y.Z** builds it), git checkout against origin.
 
 Python **3.10+** is required (Bookworm ships 3.11). Use **Raspberry Pi OS 64-bit Desktop** (Bookworm or later). Pi 5 has no 32-bit OS.
 
@@ -30,12 +30,13 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 | DFRobot Fermion EC11 (file) | SEN0235. Phase **A** and **B** only. Shaft push (**C**) unused. Selects the NC file. |
 | DFRobot Fermion EC11 (mill) | Second knob, same wiring. Cycles mills in settings / `kiosk.machine`. |
 | Three 16 mm 5-pin vandal buttons | Momentary, ring LED **5 V**: **green LOAD**, **yellow SET**, **red RUN**. Mount **under the screen**, left→right matching the colour chips on the panel. |
-| Spare momentary button | Optional. Wired and reserved. Wakes the screen if it is asleep; otherwise ignored (does not print). |
+| Spare momentary button | Optional. Same switch wiring as LOAD (NO → GPIO 25, C → common GND). Press blanks the panel; press again wakes. Leave unwired: the pin sits on the internal pull-up and never fires. Idle timeout, knobs, USB, and keyboard still sleep/wake. |
+| Pi 5 J2 power switch | Optional. Momentary **NO** across the two **J2** (`PWR_BTN`) pads — same as the PCB power button. **Not** a 40-pin GPIO. Omit it: USB-C still boots when you plug in. |
 | USB stick | FAT/exFAT/NTFS. Programs as `.nc` / `.NC` / `.tap` in the **stick root** only (not subfolders). |
 | MUNBYN P047 (ITPP047) | USB, 80 mm ESC/POS, auto-cutter. Own mains PSU. |
 | Company STEP folder (optional) | NAS of `.stp` / `.step` if the stick has none. See **§3.7**. Stick copy is enough. |
 | Network (optional) | Only for git install and later **UPDATE**. Printing works offline. |
-| Keyboard / mouse | First-time setup, **settings** (language, mill / **Add mill…**, file and mill knobs, RUN / LOAD / SET / spare pins, encoder ticks), SSH, or tap **UPDATE**. Not required for encoder + GPIO print. |
+| Keyboard / mouse | First-time setup, **settings** (language, mill / **Add mill…**, file and mill knobs, RUN / LOAD / SET / optional sleep pins, encoder ticks), SSH, or tap **UPDATE**. Not required for encoder + GPIO print. |
 
 Default GPIO (**BCM** numbers, not header pin numbers):
 
@@ -48,7 +49,7 @@ Default GPIO (**BCM** numbers, not header pin numbers):
 | RUN button (red) | 22 | 15 |
 | LOAD button (green) | 23 | 16 |
 | SET button (yellow) | 24 | 18 |
-| Spare button (reserved) | 25 | 22 |
+| Spare button (optional sleep/wake) | 25 | 22 |
 | 3.3 V for encoder VCC | — | 1 or 17 |
 | 5 V for button LED rings | — | 2 or 4 |
 | GND | — | 6, 9, 14, 20, or 30 |
@@ -62,6 +63,7 @@ Change pins in **settings** (**F2** / **C** / **PL**·**EN**) or in `/etc/fh6par
 ### 2.1 Power and USB
 
 - Pi 5 on the official USB-C 5 V / 5 A supply. USB-C on the Pi is **power only**.
+- Optional panel **power** is **J2**, not GPIO — **§2.8**. Without it, plug in USB-C and the Pi boots.
 - P047 on its own supply; USB cable to a Pi **USB-A** port is **data only** if the printer has a separate PSU.
 - USB stick in any USB-A port (USB 2 or USB 3). Automount under `/media/<user>/…` or `/run/media/…` is enough; the kiosk polls those paths.
 
@@ -144,7 +146,7 @@ GPIO27 (13) (14) GND         ← file encoder B (DT)
 GPIO22 (15) (16) GPIO23      ← red RUN           green LOAD
   3.3V (17) (18) GPIO24      ← yellow SET
 GPIO10 (19) (20) GND
- GPIO9 (21) (22) GPIO25      ← spare (reserved; wake-only)
+ GPIO9 (21) (22) GPIO25      ← optional sleep/wake (leave open if unused)
  …
  GPIO5 (29) (30) GND         ← mill encoder A (CLK)
  GPIO6 (31) (32) GPIO12      ← mill encoder B (DT)
@@ -201,6 +203,64 @@ The app writes that blob to **`/dev/usb/lp0`** first (same as `open("/dev/usb/lp
 If CUPS has already claimed the printer, the USB write fails with *Device or resource busy*. Stop or disable that queue (or CUPS) so `usblp` owns `/dev/usb/lp0`.
 
 Before RUN / LOAD / SET the kiosk sends **DLE EOT** (real-time status, not printed) on that same node. Cover open, paper end, or cutter error stay on the status line (**Pokrywa otwarta** / **Brak papieru** / **Zacięcie drukarki**) and the ticket is not sent. If the firmware does not answer, print goes ahead as before.
+
+### 2.7 Optional sleep / wake button (GPIO)
+
+Not required. The shop kiosk blanks after `idle_seconds` (default 60) and wakes on either encoder, a USB stick, or a keyboard / mouse whether this button is fitted or not.
+
+If you add a fourth vandal, wire it like LOAD:
+
+```
+GPIO 25 (header 22, pull-up) ── NO
+GND (common with the other buttons) ── C
+NC unused
+LED + / − ── same 5 V / GND as the print rings, if the part has a ring
+```
+
+Press while the screen is on: DPMS off (panel black, Pi still running). Press again: wake. LOAD / SET / RUN still do not wake (avoids a ticket in the dark). An unconnected GPIO 25 stays high on the internal pull-up and never fires. If opening that pin fails, knobs and print buttons stay up.
+
+Do **not** tie this GPIO to Pi 5 **J2**. Sleep is software DPMS; J2 is a real power switch.
+
+### 2.8 Optional Pi 5 power button (J2)
+
+Pi 5 already has a power button on the PCB. **J2** (two pads, silk **PWR_BTN**, between the RTC battery connector and the board edge) is the same switch in parallel. A panel button is a momentary **NO** across **those two pads only**.
+
+| Do | Do not |
+| --- | --- |
+| NO across the two J2 pads | Tie J2 to GPIO 25, BCM 20, or GPIO GND |
+| Leave J2 open if you skip the panel switch | Expect Pi 4 `WAKE_ON_GPIO` / `gpio-shutdown` on GPIO3 — that is not how Pi 5 power works |
+| Keep the PCB button reachable for service | Put 5 V LED rings on J2 |
+
+**Without J2 wired** the Pi behaves as stock: plug in USB-C and it boots. Halt from the desktop or `sudo halt` still works. Unplug / replug USB-C to start again.
+
+**Short press** (OS running) generates Linux `KEY_POWER`. Raspberry Pi Desktop then shows Shutdown / Reboot — wrong on a shop panel. Optional, only if you want the PCB or J2 button to halt with no dialog:
+
+```
+sudo nano /etc/systemd/logind.conf
+```
+
+```
+HandlePowerKey=poweroff
+HandlePowerKeyLongPress=poweroff
+```
+
+Then `sudo systemctl restart systemd-logind` (or reboot). This affects the **onboard** button as well as J2. Omit the file and the kiosk still runs; you just get the Desktop dialog if someone presses the PCB button.
+
+**Short press** after halt / PMIC standby boots again. **Hold** a few seconds is a hard cut.
+
+Optional EEPROM (lowest power after halt; still optional):
+
+```
+sudo -E rpi-eeprom-config --edit
+```
+
+```
+POWER_OFF_ON_HALT=1
+```
+
+Then a clean halt puts the PMIC in standby; J2 or the PCB button wakes it. USB-C unplug / replug still applies 5 V and boots **unless** you also set `WAIT_FOR_POWER_BUTTON=1`. **Do not set `WAIT_FOR_POWER_BUTTON` unless J2 is on the panel** (or the PCB button stays reachable). Without a power button that flag leaves the Pi sitting dead after a power cut.
+
+fh6parse does not read J2. 5 V LED rings on the 40-pin header stay on after halt unless you switch that 5 V yourself.
 
 ---
 
@@ -301,7 +361,7 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | `encoder_swap` / `encoder_mill_swap` | false | Reverse file knob / mill knob if the list moves the wrong way. Same as **Reverse** in settings. |
 | `encoder_steps` | 1 | GPIO ticks from one tooth valley to the next (shared). DFRobot EC11 is usually **2**. Highlight / mill changes at half a tooth so rest is stable. |
 | `button_run` / `button_load` / `button_set` | 22 / 23 / 24 | Red RUN / green LOAD / yellow SET. Old `button_full` / `button_min` still read. |
-| `button_spare` | 25 | Reserved. Wake-only if the screen is asleep; otherwise ignored. |
+| `button_spare` | 25 | Optional sleep/wake. Press blanks the panel; press again wakes. Unwired pin never fires. |
 | `button_delay` | 2 | Seconds to ignore LOAD / SET / RUN after a ticket so a double press does not print two slips. `0` = no wait. Change in **settings**. |
 | `printer_device` | /dev/usb/lp0 | USB printer node (**tried first**) |
 | `printer_queue` | (empty) | Optional CUPS name; used only if the USB node fails. Empty = never call `lp`. |
@@ -402,14 +462,14 @@ python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 
 Without GPIO you can still use a **USB keyboard and mouse** at any time (hot-plug is fine). The kiosk keeps keyboard focus and the black screensaver wakes on a key, click, or mouse wheel.
 
-The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids, tool-change time, optional G53 ATC / work offset / tool length / travel from `[machine.<id>]` in this ini; the mill name also sits next to the version chip and the mill knob cycles it), **Add mill…** to create a new mill (written to `~/.config/fh6parse/ui.ini`), a **LOAD | SET | RUN** tick matrix for ticket content (Reset LOAD / SET / RUN restore the factory packs; G68 / D vs T / S max / late offset / G95 / travel-too-big always print), BCM pin numbers for file A / B, mill A / B, green LOAD / yellow SET / red RUN / spare, knob **Reverse**, **ticks per tooth**, and **print wait** after a ticket (GPIO ticks from one rest valley to the next; the highlight or mill changes halfway so a wiggle at rest does not skip; file and mill lists wrap). Language, mill, GPIO, and `report_load` / `report_set` / `report_run` are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes the mill form first, then settings; the next **Esc** still leaves fullscreen. The file encoder or a GPIO print button closes settings without printing / skipping a file. The mill encoder keeps settings open and changes the mill.
+The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids, tool-change time, optional G53 ATC / work offset / tool length / travel from `[machine.<id>]` in this ini; the mill name also sits next to the version chip and the mill knob cycles it), **Add mill…** to create a new mill (written to `~/.config/fh6parse/ui.ini`), a **LOAD | SET | RUN** tick matrix for ticket content (Reset LOAD / SET / RUN restore the factory packs; G68 / D vs T / S max / late offset / G95 / travel-too-big always print), BCM pin numbers for file A / B, mill A / B, green LOAD / yellow SET / red RUN / optional sleep, knob **Reverse**, **ticks per tooth**, and **print wait** after a ticket (GPIO ticks from one rest valley to the next; the highlight or mill changes halfway so a wiggle at rest does not skip; file and mill lists wrap). Language, mill, GPIO, and `report_load` / `report_set` / `report_run` are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes the mill form first, then settings; the next **Esc** still leaves fullscreen. The file encoder or a GPIO print button closes settings without printing / skipping a file. The mill encoder keeps settings open and changes the mill.
 
 | Input | While awake | While screensaver |
 | --- | --- | --- |
 | Arrows, mouse wheel, click a file | Move highlight | First event only wakes |
 | **F** / **M** / **S** | Print RUN / LOAD / SET | Ignored (no ticket); another key or click wakes |
 | GPIO RUN / LOAD / SET (red / green / yellow) | Print | Ignored (no ticket, stays black) |
-| GPIO spare | Ignored | Wake only |
+| GPIO spare (optional) | Sleep (black panel) | Wake |
 | Yellow **UPDATE to …** / **U** | One tap: pull, then restart kiosk | Wake first, then tap |
 | **F2** / **C** / click **PL**·**EN** | Open or close settings (language, report ticks, pins, encoder ticks) | Wake first |
 | In settings: arrows / wheel / **Polski**·**English** | Switch language | — |
@@ -550,7 +610,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 9. Status after a good print: **`device:/dev/usb/lp0`**. If it says `lp:…`, CUPS took the job — **§3.5**.
 10. **WARNING:** lines: `H{n} does not match T{tool}` on G43, `D{n} does not match T{tool}` on any D, `G95 still active…` if feed-per-rev was not cancelled with G94 before the next tool (or M30), empty-pocket (`Txx M6` with no motion) except the **last** tool change (spindle prep), `G55 after operation started (L…)` if G54–G59 appears after the first Txx M6 or M97/M98 (offset belongs in the file preamble only), `S{n} exceeds mill max {rpm}` when that mill’s `max_rpm` is set, and `G68 T12 L40 to G69 T15 L80` / `G68 T12 L40 without G69` when coordinate rotation is used (cancel with G69 before M30). Matching H/D stay quiet. Comments with `!` print as **Programmer notes**.
 11. After **60 seconds** with no encoder movement and no new USB, the screen goes black.
-12. Wake: either encoder, inserting a USB stick, a **keyboard / mouse**, or the spare GPIO. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored. Spare while awake does nothing.
+12. Wake: either encoder, inserting a USB stick, a **keyboard / mouse**, or the optional spare GPIO. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored. Spare while awake blanks the panel (same as the 60 s idle). No spare button: idle timeout and knobs still work.
 13. Settings: **F2** / **C** or the **PL**/**EN** chip (mouse) — **§3.6**. The file encoder does not open settings. Mill picker, **Add mill…**, pins, knob reverse, ticks per tooth, and print wait are on that panel.
 14. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
 15. Current version is **v…** at the top right (mill name is next to it). If the Pi is on the network and origin is ahead, a yellow **UPDATE to x.y.z** (or a git hash if the number is still 1.4.0) appears **after this boot’s check**. It does **not** update by itself. One tap installs and **restarts** the kiosk (sudoers in **§3.2**). Print still works until you tap it.
@@ -579,7 +639,8 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | Blank slip / cut with no text | Paper was likely already out or the cover was open *before* this build. Confirm the status line. |
 | Garbage on the slip | CUPS grabbed the job. The kiosk writes `/dev/usb/lp0` first; disable CUPS (**§3.5**). Status must show `device:/dev/usb/lp0`, not `lp:…`. |
 | Ticket does not cut | Cutter empty/jammed. Status should show **Zacięcie drukarki** / **Printer jam**. App already sends ESC/POS cut (`GS V`) when status is OK. |
-| Screen never sleeps | `idle_seconds = 0`, or encoder bouncing. Still on Wayland? Switch to X11 so `xset` works. |
+| Screen never sleeps | `idle_seconds = 0`, or encoder bouncing. Still on Wayland? Switch to X11 so `xset` works. Optional spare GPIO also blanks even when idle is 0. |
+| Optional sleep button does nothing | Unwired is normal. If fitted: NO to GPIO 25, C to common GND, same as LOAD. Screen still blanks after 60 s without it. |
 | Keyboard/mouse do nothing | Plug into the Pi USB-A; X11 picks them up. Click or press a key — the kiosk claims focus. **F2** / **C** opens settings. **Esc** closes settings, then leaves fullscreen. GPIO print buttons still do not wake the screensaver. |
 | Language resets to Polish after you picked English | Stored in `/home/kiosk/.config/fh6parse/ui.ini`. Pick **English** again in settings. **UPDATE** does not delete that file. Pins, mill, and ticks live in the same overlay. |
 | **Add mill…** missing / mill list is only Default | Clone is older than this pull. Settings → **Add mill…**. Saved in `ui.ini` (`[machine.<id>]`). Travel keys `x_min`…`z_max` print the offset rectangle. |
@@ -587,6 +648,7 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | Black screen immediately | Desktop blanking plus app DPMS. Disable LXDE idle blank; keep kiosk `idle_seconds = 60`. |
 | Wrong aspect / sideways UI | Rotate until `xdpyinfo` (or Screen Configuration) shows 600×800. App geometry is 600×800 fullscreen. Pi 5 output is often `HDMI-A-1`. |
 | Service dead, UI never starts | `echo $DISPLAY` in a desktop terminal should be `:0`. `raspi-config` → X11, desktop autologin. `journalctl -u fh6parse-kiosk`. Unit `User=` must be `kiosk`. |
+| Pi stays on after halt / no panel power | J2 is optional. USB-C unplug/replug boots. Do not set `WAIT_FOR_POWER_BUTTON=1` unless J2 is wired. PCB power button is the same as J2. See **§2.8**. |
 | Undervoltage / random reboots | Official 27 W PSU. A phone charger or Pi 3 supply is not enough. |
 | Python 3.9 | Wrong image. Flash 64-bit Raspberry Pi OS Desktop for Pi 5. |
 | `--update` says one-file package | This Pi is running the ARM tarball. Copy a new tarball or reinstall from git (**§3.2**). |
@@ -663,7 +725,7 @@ If `git pull --ff-only` fails, the clone has local edits or a diverged branch. `
 
 ### 8.2 On-screen UPDATE (1.3.2 and later)
 
-On each kiosk start, and again when the screensaver wakes (encoder, USB insert, HID, spare), a background thread runs `git fetch` (~20 s timeout) and compares `HEAD` to the tracked branch (`@{upstream}`, else `origin/HEAD`, else `origin/master` / `origin/main`). A second fetch is skipped while one is already running, while **UPDATE** is already on screen, or while an install is in progress. **Nothing is installed until you tap the button.**
+On each kiosk start, and again when the screensaver wakes (encoder, USB insert, HID, optional spare), a background thread runs `git fetch` (~20 s timeout) and compares `HEAD` to the tracked branch (`@{upstream}`, else `origin/HEAD`, else `origin/master` / `origin/main`). A second fetch is skipped while one is already running, while **UPDATE** is already on screen, or while an install is in progress. **Nothing is installed until you tap the button.**
 
 | After the check | What you see |
 | --- | --- |
@@ -788,7 +850,9 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Through-holes as ellipses, not filled blobs | |
 | Long shaft is a thin strip across 80 mm | |
 | Print without a cube is still text-only, no wait | |
-| Settings (**F2** / **PL** chip): language, mill / **Add mill…**, LOAD|SET|RUN ticks, file + mill pins, reverse, RUN / LOAD / SET / spare, ticks per tooth, print wait; survives restart | |
+| Settings (**F2** / **PL** chip): language, mill / **Add mill…**, LOAD|SET|RUN ticks, file + mill pins, reverse, RUN / LOAD / SET / optional sleep, ticks per tooth, print wait; survives restart | |
+| Optional spare GPIO (unwired OK): press sleeps, press wakes; print buttons still ignored while black | |
+| Optional J2 power: omit it and USB-C still boots; do not set WAIT_FOR_POWER_BUTTON without J2 | |
 | File knob: rest is stable; highlight changes halfway to the next tooth | |
 | Mill knob: mill name next to **v…** changes; persists like **Add mill…** | |
 | Colour chips on the bottom of the screen: green LOAD, yellow SET, red RUN left→right | |

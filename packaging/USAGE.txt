@@ -147,7 +147,7 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
   Keyboard/mouse (troubleshooting, hot-plug OK): arrows, click, wheel, F, M, S, U.
   F2 or C (or click PL/EN) opens settings: Polish default, mill, Add mill…,
   LOAD / SET / RUN content ticks, GPIO pins (file A/B, mill A/B, RUN / LOAD /
-  SET, spare), Reverse on each knob, ticks per tooth, print wait after a
+  SET, optional sleep/wake), Reverse on each knob, ticks per tooth, print wait after a
   ticket (button_delay, default 2 s). Language, mill, GPIO, and the three
   report packs are saved in ~/.config/fh6parse/ui.ini (survives UPDATE).
   Escape closes the mill form first, then settings, then leaves fullscreen.
@@ -161,14 +161,19 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
   Three vandal buttons sit under the screen; colour chips on the bottom of
   the UI match left→right: green LOAD (short / M), yellow SET (setter / S),
   red RUN (full / F). 16 mm 5-pin: C to GND, NO to GPIO, NC unused; LED +
-  to 5 V, LED − to GND (rings always on). Spare GPIO is reserved (wake-only
-  if asleep). After a ticket, LOAD / SET / RUN wait button_delay seconds
+  to 5 V, LED − to GND (rings always on). Spare GPIO (BCM 25) is optional
+  sleep/wake: press to blank, press again to wake. Leave it unwired — the
+  pin sits on the pull-up and never fires; idle timeout, knobs, USB, and
+  HID still work. After a ticket, LOAD / SET / RUN wait button_delay seconds
   (default 2) so a second press does not print two slips.
   The kiosk asks the P047 (DLE EOT) before RUN / LOAD / SET. Cover open, no paper,
   or a jam stays on the status line and does not cut a blank slip. No reply
   still prints (same as before). Windows GUI print is the browser, not lp0.
   After 60 seconds idle the screen goes black. Rotary encoder, USB insert,
-  keyboard, or mouse wakes it. GPIO print buttons while asleep are ignored.
+  keyboard, mouse, or the optional spare GPIO wakes it. Spare while awake
+  blanks the panel. GPIO print buttons while asleep are ignored. Pi 5 J2
+  (PWR_BTN) is an optional hardware power switch, not a GPIO; omit it and
+  USB-C still boots as usual. See LINUX-KIOSK.md §2.7 / §2.8.
   With a stick inserted the count line shows Safe to remove (Można wyjąć)
   when idle, or Reading USB — wait while preview/STEP copy runs. Overwriting
   the highlighted .nc on the stick reloads preview (mtime and size).

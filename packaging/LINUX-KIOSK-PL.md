@@ -83,9 +83,10 @@ Pasujące H/D (= numer T) nie dają ostrzeżenia. `T12` i `M6` w dwóch liniach 
 ## 5. Ekran czarny i budzenie
 
 - Gaśnie po minucie bez pokrętła i bez nowego USB.
-- Budzi: **pokrętło pliku albo mill**, **włożenie pendrive**, klawiatura, mysz, albo przycisk zapasowy.
+- Budzi: **pokrętło pliku albo mill**, **włożenie pendrive**, klawiatura, mysz, albo opcjonalny przycisk sen/budzenie (jeśli jest).
 - **Pierwszy** ruch pokrętła / klawisz / klik tylko budzi — nie przeskakuje pliku i nie drukuje.
-- Przyciski **LOAD / SET / RUN przy śpiącym ekranie nic nie robią** (żeby nie strzelić biletu w ciemności). Najpierw obudź pokrętłem. Czwarty przycisk (zapasowy) tylko budzi.
+- Przyciski **LOAD / SET / RUN przy śpiącym ekranie nic nie robią** (żeby nie strzelić biletu w ciemności). Najpierw obudź pokrętłem. Czwarty przycisk (jeśli jest) gasi ekran i budzi — bez niego kiosk i tak gaśnie po minucie.
+- Przycisk zasilania na płytce Pi 5 (albo opcjonalny J2) to **zasilanie**, nie sen. Brak J2: wtyczka USB-C nadal uruchamia kiosk.
 
 ---
 
