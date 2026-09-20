@@ -21,6 +21,13 @@ Copy-Item -Force "packaging\LINUX-KIOSK.pdf" "dist\packages\LINUX-KIOSK.pdf"
 Copy-Item -Force "packaging\LINUX-KIOSK-WIRING.pdf" "dist\packages\LINUX-KIOSK-WIRING.pdf"
 Copy-Item -Force "packaging\LINUX-KIOSK-PL.md" "dist\packages\LINUX-KIOSK-PL.md"
 Copy-Item -Force "packaging\LINUX-KIOSK-PL.pdf" "dist\packages\LINUX-KIOSK-PL.pdf"
+Copy-Item -Force "packaging\HARDWARE.md" "dist\packages\HARDWARE.md"
+if (Test-Path "packaging\HARDWARE.pdf") {
+    Copy-Item -Force "packaging\HARDWARE.pdf" "dist\packages\HARDWARE.pdf"
+}
+if (Test-Path "packaging\hardware-archive") {
+    Copy-Item -Force -Recurse "packaging\hardware-archive" "dist\packages\hardware-archive"
+}
 
 $winName = "fh6parse-$Version-windows-x64"
 Copy-Item -Force "dist\windows\fh6parse.exe" "dist\packages\$winName.exe"

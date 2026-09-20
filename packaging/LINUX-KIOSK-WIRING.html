@@ -4,31 +4,31 @@
 <meta charset="utf-8">
 <title>fh6parse 1.4.0 — Raspberry Pi 5 kiosk wiring</title>
 <style>
-  @page { size: A4 landscape; margin: 8mm 9mm 9mm 9mm; }
+  @page { size: A4 landscape; margin: 7mm 8mm 8mm 8mm; }
   * { box-sizing: border-box; }
-  html { font-size: 9.5pt; }
+  html { font-size: 9pt; }
   body {
     margin: 0;
     color: #111;
     font-family: "Segoe UI", Arial, sans-serif;
-    line-height: 1.35;
+    line-height: 1.32;
   }
-  h1 { font-size: 16pt; margin: 0 0 0.15em; }
+  h1 { font-size: 15.5pt; margin: 0 0 0.12em; }
   h2 {
-    font-size: 11.5pt;
-    margin: 0.7em 0 0.35em;
+    font-size: 11pt;
+    margin: 0.4em 0 0.22em;
     border-bottom: 1px solid #bbb;
     page-break-after: avoid;
   }
-  h3 { font-size: 10pt; margin: 0.55em 0 0.25em; page-break-after: avoid; }
-  p { margin: 0.25em 0 0.45em; }
-  .sub { color: #444; margin: 0 0 0.6em; }
+  h3 { font-size: 10pt; margin: 0.4em 0 0.18em; page-break-after: avoid; }
+  p { margin: 0.18em 0 0.32em; }
+  .sub { color: #444; margin: 0 0 0.4em; }
   .page { page-break-after: always; }
   .page:last-child { page-break-after: auto; }
-  table { border-collapse: collapse; width: 100%; margin: 0.3em 0 0.7em; }
-  th, td { border: 1px solid #bbb; padding: 0.22em 0.4em; vertical-align: top; }
+  table { border-collapse: collapse; width: 100%; margin: 0.2em 0 0.4em; page-break-inside: avoid; }
+  th, td { border: 1px solid #bbb; padding: 0.14em 0.32em; vertical-align: top; }
   th { background: #f2f2f2; text-align: left; }
-  .cols { display: flex; gap: 14px; }
+  .cols { display: flex; gap: 12px; page-break-inside: avoid; }
   .cols > * { flex: 1; min-width: 0; }
   .note { background: #f7f7f7; border: 1px solid #ddd; padding: 0.45em 0.6em; margin: 0.4em 0; }
   .warn { background: #fff4f0; border: 1px solid #e0a090; padding: 0.45em 0.6em; }
@@ -45,7 +45,8 @@
 <section class="page">
 <h1>fh6parse 1.4.0 — Raspberry Pi 5 kiosk wiring</h1>
 <p class="sub">Hardware sheet only. Software / OS / UPDATE: <span class="mono">packaging/LINUX-KIOSK.md</span>.
-GPIO is <strong>3.3&nbsp;V</strong>. BCM numbers, not header pin numbers. Optional parts may stay unwired.</p>
+GPIO is <strong>3.3&nbsp;V</strong>. BCM numbers, not header pin numbers. Optional parts may stay unwired.
+<strong>Page 4</strong> is the screw terminal, wire gauge and colour card. NVMe Base Duo under the Pi. Panel USB 3.0 and Active Cooler are not GPIO.</p>
 
 <svg viewBox="0 0 1120 620" width="100%" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Raspberry Pi 5 top view with kiosk GPIO">
   <defs>
@@ -68,6 +69,7 @@ GPIO is <strong>3.3&nbsp;V</strong>. BCM numbers, not header pin numbers. Option
   <!-- Fan header near pin 1 -->
   <rect x="168" y="148" width="36" height="18" rx="2" fill="#222" stroke="#888"/>
   <text x="186" y="142" text-anchor="middle" fill="#eee" font-size="8" font-family="Segoe UI, Arial">FAN</text>
+  <text x="122" y="161" text-anchor="end" fill="#111" font-size="8" font-family="Segoe UI, Arial">Active Cooler</text>
 
   <!-- Left edge: USB-C + HDMI -->
   <rect x="132" y="175" width="22" height="36" rx="3" fill="#cfd4da" stroke="#333"/>
@@ -89,15 +91,16 @@ GPIO is <strong>3.3&nbsp;V</strong>. BCM numbers, not header pin numbers. Option
   <rect x="930" y="210" width="28" height="44" rx="3" fill="#1a1a1a" stroke="#666"/>
   <text x="990" y="228" fill="#111" font-size="9" font-family="Segoe UI, Arial">CAM / DISP</text>
   <rect x="920" y="280" width="50" height="18" rx="2" fill="#333" stroke="#777"/>
-  <text x="990" y="293" fill="#111" font-size="9" font-family="Segoe UI, Arial">PCIe FPC</text>
+  <text x="990" y="288" fill="#111" font-size="9" font-family="Segoe UI, Arial">PCIe FPC</text>
+  <text x="990" y="301" fill="#111" font-size="8" font-family="Segoe UI, Arial">NVMe Duo under Pi</text>
 
   <!-- Bottom: USB + Ethernet -->
   <rect x="300" y="520" width="70" height="36" rx="4" fill="#bfc5cc" stroke="#333"/>
   <rect x="380" y="520" width="70" height="36" rx="4" fill="#bfc5cc" stroke="#333"/>
-  <text x="375" y="578" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">USB 3  ·  stick / printer data</text>
+  <text x="375" y="578" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">USB 3  ·  panel stick</text>
   <rect x="470" y="520" width="58" height="36" rx="4" fill="#9aa3ad" stroke="#333"/>
   <rect x="538" y="520" width="58" height="36" rx="4" fill="#9aa3ad" stroke="#333"/>
-  <text x="533" y="578" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">USB 2</text>
+  <text x="533" y="578" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">USB 2 · P047</text>
   <rect x="640" y="512" width="78" height="44" rx="6" fill="#1c1c1c" stroke="#555"/>
   <text x="679" y="538" text-anchor="middle" fill="#ddd" font-size="10" font-family="Segoe UI, Arial">ETH</text>
   <text x="679" y="578" text-anchor="middle" fill="#111" font-size="9" font-family="Segoe UI, Arial">optional network</text>
@@ -267,7 +270,7 @@ GPIO is <strong>3.3&nbsp;V</strong>. BCM numbers, not header pin numbers. Option
 <!-- ===================== PAGE 2: devices ===================== -->
 <section class="page">
 <h2>1. Front panel (as you face the kiosk)</h2>
-<svg viewBox="0 0 1000 210" width="100%" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 1000 186" width="100%" xmlns="http://www.w3.org/2000/svg">
   <rect x="20" y="8" width="200" height="194" rx="6" fill="#222" stroke="#111"/>
   <rect x="36" y="22" width="168" height="128" rx="3" fill="#3a3a3a"/>
   <text x="120" y="88" text-anchor="middle" fill="#ccc" font-size="12" font-family="Segoe UI, Arial">LCD 800×600</text>
@@ -366,7 +369,7 @@ GPIO is <strong>3.3&nbsp;V</strong>. BCM numbers, not header pin numbers. Option
       <tr><th>Do</th><th>Do not</th></tr>
       <tr><td>Momentary NO across the two J2 pads</td><td>Tie J2 to BCM 25, BCM 20, or GPIO GND</td></tr>
       <tr><td>Leave J2 open if unused — USB-C still boots</td><td>Expect Pi 4 <span class="mono">WAKE_ON_GPIO</span> on GPIO3</td></tr>
-      <tr><td>Keep the PCB button reachable</td><td>Put LED rings on J2 · set <span class="mono">WAIT_FOR_POWER_BUTTON</span> unless J2 is fitted</td></tr>
+      <tr><td>Keep the PCB button reachable</td><td>LED rings on J2 · <span class="mono">WAIT_FOR_POWER_BUTTON</span> without J2</td></tr>
     </table>
   </div>
   <div>
@@ -375,7 +378,8 @@ GPIO is <strong>3.3&nbsp;V</strong>. BCM numbers, not header pin numbers. Option
       <tr><th>Port</th><th>Use</th></tr>
       <tr><td>USB-C (Pi)</td><td>Official 27 W PSU. Power only</td></tr>
       <tr><td>micro-HDMI0</td><td>Kiosk LCD (port next to USB-C)</td></tr>
-      <tr><td>USB-A</td><td>Stick, and P047 <strong>data</strong> (printer has its own mains PSU)</td></tr>
+      <tr><td>USB / FAN</td><td>Panel <strong>27&nbsp;mm USB 3.0</strong> stick → Pi USB 3. P047 → USB 2. Official <strong>Active Cooler</strong> on FAN</td></tr>
+      <tr><td>PCIe FPC</td><td>Pimoroni <strong>NVMe Base Duo</strong> <em>under</em> the Pi. Official Pi <strong>512&nbsp;GB 2230</strong> in slot A. Not the kit M.2 HAT+</td></tr>
       <tr><td>Ethernet</td><td>Optional (git / UPDATE / company STEP share)</td></tr>
     </table>
     <p class="fine">Do not power the P047 from Pi USB. Rings stay on 5 V after halt unless you switch that 5 V.</p>
@@ -404,7 +408,8 @@ GPIO is <strong>3.3&nbsp;V</strong>. BCM numbers, not header pin numbers. Option
   <tr><td>31</td><td>6</td><td>Mill encoder B (DT)</td><td>yes</td></tr>
   <tr><td>J2 pads</td><td>—</td><td>Panel POWER (parallel with PCB button)</td><td>no — USB-C still boots</td></tr>
 </table>
-<p>Change BCM numbers in kiosk settings (<strong>F2</strong>) or <span class="mono">/etc/fh6parse-kiosk.ini</span>. Overlay: <span class="mono">~/.config/fh6parse/ui.ini</span>.</p>
+<p>Change BCM numbers in kiosk settings (<strong>F2</strong>) or <span class="mono">/etc/fh6parse-kiosk.ini</span>. Overlay: <span class="mono">~/.config/fh6parse/ui.ini</span>.
+Land these on the <strong>52Pi screw terminal</strong> (same header numbers). Do not also push Dupont onto the 40-pin under the board.</p>
 
 <div class="cols">
   <div>
@@ -435,6 +440,68 @@ GPIO is <strong>3.3&nbsp;V</strong>. BCM numbers, not header pin numbers. Option
 </div>
 
 <p class="fine">fh6parse 1.4.0 · Raspberry Pi 5 · gpiozero + lgpio · X11. This PDF is the hardware poster; daily operator sheet is LINUX-KIOSK-PL; install/update is LINUX-KIOSK.md.</p>
+</section>
+
+<!-- ===================== PAGE 4: wires ===================== -->
+<section class="page">
+<h2>9. Wires (52Pi screw terminal)</h2>
+<p>Pi GPIO end is the <strong>screw terminal board</strong> (<a href="https://kamami.pl/prototypowanie-raspberry-pi/588019-modul-hat-ze-zlaczami-srubowymi-dla-raspberry-pi-5906623475650.html">Kamami 588019</a>). Same 40-pin header as Pi 4B; pin 1 at USB-C. Brass M2.5 standoffs in the kit. If it will not clear the Active Cooler / FAN plug, sit it on a <strong>40-pin GPIO riser</strong> (same pin 1). Silk <span class="mono">IO17</span> = BCM 17. Leave header 3 / 5 empty (Qwiic). <strong>J2 is not on this board.</strong> GPIO sense, LED rings, and Pi power must never share a conductor that can put 5&nbsp;V on a BCM pin. No jumper-wire packs.</p>
+
+<div class="cols">
+  <div>
+    <h3>Buy</h3>
+    <table>
+      <tr><th>Circuit</th><th>Wire</th><th>Ends</th></tr>
+      <tr><td>Encoder A/B, button <strong>NO</strong> (3.3&nbsp;V sense)</td><td><strong>24 AWG</strong> stranded (0.25&nbsp;mm²)</td><td>Screw on 52Pi; Dupont/solder at EC11</td></tr>
+      <tr><td>Encoder <strong>VCC 3.3&nbsp;V</strong>, common <strong>GND</strong></td><td><strong>22 AWG</strong> stranded (0.34&nbsp;mm²)</td><td>Screw on 3.3&nbsp;V (pin 1 / 17) and GND</td></tr>
+      <tr><td>LED <strong>+ 5&nbsp;V</strong> and LED <strong>−</strong></td><td><strong>22 AWG</strong> stranded</td><td>Screw 5&nbsp;V pin 2 / GND; <strong>2.8&nbsp;mm Faston</strong> on the vandal</td></tr>
+      <tr><td>Optional <strong>J2</strong> power</td><td><strong>26–28 AWG</strong>, keep &lt;&nbsp;20&nbsp;cm</td><td>J2 pads only — not a GPIO screw</td></tr>
+      <tr><td>Future Qwiic keypad</td><td>Official <strong>Qwiic 4-pin</strong> cable</td><td>Do not steal SDA/SCL screws</td></tr>
+    </table>
+    <p class="fine"><strong>24 AWG</strong> GPIO under ~40&nbsp;cm. <strong>22 AWG</strong> for 3.3&nbsp;V / 5&nbsp;V / GND. Terminals ~16–26 AWG; stay 22/24. Stranded. Ferrule on the screw; do not tin a blob. Silicone next to the Pi 5 cooler.</p>
+  </div>
+  <div>
+    <h3>Colour</h3>
+    <table>
+      <tr><th>Colour</th><th>Net</th></tr>
+      <tr><td>Black</td><td>GND (knobs, C tabs, LED −)</td></tr>
+      <tr><td>Orange</td><td>3.3&nbsp;V encoder VCC (pin 1 / 17)</td></tr>
+      <tr><td>Red</td><td>5&nbsp;V LED + <strong>only</strong> (pin 2)</td></tr>
+      <tr><td>Blue / light blue</td><td>File encoder A / B</td></tr>
+      <tr><td>White / grey</td><td>Mill encoder A / B</td></tr>
+      <tr><td>Green</td><td>LOAD NO (BCM 23)</td></tr>
+      <tr><td>Yellow</td><td>SET NO (BCM 24)</td></tr>
+      <tr><td>Brown</td><td>RUN NO (BCM 22) — not red</td></tr>
+      <tr><td>Violet</td><td>SLEEP NO (BCM 25), if fitted</td></tr>
+      <tr><td>Grey twisted pair</td><td>J2 only</td></tr>
+    </table>
+    <p class="warn" style="margin-top:0.4em"><strong>Do not</strong> use the same red for RUN and for LED +. That mix-up is a dead Pi.</p>
+  </div>
+</div>
+
+<div class="cols">
+  <div>
+    <h3>Terminations</h3>
+    <ul>
+      <li><strong>Pi:</strong> screw terminal on the 40-pin header, or on a GPIO riser if the cooler is in the way. Brass standoffs. Strip ~5&nbsp;mm, ferrule. Strain-relieve to the case, not the board.</li>
+      <li><strong>Vandal:</strong> insulated 2.8&nbsp;mm Faston females, <strong>crimped</strong>. Do not solder on the switch (the plastic melts). Leave <strong>NC</strong> empty.</li>
+      <li><strong>EC11:</strong> Dupont or solder onto the pin row. Leave shaft <strong>C</strong> open.</li>
+      <li><strong>J2:</strong> two short flying leads across the pads only. Never a screw on the GPIO block.</li>
+    </ul>
+  </div>
+  <div>
+    <h3>Length and noise</h3>
+    <ul>
+      <li>GPIO A/B and button NO <strong>under ~40&nbsp;cm</strong>.</li>
+      <li>Twist each encoder pair. Do not tape encoder wires along the 5&nbsp;V LED bundle or a USB 3 cable.</li>
+      <li>Star <strong>GND</strong> at header pins 6 / 9 / 14 — do not daisy LED − through a switch C then back to the Pi.</li>
+      <li>LED rings are tens of mA; pin 2 is enough. The official <strong>USB-C 5&nbsp;V / 5&nbsp;A</strong> cable is the only high-current wire.</li>
+      <li>Sleeve the run in PET braid. Hot-glue strain relief at the panel.</li>
+    </ul>
+    <p class="fine">One kiosk: ferrule + Faston + braid. FAN cable (Active Cooler) before the GPIO block. Terminal on a 40-pin riser if it will not fit. NVMe Base Duo under the Pi. Official Pi 512&nbsp;GB 2230 in slot A. Panel USB 3.0 27&nbsp;mm to a Pi USB 3 port; P047 on USB 2.</p>
+  </div>
+</div>
+<p class="fine">fh6parse 1.4.0 · Raspberry Pi 5. Same facts in LINUX-KIOSK.md §2.9.</p>
 </section>
 
 </body>

@@ -12,6 +12,7 @@ LAUNCHER = str(ROOT / "packaging" / "launcher.py")
 
 # Bake the git short SHA into the frozen binary so --version / GUI / kiosk
 # show the same build as a git checkout (the 1.4.0 number does not change).
+# Docker copies have no .git — keep a host-written fh6parse/_build.py if git fails.
 _sha = ""
 try:
     _sha = subprocess.check_output(
@@ -21,7 +22,13 @@ try:
     ).strip()
 except Exception:
     _sha = ""
-(ROOT / "fh6parse" / "_build.py").write_text(
+_build_py = ROOT / "fh6parse" / "_build.py"
+if not _sha and _build_py.is_file():
+    for line in _build_py.read_text(encoding="utf-8").splitlines():
+        if line.startswith("__build__"):
+            _sha = line.split("=", 1)[-1].strip().strip("'\"")
+            break
+_build_py.write_text(
     f'"""Baked at freeze time. Not committed."""\n__build__ = {_sha!r}\n',
     encoding="utf-8",
 )

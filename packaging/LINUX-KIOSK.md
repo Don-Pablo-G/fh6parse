@@ -1,6 +1,6 @@
 # fh6parse Linux kiosk manual
 
-Operator sheet (Polish, daily use only): **[LINUX-KIOSK-PL.md](LINUX-KIOSK-PL.md)**. Pi 5 pinout poster: **[LINUX-KIOSK-WIRING.pdf](LINUX-KIOSK-WIRING.pdf)**. This file is the full English install / update manual.
+Operator sheet (Polish, daily use only): **[LINUX-KIOSK-PL.md](LINUX-KIOSK-PL.md)**. Pi 5 pinout and wire poster: **[LINUX-KIOSK-WIRING.pdf](LINUX-KIOSK-WIRING.pdf)**. Hardware buy list (SKU / EAN if shops die): **[HARDWARE.md](HARDWARE.md)**. This file is the full English install / update manual.
 
 **Version 1.4.0.** Raspberry Pi 5 kiosk: portrait **800×600**, MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.0**). Three 16 mm vandal print buttons under the screen, left→right **green LOAD** (operator slip), **yellow SET** (setter), **red RUN** (full ticket). The same three colour chips sit on the bottom of the panel. List, preview, and those chips use large high-contrast type. An optional fourth GPIO button sleeps and wakes the panel (leave it unwired). An optional Pi 5 **J2** switch is the hardware power button (not GPIO). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C rapid, tool-change time, optional max rpm, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Tickets then show a labeled G53 rectangle of where the work offset may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.0** badge; the yellow **UPDATE** button then shows a short hash. The Windows / Linux office GUI is one report with a **section checklist** (no LOAD / SET / RUN presets). The same single-click yellow **UPDATE to …** bar appears under the mill/print row: frozen Windows exe against a GitHub Release (tag **vX.Y.Z** builds it), git checkout against origin.
 
@@ -24,7 +24,10 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 
 | Item | Notes |
 | --- | --- |
-| Raspberry Pi 5 | Official **27 W USB-C** PSU (5 V / 5 A). Do not use a Pi 3 2.5 A supply. Do not power the printer from the Pi USB. Active cooler recommended in a closed enclosure. |
+| Raspberry Pi 5 | Official **27 W USB-C** PSU (5 V / 5 A). Do not use a Pi 3 2.5 A supply. Do not power the printer from the Pi USB. |
+| Raspberry Pi **Active Cooler** | Required in the closed kiosk box. Heatsink + PWM fan on the SoC FAN header. [Botland RPI-23925](https://botland.store/raspberry-pi-5-mounting-elements/23925-raspberry-pi-active-cooler-heatsink-fan-for-raspberry-pi-5-5056561803357.html). **§2.12**. |
+| Pimoroni NVMe Base Duo (PIM704) | **Under** the Pi 5. PCIe FPC, not GPIO. [Botland](https://botland.com.pl/rozszerzenia-gpio-i-nakladki-hat-do-raspberry-pi-5/24851-plytka-rozszerzen-nvme-base-duo-do-raspberry-pi-5-pimoroni-pim704-769894025024.html). Do **not** use the Raspberry Pi M.2 HAT+ from the SSD kit. |
+| Official Raspberry Pi NVMe **512 GB** (2230) | **Disk only** from [Raspberry Pi SSD Kit 512 GB](https://botland.com.pl/raspberry-pi-hat-nakladki-pci-express/25484-raspberry-pi-ssd-kit-512gb-zestaw-z-dyskiem-ssd-do-raspberry-pi-5-5056561805023.html) (RPI-25484). Unscrew it from the kit HAT+ and fit **slot A** on the Duo. Second Duo slot empty. |
 | micro-HDMI cable | Pi 5 has two **micro-HDMI** ports. Use **HDMI0** (the port next to USB-C power) for the kiosk panel. |
 | 800×600 LCD, mounted vertically | After rotation the framebuffer is **600×800**. That is what the app uses. |
 | DFRobot Fermion EC11 (file) | SEN0235. Phase **A** and **B** only. Shaft push (**C**) unused. Selects the NC file. |
@@ -33,6 +36,7 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 | Spare momentary button | Optional. Same switch wiring as LOAD (NO → GPIO 25, C → common GND). Press blanks the panel; press again wakes. Leave unwired: the pin sits on the internal pull-up and never fires. Idle timeout, knobs, USB, and keyboard still sleep/wake. |
 | Pi 5 J2 power switch | Optional. Momentary **NO** across the two **J2** (`PWR_BTN`) pads — same as the PCB power button. **Not** a 40-pin GPIO. Omit it: USB-C still boots when you plug in. |
 | USB stick | FAT/exFAT/NTFS. Programs as `.nc` / `.NC` / `.tap` in the **stick root** only (not subfolders). |
+| Panel USB 3.0 Type-A (27 mm) | Metal socket on the enclosure for that stick. [Allegro](https://allegro.pl/oferta/gniazdo-usb-3-0-typu-a-metalowe-do-zabudowy-na-pendrive-panelowe-27-mm-17741983408). Pigtail to a Pi **USB 3** port. **§2.11**. |
 | MUNBYN P047 (ITPP047) | USB, 80 mm ESC/POS, auto-cutter. Own mains PSU. |
 | Company STEP folder (optional) | NAS of `.stp` / `.step` if the stick has none. See **§3.7**. Stick copy is enough. |
 | Network (optional) | Only for git install and later **UPDATE**. Printing works offline. |
@@ -56,18 +60,24 @@ Default GPIO (**BCM** numbers, not header pin numbers):
 
 Change pins in **settings** (**F2** / **C** / **PL**·**EN**) or in `/etc/fh6parse-kiosk.ini`. Settings write `~/.config/fh6parse/ui.ini` (and the main ini if it is writable).
 
+Land every GPIO / 3.3 V / 5 V LED wire on the **screw terminal board** on the 40-pin header, or on a **GPIO riser** if the cooler is in the way (**§2.9**). Do not also push Dupont onto the same header under that board.
+
 ---
 
 ## 2. Hardware
 
-**Wiring poster (print this at the bench):** [LINUX-KIOSK-WIRING.pdf](LINUX-KIOSK-WIRING.pdf) — Raspberry Pi 5 top view, colour 40-pin map, panel layout, EC11 / vandal / J2. Source: [LINUX-KIOSK-WIRING.html](LINUX-KIOSK-WIRING.html). The sections below are the same facts in text.
+**Wiring poster (print this at the bench):** [LINUX-KIOSK-WIRING.pdf](LINUX-KIOSK-WIRING.pdf) — Raspberry Pi 5 top view, colour 40-pin map, panel layout, EC11 / vandal / J2, **screw terminal**, **NVMe Base Duo**, **panel USB**, **Active Cooler**, wire gauge and colours. Source: [LINUX-KIOSK-WIRING.html](LINUX-KIOSK-WIRING.html). The sections below are the same facts in text.
+
+**Buy list (survives dead shop links):** [HARDWARE.md](HARDWARE.md) — SKU / EAN / size / substitute. Manufacturer PDFs in [hardware-archive/](hardware-archive/).
 
 ### 2.1 Power and USB
 
 - Pi 5 on the official USB-C 5 V / 5 A supply. USB-C on the Pi is **power only**.
 - Optional panel **power** is **J2**, not GPIO — **§2.8**. Without it, plug in USB-C and the Pi boots.
-- P047 on its own supply; USB cable to a Pi **USB-A** port is **data only** if the printer has a separate PSU.
-- USB stick in any USB-A port (USB 2 or USB 3). Automount under `/media/<user>/…` or `/run/media/…` is enough; the kiosk polls those paths.
+- P047 on its own supply; USB cable to a Pi **USB 2** port is **data only** if the printer has a separate PSU.
+- USB stick through the **27 mm panel USB 3.0** socket — **§2.11**. Automount under `/media/<user>/…` or `/run/media/…` is enough; the kiosk polls those paths.
+- Official **Active Cooler** on the SoC FAN header — **§2.12**. Seat that cable before the GPIO screw terminal.
+- OS disk is the official Raspberry Pi **512 GB** NVMe on the **NVMe Base Duo under the Pi** — **§2.10**. Not GPIO. Not the kit M.2 HAT+.
 
 ### 2.2 GPIO rules
 
@@ -263,6 +273,78 @@ POWER_OFF_ON_HALT=1
 Then a clean halt puts the PMIC in standby; J2 or the PCB button wakes it. USB-C unplug / replug still applies 5 V and boots **unless** you also set `WAIT_FOR_POWER_BUTTON=1`. **Do not set `WAIT_FOR_POWER_BUTTON` unless J2 is on the panel** (or the PCB button stays reachable). Without a power button that flag leaves the Pi sitting dead after a power cut.
 
 fh6parse does not read J2. 5 V LED rings on the 40-pin header stay on after halt unless you switch that 5 V yourself.
+
+### 2.9 GPIO screw terminal and wires
+
+**GPIO adapter (Pi end).** GPIO screw terminal board — [Kamami 588019](https://kamami.pl/prototypowanie-raspberry-pi/588019-modul-hat-ze-zlaczami-srubowymi-dla-raspberry-pi-5906623475650.html) (same 40-pin screw block as the 52Pi listing). Sold for Pi 4B / 3B+ / Zero; the Pi 5 **40-pin header is the same**, pin 1 still at the USB-C end. Press the female 2×20 onto the header. Fit the kit **M2.5 brass standoffs** so vibration cannot walk it off. Official Pi 5 cooler stays on the SoC; this board only occupies the GPIO strip. Seat the **FAN** cable first. If the terminal still will not sit (cooler, FAN plug, or case lid), put a **40-pin GPIO riser** (stacking header, extra-tall female-to-male) on the Pi first, then the screw terminal on the riser. Same pin 1 / BCM map — do not rotate the riser. The **NVMe Base Duo** is **under** the Pi (**§2.10**), not stacked on this header. If the parcel is the larger LED HAT (52Pi EP-0129), it can fight that cooler — keep the cooler, do not stack a second HAT.
+
+Silk is **BCM**: `IO17` = GPIO 17, not header pin 17. Confirm pin 1 before the first screw. Leave **GPIO 2 / 3** (header 3 / 5, I²C1) empty for a future Qwiic keypad. **J2 is not on this board.** Colour card: [LINUX-KIOSK-WIRING.pdf](LINUX-KIOSK-WIRING.pdf) page 4.
+
+Three looms, not one bag of jumper wires. GPIO sense, LED rings, and Pi power must never share a conductor that can put 5 V on a BCM pin. **Do not** use loose Dupont jumper packs as the finished harness.
+
+**Buy**
+
+| Circuit | Wire | Ends |
+| --- | --- | --- |
+| Encoder A/B, button **NO** (3.3 V sense) | **24 AWG** stranded (0.25 mm²), PVC or silicone | Screw on the 52Pi board; Dupont or solder at the EC11 |
+| Encoder **VCC 3.3 V**, common **GND** | **22 AWG** stranded (0.34 mm²) | Screw on 3.3 V (pin 1 / 17) and GND |
+| LED **+ 5 V** and LED **−** | **22 AWG** stranded | Screw on 5 V (pin 2) / GND; insulated **2.8 mm Faston** on the vandal |
+| Optional **J2** power | **26–28 AWG**, keep under 20 cm | Solder or JST-SH 1.0 2-pin on **J2 only** |
+| Future Qwiic keypad | Official **Qwiic 4-pin** cable | Do not steal SDA/SCL screws for buttons |
+
+**24 AWG** is the default for every GPIO run under ~40 cm. **22 AWG** for 3.3 V / 5 V / GND so a 2.8 mm Faston crimp holds. Terminals take about **16–26 AWG**; stay 22/24 in the loom. Stranded only (vibration). Bootlace ferrule on the screw end; do not tin a blob. Silicone is nicer next to the Pi 5 cooler; PVC is fine in the rest of a 3D-printed case.
+
+**Colour** (so a meter is not required at 2 a.m.)
+
+| Colour | Net |
+| --- | --- |
+| Black | GND (one net: knobs, C tabs, LED −) |
+| Orange | 3.3 V encoder VCC (pin 1 / 17) |
+| Red | 5 V LED + **only** (pin 2) |
+| Blue / light blue | File encoder A / B |
+| White / grey | Mill encoder A / B |
+| Green | LOAD NO (BCM 23) |
+| Yellow | SET NO (BCM 24) |
+| Brown | RUN NO (BCM 22) — **not** red |
+| Violet | SLEEP NO (BCM 25), if fitted |
+| Grey twisted pair | J2 only |
+
+Do not use the same red for RUN and for LED +. That mix-up is a dead Pi.
+
+**Terminations.** Pi: screw terminal on the 40-pin header, or on a **GPIO riser** if it will not fit next to the cooler (standoffs, strip ~5 mm, ferrule). Strain-relieve the bundle to the case, not to the board. Vandal: insulated 2.8 mm Faston females, **crimped** (do not solder on the switch). Leave **NC** empty. EC11: Dupont or solder on the pin row; leave shaft **C** open. J2: two short flying leads across the pads only — never a screw on the GPIO block.
+
+**Length.** GPIO A/B and button NO **under ~40 cm**. Twist each encoder pair. Do not tape encoder wires along the 5 V LED bundle or a USB 3 cable. Star GND at header pins 6 / 9 / 14 — do not daisy LED − through a switch C. LED rings are tens of mA; pin 2 is enough. The official **USB-C 5 V / 5 A** cable is the only high-current wire. Do not jumper the NVMe Duo extra 5 V pads onto pin 2 unless a drive actually browns out (**§2.10**).
+
+### 2.10 NVMe Base Duo (PCIe, not GPIO)
+
+Pimoroni **NVMe Base Duo** (PIM704) — [Botland](https://botland.com.pl/rozszerzenia-gpio-i-nakladki-hat-do-raspberry-pi-5/24851-plytka-rozszerzen-nvme-base-duo-do-raspberry-pi-5-pimoroni-pim704-769894025024.html). Two M.2 **M-key** NVMe slots (2230–2280) on the Pi 5 **PCIe FPC** (next to the PCB power button). It is not a 40-pin HAT. The 52Pi screw terminal, official cooler, and J2 stay on **top** of the Pi.
+
+**Mount under the Pi.** Kit 12 mm M2.5 standoffs through the four Pi holes. Power **off** first. FPC: wider **ADDON** end into the Duo (grey clip flips up; writing faces down into the socket), **RPI 5** end into the Pi (brown clip slides ~1 mm). Pirate logo / writing faces out when folded. Fold the Duo under the Pi like a hinge — do not crease the flex. Assembly: [Pimoroni getting started](https://learn.pimoroni.com/article/getting-started-with-nvme-base-duo).
+
+The flex can cover the **microSD** slot. Insert a rescue SD **before** folding. Shop kiosk: boot from **slot A** NVMe once firmware is **2024-05-17 or newer**:
+
+```
+sudo apt update && sudo apt upgrade
+sudo reboot
+sudo rpi-eeprom-update
+lsblk
+```
+
+`lsblk` must show `nvme0n1`. Then Raspberry Pi Imager onto that disk, and `raspi-config` → Advanced Options → Boot Order → **NVMe/USB Boot**. Git clone in **§3.2** then lives on that disk. USB stick still carries `.nc` / `.stp`.
+
+**Disk:** official Raspberry Pi **512 GB** NVMe, **2230** (22 × 30 mm), M-key, TLC, 3.3 V, max **2.8 W**. Buy the [Raspberry Pi SSD Kit 512 GB](https://botland.com.pl/raspberry-pi-hat-nakladki-pci-express/25484-raspberry-pi-ssd-kit-512gb-zestaw-z-dyskiem-ssd-do-raspberry-pi-5-5056561805023.html) and **take only the SSD**. The kit HAT+, 16 mm GPIO spacers, and screws stay in the drawer — that HAT+ would sit on the 40-pin header and fight the 52Pi terminal and cooler. On the Duo, the SSD is already on the official HAT+: undo the tiny M2, plug it into **slot A**, and use the Duo’s **2230** standoff hole (closest to the socket), not 2280.
+
+One drive. Leave slot B empty (not RAID, not required for fh6parse). Stay **PCIe Gen 2** even though the Pi SSD is rated Gen3×4; do not set `dtparam=pciex1_gen=3`. Official **27 W** PSU. Extra 5 V pads on the Duo stay unused at 2.8 W.
+
+### 2.11 Panel USB 3.0 (pendrive)
+
+Metal **USB 3.0 Type-A** socket, **27 mm** panel cutout — [Allegro](https://allegro.pl/oferta/gniazdo-usb-3-0-typu-a-metalowe-do-zabudowy-na-pendrive-panelowe-27-mm-17741983408). Screw it onto the 3D-printed enclosure (nut on the inside). The operator plugs the stick into the front; a short USB 3 pigtail runs to a Pi **USB 3** port (the blue pair next to Ethernet). Not GPIO. Not power for the Pi or the P047.
+
+Keep the P047 on a **separate** Pi USB-A (USB 2 is enough). Do not daisy the printer through this panel socket. Strain-relieve the pigtail to the case, not to the Pi header. Do not tape it along encoder A/B. The kiosk still automounts under `/media` / `/run/media` — no extra driver.
+
+### 2.12 Active Cooler
+
+Official Raspberry Pi **Active Cooler** (heatsink + PWM fan) — [Botland RPI-23925](https://botland.store/raspberry-pi-5-mounting-elements/23925-raspberry-pi-active-cooler-heatsink-fan-for-raspberry-pi-5-5056561803357.html). Pi 5 only. Clip the heatsink onto the SoC; plug the **4-pin** lead into the **FAN** header next to GPIO pin 1 (VCC, GND, PWM, tach). Firmware drives the fan; fh6parse does not. Compatible with the NVMe Duo **under** the Pi. Seat this cable **before** the GPIO screw terminal. If the terminal still will not clear the cooler, use a GPIO riser (**§2.9**). The spring clips are not meant for repeated removal.
 
 ---
 
@@ -628,12 +710,12 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | `GPIO off: …` on the status line | `python3-gpiozero` and `python3-lgpio` installed (not `python3-rpi.gpio` on Pi 5); user in group `gpio`; pins not already claimed. |
 | Knob does nothing | File knob defaults 17/27, mill knob 5/6. A/B (CLK/DT) on the BCM numbers shown in settings; common GND; 3.3 V VCC. Try **Reverse** for that knob. |
 | Mill name does not change | Mill knob BCM 5/6 (header 29/31). Need more than one mill in settings. `encoder_mill_swap` if it turns the wrong way. |
-| Knob skips or jitters at rest | Raise **Ticks per tooth** so the valley is several GPIO ticks wide; highlight only changes halfway to the next tooth. Shorter wires; module decoupling. The kiosk also sets a short encoder `bounce_time` for Pi 5. |
+| Knob skips or jitters at rest | Raise **Ticks per tooth** so the valley is several GPIO ticks wide; highlight only changes halfway to the next tooth. Shorter wires; module decoupling. The kiosk also sets a short encoder `bounce_time` for Pi 5. Loose jumper packs walk off the header — land wires on the screw terminal (**§2.9**) and fit the brass standoffs. Terminal will not seat next to the cooler: 40-pin GPIO riser, then the terminal on top. |
 | Buttons print on press and release | Use momentary **NO** to GPIO and **C** to GND. Leave **NC** and the LED tabs off the GPIO. Not a latching switch. Raise **print wait** (`button_delay`) if two tickets still come out. |
 | **Czekaj przed następnym biletem** / **Wait before the next ticket** | Normal after a print. Default 2 s (`button_delay`). Settings **+** / **−**. |
 | Ring LED dark | LED + to header **5 V** (pin 2), LED − to GND. Swap +/− if it stays dark. Dim on 3.3 V is expected on the 5 V rings. |
 | Pi dies / GPIO error after wiring LEDs | **5 V reached a GPIO.** LED stays on pin 2; C / NO / NC must never see 5 V. |
-| List stays on Insert USB / Włóż pendrive | Stick mounted? `ls /media` / `ls /run/media`. Format FAT32. Files ending `.nc` or `.tap`. |
+| List stays on Insert USB / Włóż pendrive | Stick seated in the **panel** socket? Pigtail in a Pi **USB 3** port? `ls /media` / `ls /run/media`. Format FAT32. Files ending `.nc` or `.tap` in the stick **root**. |
 | Preview does not match the stick file | Same name overwritten? Wait until **Reading…** clears. Reload uses mtime **and** size (FAT 2 s). Do not yank during **Reading USB — wait**. |
 | Yanked stick, list frozen / cube stuck | Wait for **Safe to remove** next time. Plug back in. `rm -rf /tmp/fh6parse-models` if pictures are from a half-copy. |
 | `printer failed` | `ls -l /dev/usb/lp0`; user `kiosk` in group `lp`; test the Python write in **§3.5**. *Permission denied* → log out after `usermod`. *Busy* → CUPS still owns the printer (`sudo systemctl disable --now cups`). |
@@ -651,7 +733,9 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | Wrong aspect / sideways UI | Rotate until `xdpyinfo` (or Screen Configuration) shows 600×800. App geometry is 600×800 fullscreen. Pi 5 output is often `HDMI-A-1`. |
 | Service dead, UI never starts | `echo $DISPLAY` in a desktop terminal should be `:0`. `raspi-config` → X11, desktop autologin. `journalctl -u fh6parse-kiosk`. Unit `User=` must be `kiosk`. |
 | Pi stays on after halt / no panel power | J2 is optional. USB-C unplug/replug boots. Do not set `WAIT_FOR_POWER_BUTTON=1` unless J2 is wired. PCB power button is the same as J2. See **§2.8**. |
-| Undervoltage / random reboots | Official 27 W PSU. A phone charger or Pi 3 supply is not enough. |
+| Undervoltage / random reboots | Official 27 W PSU. A phone charger or Pi 3 supply is not enough. The Pi 512 GB SSD is 2.8 W max; LED rings stay on the same PSU. |
+| `lsblk` has no `nvme0n1` | Power off. Reseat both FPC clips: **ADDON** on the Duo, **RPI 5** on the Pi. Firmware `sudo rpi-eeprom-update` dated 2024-05-17 or later. Official Pi **2230** SSD in Duo **slot A** (2230 hole, not 2280). Do not leave it on the kit M.2 HAT+. |
+| Cannot reach the microSD slot | Normal with the Duo **under** the Pi. Boot from NVMe. Rescue SD goes in **before** folding the flex. |
 | Python 3.9 | Wrong image. Flash 64-bit Raspberry Pi OS Desktop for Pi 5. |
 | `--update` says one-file package | This Pi is running the ARM tarball. Copy a new tarball or reinstall from git (**§3.2**). |
 | `--update` / fast-forward failed | Uncommitted edits or a diverged branch. See **§8.1**. Do not merge on the shop floor. |
@@ -855,6 +939,9 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | Settings (**F2** / **PL** chip): language, mill / **Add mill…**, LOAD|SET|RUN ticks, file + mill pins, reverse, RUN / LOAD / SET / optional sleep, ticks per tooth, print wait; survives restart | |
 | Optional spare GPIO (unwired OK): press sleeps, press wakes; print buttons still ignored while black | |
 | Optional J2 power: omit it and USB-C still boots; do not set WAIT_FOR_POWER_BUTTON without J2 | |
+| NVMe Base Duo under the Pi, official 512 GB 2230 in slot A: `lsblk` shows `nvme0n1`; git checkout lives on that disk | |
+| Panel USB 3.0 (27 mm): stick in the enclosure socket lists `.nc`; P047 still on a separate Pi USB-A | |
+| Official Active Cooler on FAN header; GPIO screw terminal on the header **or** a 40-pin riser if it will not fit | |
 | File knob: rest is stable; highlight changes halfway to the next tooth | |
 | Mill knob: mill name next to **v…** changes; persists like **Add mill…** | |
 | Colour chips on the bottom of the screen: green LOAD, yellow SET, red RUN left→right | |
