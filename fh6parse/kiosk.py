@@ -53,10 +53,15 @@ from .printer import (
     query_printer_status,
 )
 from .report import (
+    GUI_SECTION_KEYS,
     PAPER_80MM,
     PAPER_80MM_LOAD,
     PAPER_80MM_SET,
     PAPER_A4,
+    ReportSections,
+    SECTIONS_LOAD,
+    SECTIONS_RUN,
+    SECTIONS_SET,
     format_report,
     normalize_paper,
     parse_report_sections,
@@ -99,6 +104,9 @@ UI_OVERLAY_KEYS = (
     "button_spare",
     "button_delay",
     "machine",
+    "report_load",
+    "report_set",
+    "report_run",
 )
 
 
@@ -237,6 +245,9 @@ class KioskConfig:
     last_out_dir: str = ""
     last_paper: str = PAPER_A4
     report_sections: str = ""
+    report_load: str = ""
+    report_set: str = ""
+    report_run: str = ""
     machines: list[MachineProfile] = field(default_factory=lambda: [DEFAULT_MACHINE])
     source: Path | None = None
 
@@ -249,6 +260,14 @@ class KioskConfig:
 
     def active_machine(self) -> MachineProfile:
         return self.machine_by_id(self.machine_id) or self.machines[0]
+
+    def sections_for(self, paper: str | None):
+        return sections_for_paper(
+            paper,
+            load=self.report_load,
+            set=self.report_set,
+            run=self.report_run,
+        )
 
 
 def _ini_paths(raw: str) -> list[Path]:
@@ -692,6 +711,10 @@ def _apply_gui_memory(cfg: KioskConfig, src: configparser.SectionProxy) -> None:
     sections = src.get("report_sections", fallback="").strip()
     if sections:
         cfg.report_sections = parse_report_sections(sections).to_csv()
+    for key in ("report_load", "report_set", "report_run"):
+        raw = src.get(key, fallback="").strip()
+        if raw:
+            setattr(cfg, key, parse_report_sections(raw).to_csv())
 
 
 def _clamp_bcm(value: int) -> int:
@@ -1120,20 +1143,58 @@ class KioskApp(tk.Tk):
             bg="#1a1a1a",
             highlightbackground=ACCENT,
             highlightthickness=2,
-            padx=18,
-            pady=16,
+            padx=8,
+            pady=8,
         )
         self._config = panel
+        canvas = tk.Canvas(
+            panel, bg="#1a1a1a", highlightthickness=0, bd=0
+        )
+        scroll = tk.Scrollbar(panel, command=canvas.yview)
+        inner = tk.Frame(canvas, bg="#1a1a1a")
+        self._config_inner = inner
+        win = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _inner_cfg(_event=None) -> None:
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _canvas_cfg(event) -> None:
+            canvas.itemconfigure(win, width=max(1, event.width))
+
+        inner.bind("<Configure>", _inner_cfg)
+        canvas.bind("<Configure>", _canvas_cfg)
+        canvas.configure(yscrollcommand=scroll.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        def _wheel(event) -> str:
+            delta = int(-event.delta / 120) if event.delta else 0
+            if event.num == 4:
+                delta = -1
+            elif event.num == 5:
+                delta = 1
+            if delta:
+                canvas.yview_scroll(delta, "units")
+            return "break"
+
+        for widget in (canvas, inner):
+            widget.bind("<MouseWheel>", _wheel)
+            widget.bind("<Button-4>", _wheel)
+            widget.bind("<Button-5>", _wheel)
+        self._config_canvas = canvas
+        self._bind_config_wheel = _wheel
+        panel = inner
+
         self._config_title = tk.Label(
-            panel,
+            inner,
             text=t(self._lang, "settings"),
             font=update_font,
             bg="#1a1a1a",
             fg=ACCENT,
         )
-        self._config_title.pack(anchor="w")
+        self._config_title.pack(anchor="w", padx=10, pady=(8, 0))
         self._config_blurb = tk.Label(
-            panel,
+            inner,
             text=t(self._lang, "settings_blurb"),
             font=small,
             bg="#1a1a1a",
@@ -1141,9 +1202,9 @@ class KioskApp(tk.Tk):
             wraplength=self.cfg.width - 80,
             justify="left",
         )
-        self._config_blurb.pack(anchor="w", pady=(8, 12))
+        self._config_blurb.pack(anchor="w", padx=10, pady=(8, 12))
         self._config_lang_lbl = tk.Label(
-            panel,
+            inner,
             text=t(self._lang, "language"),
             font=small,
             bg="#1a1a1a",
@@ -1244,6 +1305,7 @@ class KioskApp(tk.Tk):
             command=self._show_mill_form,
         )
         self._btn_machine_add.pack(anchor="w", pady=(0, 12), ipady=6)
+        self._build_section_matrix(panel, small)
 
         self._config_gpio_lbl = tk.Label(
             panel,
@@ -1477,6 +1539,181 @@ class KioskApp(tk.Tk):
         self._style_lang_buttons()
         self._style_swap_buttons()
         self._refresh_gpio_labels()
+        self._refresh_pack_labels()
+
+    def _current_packs(self) -> dict[str, object]:
+        return {
+            "load": parse_report_sections(
+                self.cfg.report_load, default=SECTIONS_LOAD
+            ),
+            "set": parse_report_sections(self.cfg.report_set, default=SECTIONS_SET),
+            "run": parse_report_sections(self.cfg.report_run, default=SECTIONS_RUN),
+        }
+
+    def _build_section_matrix(self, parent: tk.Frame, small) -> None:
+        self._pack_updating = False
+        self._section_head = tk.Label(
+            parent,
+            text=t(self._lang, "report_sections"),
+            font=small,
+            bg="#1a1a1a",
+            fg="#eeeeee",
+        )
+        self._section_head.pack(anchor="w", pady=(4, 2))
+        self._section_safety_lbl = tk.Label(
+            parent,
+            text=t(self._lang, "section_safety"),
+            font=small,
+            bg="#1a1a1a",
+            fg=MUTED,
+            wraplength=self.cfg.width - 80,
+            justify="left",
+        )
+        self._section_safety_lbl.pack(anchor="w", pady=(0, 6))
+        grid = tk.Frame(parent, bg="#1a1a1a")
+        grid.pack(fill=tk.X, pady=(0, 8))
+        packs = self._current_packs()
+        self._pack_vars: dict[str, dict[str, tk.BooleanVar]] = {
+            "load": {},
+            "set": {},
+            "run": {},
+        }
+        self._pack_checks: dict[str, dict[str, tk.Checkbutton]] = {
+            "load": {},
+            "set": {},
+            "run": {},
+        }
+        self._section_row_lbls: dict[str, tk.Label] = {}
+        self._section_col_lbls: dict[str, tk.Label] = {}
+        colors = {"load": "#2e7d32", "set": "#f9a825", "run": "#c62828"}
+        for col, kind in enumerate(("load", "set", "run"), start=1):
+            lbl = tk.Label(
+                grid,
+                text=t(self._lang, f"section_col_{kind}"),
+                font=small,
+                bg="#1a1a1a",
+                fg=colors[kind],
+            )
+            lbl.grid(row=0, column=col, padx=4, pady=(0, 4))
+            self._section_col_lbls[kind] = lbl
+        for row, key in enumerate(GUI_SECTION_KEYS, start=1):
+            name = tk.Label(
+                grid,
+                text=t(self._lang, f"section_{key}"),
+                font=small,
+                bg="#1a1a1a",
+                fg="#eeeeee",
+                anchor="w",
+                justify="left",
+                wraplength=self.cfg.width - 220,
+            )
+            name.grid(row=row, column=0, sticky="w", pady=1)
+            self._section_row_lbls[key] = name
+            for col, kind in enumerate(("load", "set", "run"), start=1):
+                var = tk.BooleanVar(value=bool(getattr(packs[kind], key)))
+                self._pack_vars[kind][key] = var
+                cb = tk.Checkbutton(
+                    grid,
+                    variable=var,
+                    command=self._on_pack_tick,
+                    bg="#1a1a1a",
+                    fg="#eeeeee",
+                    selectcolor="#333333",
+                    activebackground="#1a1a1a",
+                    activeforeground="#eeeeee",
+                    highlightthickness=0,
+                    bd=0,
+                )
+                cb.grid(row=row, column=col)
+                self._pack_checks[kind][key] = cb
+        reset = tk.Frame(parent, bg="#1a1a1a")
+        reset.pack(fill=tk.X, pady=(0, 10))
+        self._btn_reset_load = tk.Button(
+            reset,
+            text=t(self._lang, "section_reset_load"),
+            font=small,
+            bg="#2e7d32",
+            fg="#ffffff",
+            activebackground="#388e3c",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            command=lambda: self._reset_pack("load"),
+        )
+        self._btn_reset_set = tk.Button(
+            reset,
+            text=t(self._lang, "section_reset_set"),
+            font=small,
+            bg="#f9a825",
+            fg="#111111",
+            activebackground="#fbc02d",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            command=lambda: self._reset_pack("set"),
+        )
+        self._btn_reset_run = tk.Button(
+            reset,
+            text=t(self._lang, "section_reset_run"),
+            font=small,
+            bg="#c62828",
+            fg="#ffffff",
+            activebackground="#e53935",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            command=lambda: self._reset_pack("run"),
+        )
+        self._btn_reset_load.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 4), ipady=6)
+        self._btn_reset_set.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=4, ipady=6)
+        self._btn_reset_run.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(4, 0), ipady=6)
+        wheel = getattr(self, "_bind_config_wheel", None)
+        if wheel is not None:
+            for widget in (grid, reset, parent):
+                widget.bind("<MouseWheel>", wheel)
+                widget.bind("<Button-4>", wheel)
+                widget.bind("<Button-5>", wheel)
+
+    def _pack_from_vars(self, kind: str) -> ReportSections:
+        ticks = {
+            key: bool(var.get()) for key, var in self._pack_vars[kind].items()
+        }
+        return ReportSections(**{key: ticks.get(key, False) for key in GUI_SECTION_KEYS})
+
+    def _sync_packs_from_vars(self) -> None:
+        self.cfg.report_load = self._pack_from_vars("load").to_csv()
+        self.cfg.report_set = self._pack_from_vars("set").to_csv()
+        self.cfg.report_run = self._pack_from_vars("run").to_csv()
+        self._persist_ui_settings()
+        self._arm_idle()
+
+    def _on_pack_tick(self) -> None:
+        if self._pack_updating:
+            return
+        self._sync_packs_from_vars()
+
+    def _reset_pack(self, kind: str) -> None:
+        factory = {"load": SECTIONS_LOAD, "set": SECTIONS_SET, "run": SECTIONS_RUN}[kind]
+        self._pack_updating = True
+        try:
+            for key, var in self._pack_vars[kind].items():
+                var.set(bool(getattr(factory, key)))
+        finally:
+            self._pack_updating = False
+        self._sync_packs_from_vars()
+
+    def _refresh_pack_labels(self) -> None:
+        if not hasattr(self, "_section_head"):
+            return
+        self._section_head.config(text=self._tr("report_sections"))
+        self._section_safety_lbl.config(text=self._tr("section_safety"))
+        for kind, lbl in self._section_col_lbls.items():
+            lbl.config(text=self._tr(f"section_col_{kind}"))
+        for key, lbl in self._section_row_lbls.items():
+            lbl.config(text=self._tr(f"section_{key}"))
+        self._btn_reset_load.config(text=self._tr("section_reset_load"))
+        self._btn_reset_set.config(text=self._tr("section_reset_set"))
+        self._btn_reset_run.config(text=self._tr("section_reset_run"))
 
     def _build_mill_form(self, small, update_font) -> None:
         panel = tk.Frame(
@@ -1755,6 +1992,9 @@ class KioskApp(tk.Tk):
             "button_set": str(self.cfg.button_set),
             "button_spare": str(self.cfg.button_spare),
             "button_delay": f"{self.cfg.button_delay:.1f}",
+            "report_load": self.cfg.report_load,
+            "report_set": self.cfg.report_set,
+            "report_run": self.cfg.report_run,
         }
 
     def _assigned_pins(self, *, except_attr: str = "") -> set[int]:
@@ -1875,6 +2115,7 @@ class KioskApp(tk.Tk):
         self._config_delay_lbl.config(text=self._tr("button_delay"))
         self._config_delay_blurb.config(text=self._tr("button_delay_blurb"))
         self._config_keys.config(text=self._tr("settings_keys"))
+        self._refresh_pack_labels()
         self._mill_title.config(text=self._tr("machine_add_title"))
         for lbl, key in self._mill_field_lbls:
             lbl.config(text=self._tr(key))
@@ -2828,11 +3069,12 @@ class KioskApp(tk.Tk):
         self.update_idletasks()
         try:
             result = self._parse_path(path)
-            text = format_report(result, paper=paper, lang=self._lang)
+            secs = self.cfg.sections_for(paper)
+            text = format_report(result, paper=paper, lang=self._lang, sections=secs)
             images: list[Path] = []
             if self._models is not None:
                 images = self._models.ready_images(path)
-            images = ticket_image_paths(result, images, sections_for_paper(paper))
+            images = ticket_image_paths(result, images, secs)
             route = print_ticket(
                 text,
                 queue=self.cfg.printer_queue,

@@ -541,17 +541,31 @@ class TestKioskConfig(unittest.TestCase):
         self.assertEqual(normalize_paper("80mm"), "80mm-run")
         csv = SECTIONS_LOAD.to_csv()
         self.assertIn("header", csv)
+        self.assertIn("loadboxes", csv.split(","))
         self.assertNotIn("chart", csv.split(","))
+        self.assertNotIn("mill", csv.split(","))
         self.assertFalse(parse_report_sections(csv).cycle)
         self.assertTrue(SECTIONS_RUN.timesplit)
-        self.assertFalse(parse_report_sections("header,cycle,tools").timesplit)
+        self.assertTrue(SECTIONS_RUN.stops)
+        self.assertFalse(SECTIONS_RUN.loadboxes)
+        self.assertFalse(SECTIONS_RUN.sign)
+        legacy = parse_report_sections("header,cycle,tools")
+        self.assertFalse(legacy.timesplit)
+        self.assertTrue(legacy.chart)
+        self.assertTrue(legacy.loadboxes)
+        self.assertTrue(legacy.printed)
+        self.assertFalse(legacy.mill)
         with tempfile.TemporaryDirectory() as home:
             with patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
                 with tempfile.TemporaryDirectory() as raw:
                     main = Path(raw) / "kiosk.ini"
                     main.write_text("[kiosk]\n", encoding="utf-8")
                     save_kiosk_values(
-                        {"report_sections": "header,tools,sign"},
+                        {
+                            "report_sections": "header,tools,sign",
+                            "report_load": SECTIONS_LOAD.to_csv(),
+                            "report_run": "header,cycle,tools",
+                        },
                         ui_overlay_path(),
                     )
                     cfg = load_kiosk_config(main)
@@ -562,6 +576,11 @@ class TestKioskConfig(unittest.TestCase):
                     self.assertFalse(got.notes)
                     self.assertFalse(got.g54)
                     self.assertFalse(got.cycle)
+                    self.assertEqual(cfg.report_load, SECTIONS_LOAD.to_csv())
+                    run = cfg.sections_for("80mm-run")
+                    self.assertTrue(run.cycle)
+                    self.assertFalse(run.timesplit)
+                    self.assertTrue(cfg.sections_for("80mm-load").loadboxes)
 
 
 class TestKioskPreview(unittest.TestCase):

@@ -633,9 +633,28 @@ M30
         self.assertNotIn("SHARE", run)
         self.assertNotIn("Cycle", load)
         self.assertNotIn("EACH CHANGE", load)
+        self.assertRegex(load, r"\[ \] T")
+        self.assertNotRegex(run, r"\[ \] T")
+        self.assertNotRegex(sett, r"\[ \] T")
         for paper_text in (sett, run, load):
             for line in paper_text.splitlines():
                 self.assertLessEqual(len(line), THERMAL_WIDTH, msg=repr(line))
+
+    def test_load_keeps_safety_hides_extra_warnings(self) -> None:
+        src = """O1
+T1 M6
+G0 X10 Y0 Z0
+T2 M6
+G1 X20 F200
+T3 M6
+M30
+"""
+        r = parse_nc_text(src, "t.nc")
+        load = format_report(r, paper=PAPER_80MM_MIN)
+        run = format_report(r, paper=PAPER_80MM)
+        self.assertIn("no feed", run)
+        self.assertNotIn("no feed", load)
+        self.assertNotIn("no motion", load)
 
     def test_80mm_min_flags_g95_left_on(self) -> None:
         src = """O1
@@ -999,7 +1018,8 @@ M30
         sett = format_report(r, paper=PAPER_80MM_SET)
         self.assertNotIn("M00", sett)
         mm = format_report(r, paper=PAPER_80MM)
-        self.assertIn("[ ] M00", mm)
+        self.assertIn("M00", mm)
+        self.assertNotRegex(mm, r"\[ \] M00")
         self.assertIn("PROGRAM STOP", mm)
 
     def test_bare_m0_still_listed(self) -> None:
@@ -1016,7 +1036,8 @@ M30
         self.assertEqual(len(stops), 1)
         self.assertEqual(stops[0].description, "")
         text = format_report(r, paper=PAPER_80MM)
-        self.assertIn("[ ] M00", text)
+        self.assertIn("M00", text)
+        self.assertNotRegex(text, r"\[ \] M00")
 
     def test_sample_m00_mocowanie(self) -> None:
         r = parse_nc_file(SAMPLES / "D0134078.nc")

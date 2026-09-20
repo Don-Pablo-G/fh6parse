@@ -11,9 +11,9 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 1. Włącz kiosk. Na ekranie: **Włóż pendrive** (albo lista z poprzedniego kija, jeśli został w gnieździe).
 2. Włóż pendrive. Programy **`.nc` / `.tap` w katalogu głównym** kija (nie w podfolderach) pojawiają się na liście. Przy liczbie plików: **Można wyjąć** = wolno wyciągnąć kij. **Czytanie pendrive — czekaj** = kiosk jeszcze czyta (podgląd albo kopiuje STEP) — nie wyrywaj.
 3. Pokrętłem **pliku** podświetl program (za ostatnim wraca na pierwszy). Drugie pokrętło wybiera obrabiarkę (też się zawija; nazwa obok wersji). Pod listą widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz. Jeśli na kiju nadpiszesz ten sam `.nc`, podgląd sam się odświeży — poczekaj aż zniknie **Czytanie…**, potem LOAD / SET / RUN. Lista i trzy kolorowe pola na dole są duże — pola stoją nad przyciskami.
-4. Przycisk **zielony LOAD** (lewy, pod ekranem) — bilet operatora (T, H/D/S, Min Z, kratki załadunku, ostrzeżenia). Bez wykresu, bez każdej wymiany Txx / M00, bez offsetu, bez STEP.
+4. Przycisk **zielony LOAD** (lewy, pod ekranem) — bilet operatora (T, H/D/S, Min Z, kratki załadunku, podpis). Treść zmieniasz w **F2**.
 5. Przycisk **żółty SET** (środek) — bilet ustawiacza (program, mill, STEP gdy gotowy, prostokąt offsetu, czas cyklu bez wykresu, uwagi `!`).
-6. Przycisk **czerwony RUN** (prawy) — pełny bilet 80 mm (STEP, offset, operacje, czas, rozkład G0/skrawanie/ATC, lista narzędzi, każda wymiana Txx / M00, ostrzeżenia).
+6. Przycisk **czerwony RUN** (prawy) — pełny bilet 80 mm (STEP, offset, operacje, czas, rozkład G0/skrawanie/ATC, lista narzędzi, każda wymiana Txx / M00). Bez kratek załadunku i podpisu.
 7. Po bilecie krótka pauza (**Czekaj przed następnym biletem**) — drugie naciśnięcie nie da dwóch kartek.
 8. Na dole **Pokrywa otwarta**, **Brak papieru** albo **Zacięcie drukarki** — nie drukuj, najpierw drukarka. Przycisk nie wytnie pustego biletu.
 9. Brak żółtej kostki 3D obok nazwy = drukuj i tak. Bilet będzie sam tekst, bez czekania. Chip przy kostce mówi dlaczego: **szuka…** / **liczy…** / **brak STEP** / **Z: wył.** / **brak CAD**.
@@ -52,9 +52,9 @@ Kiosk **nie zapisuje i nie kasuje** plików na pendrive ani w firmowym folderze 
 
 ## 3. Druk
 
-- **LOAD** (zielony, lewy) — załadunek: T, H/D/S, opis, Min Z, kratki, ostrzeżenia.
+- **LOAD** (zielony, lewy) — załadunek: T, H/D/S, opis, Min Z, kratki, podpis. Treść w **F2**.
 - **SET** (żółty, środek) — ustawianie: mill, STEP gdy kostka jest, prostokąt offsetu, czas cyklu (bez wykresu), uwagi `!`.
-- **RUN** (czerwony, prawy) — pełna lista narzędzi, czas, rozkład G0 / skrawanie / cykl / ATC na każde T, Min Z, ostrzeżenia, izometria gdy kostka już jest. Gdy obrabiarka ma skok: prostokąt punktu zerowego offsetu w współrzędnych maszyny (rogi, środek, maks. Ø G41/G42 wyśrodkowane).
+- **RUN** (czerwony, prawy) — pełna lista narzędzi, czas, rozkład G0 / skrawanie / cykl / ATC na każde T, Min Z, każda wymiana, izometria gdy kostka już jest. Bez kratek i podpisu. Gdy obrabiarka ma skok: prostokąt punktu zerowego offsetu w współrzędnych maszyny (rogi, środek, maks. Ø G41/G42 wyśrodkowane).
 - Papier: **80 mm**, drukarka termiczna przy kiosku. Nie skalować do A4.
 - Jeśli na dole jest **Brak papieru** / **Pokrywa otwarta** / **Zacięcie drukarki**, najpierw drukarka — kiosk nie wytnie pustej kartki.
 - Komentarze z programu (polskie opisy narzędzi) zostają jak w NC. Napisy kiosku i biletu są po polsku, gdy wybrano **Polski**.
@@ -95,7 +95,7 @@ Pokrętło **nie otwiera** ustawień.
 
 | Co | Jak |
 | --- | --- |
-| Otwórz ustawienia | **F2** albo **C**, albo kliknij **PL** / **EN** przy wersji |
+| Otwórz ustawienia | **F2** albo **C**, albo kliknij **PL** / **EN** przy wersji. Tam treść LOAD / SET / RUN |
 | Język | **Polski** / **English** — dotyczy ekranu **i** biletu |
 | Obrabiarka | Drugie pokrętło, **+** / **−**, albo **Dodaj obrabiarkę…** (nazwa, szybkie m/min, B/C, czas wymiany, opcjonalnie max obr./min, ATC X/Y/Z, offset X/Y/Z i skok min/max) — od tego liczony jest czas cyklu i prostokąt offsetu |
 | Zamknij | **Esc**: najpierw formularz obrabiarki, potem ustawienia |

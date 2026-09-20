@@ -59,14 +59,17 @@ X/Y/Z min and max (six fields, G53 mm) prints a labeled rectangle of where
 the work offset may sit so programmed work stays inside the envelope; corners,
 center, and max Ø (centred outside G41/G42) are on the ticket. No accel.
 A trailing + means missing F or S.
-Each operation shows Cycle (that path until M30). RUN always prints a time split:
+Each operation shows Cycle (that path until M30). Factory RUN prints a time split:
 G0 / cut / rotary / canned / probe / ATC stacked per T (last programmed F, including
-F#n). A4 office default is still the simple share chart; tick **Time split** on the
-Windows / Linux GUI to get the same stacked breakdown. LOAD is the operator slip
-(T / H / D / S / Min Z / load boxes). SET is the setter slip (mill, STEP, offset,
-cycle, notes). The office GUI is one report with a section checklist (no LOAD / SET
-/ RUN presets). Text/80 mm share bars use a solid block (CP852); the RUN split uses
-G/F/R/C/P/A letters. A4 HTML uses a CSS track (stacked when time split is on).
+F#n). A4 office default is still the simple share chart; tick **Time split** (or
+**Use RUN pack**) on the Windows / Linux GUI. F2 on the kiosk has a LOAD | SET | RUN
+tick matrix (same rows as the office checklist). Factory LOAD is T / H / D / S /
+Min Z / load boxes / sign-off; SET is mill, STEP, offset, cycle, ! notes; RUN is
+the full slip without load boxes or sign-off. G68, D vs T, empty pocket, S max,
+late offset, G95, and travel-too-big always print. Extra warnings are a separate
+tick (on for factory RUN). Text/80 mm share bars use a solid block (CP852); the
+RUN split uses G/F/R/C/P/A letters. A4 HTML uses a CSS track (stacked when time
+split is on).
 
 Print: open the GUI, load the NC file, tick report sections next to the
 preview, then Print A4 or Print 80 mm (paper size only — same ticks).
@@ -143,10 +146,10 @@ Raspberry Pi 5 kiosk (portrait 600x800) — version 1.4.0
 
   Keyboard/mouse (troubleshooting, hot-plug OK): arrows, click, wheel, F, M, S, U.
   F2 or C (or click PL/EN) opens settings: Polish default, mill, Add mill…,
-  GPIO pins (file A/B, mill A/B, RUN / LOAD / SET, spare), Reverse on each
-  knob, ticks per tooth, print wait after a ticket (button_delay, default 2 s).
-  Language and mill are saved in
-  ~/.config/fh6parse/ui.ini (survives UPDATE).
+  LOAD / SET / RUN content ticks, GPIO pins (file A/B, mill A/B, RUN / LOAD /
+  SET, spare), Reverse on each knob, ticks per tooth, print wait after a
+  ticket (button_delay, default 2 s). Language, mill, GPIO, and the three
+  report packs are saved in ~/.config/fh6parse/ui.ini (survives UPDATE).
   Escape closes the mill form first, then settings, then leaves fullscreen.
 
   File encoder (DFRobot EC11 A/B) highlights a file (last wraps to first).

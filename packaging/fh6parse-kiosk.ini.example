@@ -17,6 +17,8 @@ idle_seconds = 60
 # language = pl
 # Windows GUI also stores last_nc_dir, last_out_dir, last_paper (a4 or 80mm),
 # and report_sections (comma list) in this file and in ~/.config/fh6parse/ui.ini.
+# Kiosk F2 ticks write report_load / report_set / report_run (same keys).
+# Omit those three to keep the factory LOAD / SET / RUN packs.
 
 encoder_clk = 17
 encoder_dt = 27

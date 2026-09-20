@@ -80,11 +80,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "cad_chip_share_down": "Z: off",
         "settings": "Settings",
         "settings_blurb": (
-            "Language, mill, BCM pins (file knob, mill knob, green LOAD / "
-            "yellow SET / red RUN, spare), reverse each knob, ticks from one "
-            "tooth valley to the next, and wait after a ticket. Rest is the "
-            "file; the highlight changes halfway to the next tooth. File and "
-            "mill lists wrap from last to first."
+            "Language, mill, LOAD / SET / RUN content, BCM pins (file knob, "
+            "mill knob, green LOAD / yellow SET / red RUN, spare), reverse "
+            "each knob, ticks from one tooth valley to the next, and wait "
+            "after a ticket. Rest is the file; the highlight changes halfway "
+            "to the next tooth. File and mill lists wrap from last to first."
         ),
         "language": "Language",
         "lang_pl": "Polski",
@@ -199,15 +199,36 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "report_sections": "Report content",
         "section_header": "File / program / units",
-        "section_notes": "Programmer notes",
+        "section_mill": "Mill name",
+        "section_printed": "Printed-at",
+        "section_comments": "Header comments",
+        "section_notes": "! notes",
         "section_step": "STEP views",
-        "section_g54": "Offset rectangle + Ømax",
-        "section_cycle": "Cycle time / share chart",
+        "section_g54": "Offset corners + centre",
+        "section_g54fit": "Ømax + Z window",
+        "section_cycle": "Cycle time",
+        "section_chart": "Share chart",
         "section_timesplit": "Time split (G0 / cut / ATC)",
         "section_tools": "Tool list (T / H / D / S / Min Z)",
-        "section_changes": "Each Txx M6 / M00",
-        "section_warnings": "Warnings",
+        "section_loadboxes": "Load boxes [ ]",
+        "section_changes": "Each Txx M6",
+        "section_stops": "M00 + nearby comments",
+        "section_warnings": "Extra warnings",
         "section_sign": "Sign-off",
+        "section_safety": (
+            "G68, D vs T, empty pocket, S max, late offset, G95, and travel "
+            "too big always print."
+        ),
+        "section_col_load": "LOAD",
+        "section_col_set": "SET",
+        "section_col_run": "RUN",
+        "section_reset_load": "Reset LOAD",
+        "section_reset_set": "Reset SET",
+        "section_reset_run": "Reset RUN",
+        "section_use_load": "Use LOAD pack",
+        "section_use_set": "Use SET pack",
+        "section_use_run": "Use RUN pack",
+        "ticket_mill": "Mill",
         "ticket_title_a4": "CNC TOOL REPORT  |  A4",
         "ticket_title_80": "CNC TOOL REPORT",
         "ticket_title_load": "CNC TOOLS LOAD",
@@ -408,12 +429,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "cad_chip_share_down": "Z: wył.",
         "settings": "Ustawienia",
         "settings_blurb": (
-            "Język, obrabiarka, piny BCM (pokrętło pliku, pokrętło mill, "
-            "zielony LOAD / żółty SET / czerwony RUN, zapasowy), kierunek "
-            "każdego pokrętła, impulsy od jednej doliny zęba do następnej "
-            "i pauza po bilecie. Spoczynek to plik; podświetlenie zmienia "
-            "się w połowie drogi do następnego zęba. Lista plików i "
-            "obrabiarek zawija się z ostatniego na pierwszy."
+            "Język, obrabiarka, treść LOAD / SET / RUN, piny BCM (pokrętło "
+            "pliku, pokrętło mill, zielony LOAD / żółty SET / czerwony RUN, "
+            "zapasowy), kierunek każdego pokrętła, impulsy od jednej doliny "
+            "zęba do następnej i pauza po bilecie. Spoczynek to plik; "
+            "podświetlenie zmienia się w połowie drogi do następnego zęba. "
+            "Lista plików i obrabiarek zawija się z ostatniego na pierwszy."
         ),
         "language": "Język",
         "lang_pl": "Polski",
@@ -529,15 +550,36 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "report_sections": "Treść raportu",
         "section_header": "Plik / program / jednostki",
-        "section_notes": "Uwagi programisty",
+        "section_mill": "Nazwa obrabiarki",
+        "section_printed": "Data wydruku",
+        "section_comments": "Komentarze nagłówka",
+        "section_notes": "Uwagi !",
         "section_step": "Widoki STEP",
-        "section_g54": "Prostokąt offsetu + Ømax",
-        "section_cycle": "Czas cyklu / wykres udziału",
+        "section_g54": "Narożniki offsetu + środek",
+        "section_g54fit": "Ømax + okno Z",
+        "section_cycle": "Czas cyklu",
+        "section_chart": "Wykres udziału",
         "section_timesplit": "Rozkład czasu (G0 / skrawanie / ATC)",
         "section_tools": "Lista narzędzi (T / H / D / S / Min Z)",
-        "section_changes": "Każde Txx M6 / M00",
-        "section_warnings": "Ostrzeżenia",
+        "section_loadboxes": "Kratki załadunku [ ]",
+        "section_changes": "Każde Txx M6",
+        "section_stops": "M00 + komentarze obok",
+        "section_warnings": "Dodatkowe ostrzeżenia",
         "section_sign": "Podpis",
+        "section_safety": (
+            "G68, D vs T, pusta kieszeń, S max, późny offset, G95 i za duży "
+            "skok zawsze na bilecie."
+        ),
+        "section_col_load": "LOAD",
+        "section_col_set": "SET",
+        "section_col_run": "RUN",
+        "section_reset_load": "Reset LOAD",
+        "section_reset_set": "Reset SET",
+        "section_reset_run": "Reset RUN",
+        "section_use_load": "Paczka LOAD",
+        "section_use_set": "Paczka SET",
+        "section_use_run": "Paczka RUN",
+        "ticket_mill": "Obrabiarka",
         "ticket_title_a4": "RAPORT NARZĘDZI CNC  |  A4",
         "ticket_title_80": "RAPORT NARZĘDZI CNC",
         "ticket_title_load": "NARZĘDZIA CNC ZAŁADUNEK",

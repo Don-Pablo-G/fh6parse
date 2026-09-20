@@ -85,6 +85,27 @@ def _warn_line(warn: str, *, prefix: str | None = None) -> str:
     return f"{head}{_warn_text(warn)}"
 
 
+def is_safety_warning(warn: str) -> bool:
+    """Always printed: G68, D vs T, empty pocket, S max, late offset, G95."""
+    if warn in {G95_NEXT_WARN, G95_END_WARN, NO_MOTION_WARN}:
+        return True
+    if _MISMATCH_RE.match(warn):
+        return True
+    if _OFFSET_LATE_RE.match(warn):
+        return True
+    if _S_MAX_RE.match(warn):
+        return True
+    if _G68_G69_RE.match(warn) or _G68_OPEN_RE.match(warn):
+        return True
+    return False
+
+
+def _warns_to_print(warns: list[str], sections: ReportSections) -> list[str]:
+    if sections.warnings:
+        return list(warns)
+    return [w for w in warns if is_safety_warning(w)]
+
+
 def _bang_label(note: BangNote) -> str:
     return f"L{note.line}  ({note.text})"
 
@@ -108,66 +129,113 @@ PAPER_80MM_MIN = PAPER_80MM_LOAD
 
 SECTION_ORDER = (
     "header",
+    "mill",
+    "printed",
+    "comments",
     "notes",
     "step",
     "g54",
+    "g54fit",
     "cycle",
     "chart",
     "timesplit",
     "tools",
+    "loadboxes",
     "changes",
+    "stops",
     "warnings",
     "sign",
 )
-GUI_SECTION_KEYS = (
-    "header",
-    "notes",
-    "step",
-    "g54",
-    "cycle",
-    "timesplit",
-    "tools",
-    "changes",
-    "warnings",
-    "sign",
+GUI_SECTION_KEYS = SECTION_ORDER
+# Older saved csv had one tick covering two jobs; expand only when no new keys.
+_LEGACY_SECTION_KEYS = frozenset(
+    {
+        "header",
+        "notes",
+        "step",
+        "g54",
+        "cycle",
+        "chart",
+        "timesplit",
+        "tools",
+        "changes",
+        "warnings",
+        "sign",
+    }
 )
 
 
 @dataclass(frozen=True)
 class ReportSections:
     header: bool = True
+    mill: bool = True
+    printed: bool = True
+    comments: bool = True
     notes: bool = True
     step: bool = True
     g54: bool = True
+    g54fit: bool = True
     cycle: bool = True
     chart: bool = True
     timesplit: bool = False
     tools: bool = True
+    loadboxes: bool = True
     changes: bool = True
+    stops: bool = True
     warnings: bool = True
     sign: bool = True
 
     def to_csv(self) -> str:
         return ",".join(name for name in SECTION_ORDER if getattr(self, name))
 
+    def show_ops(self) -> bool:
+        return (
+            self.tools
+            or self.changes
+            or self.stops
+            or self.cycle
+            or self.chart
+            or self.timesplit
+        )
+
+
+def _pack_on(*names: str) -> ReportSections:
+    wanted = set(names)
+    return ReportSections(**{name: name in wanted for name in SECTION_ORDER})
+
 
 SECTIONS_ALL = ReportSections()
-SECTIONS_LOAD = ReportSections(
-    notes=False,
-    step=False,
-    g54=False,
-    cycle=False,
-    chart=False,
-    timesplit=False,
-    changes=False,
+SECTIONS_LOAD = _pack_on("header", "tools", "loadboxes", "sign")
+SECTIONS_SET = _pack_on(
+    "header",
+    "mill",
+    "printed",
+    "notes",
+    "step",
+    "g54",
+    "g54fit",
+    "cycle",
+    "sign",
 )
-SECTIONS_SET = ReportSections(
-    chart=False,
-    timesplit=False,
-    tools=False,
-    changes=False,
+SECTIONS_RUN = _pack_on(
+    "header",
+    "mill",
+    "printed",
+    "step",
+    "g54",
+    "g54fit",
+    "cycle",
+    "timesplit",
+    "tools",
+    "changes",
+    "stops",
+    "warnings",
 )
-SECTIONS_RUN = ReportSections(timesplit=True)
+PACKS_BY_PAPER = {
+    PAPER_80MM_LOAD: SECTIONS_LOAD,
+    PAPER_80MM_SET: SECTIONS_SET,
+    PAPER_80MM_RUN: SECTIONS_RUN,
+}
 
 
 def normalize_paper(paper: str | None) -> str:
@@ -181,24 +249,47 @@ def normalize_paper(paper: str | None) -> str:
     return PAPER_A4
 
 
-def sections_for_paper(paper: str | None) -> ReportSections:
+def sections_for_paper(
+    paper: str | None,
+    *,
+    load: str = "",
+    set: str = "",
+    run: str = "",
+) -> ReportSections:
     kind = normalize_paper(paper)
+    factory = PACKS_BY_PAPER.get(kind, SECTIONS_ALL)
+    raw = ""
     if kind == PAPER_80MM_LOAD:
-        return SECTIONS_LOAD
-    if kind == PAPER_80MM_SET:
-        return SECTIONS_SET
-    if kind == PAPER_80MM_RUN:
-        return SECTIONS_RUN
-    return SECTIONS_ALL
+        raw = load
+    elif kind == PAPER_80MM_SET:
+        raw = set
+    elif kind == PAPER_80MM_RUN:
+        raw = run
+    if not (raw or "").strip():
+        return factory
+    return parse_report_sections(raw, default=factory)
 
 
-def parse_report_sections(raw: str | None) -> ReportSections:
+def parse_report_sections(
+    raw: str | None, *, default: ReportSections | None = None
+) -> ReportSections:
     text = (raw or "").strip().lower().replace(" ", "")
     if not text:
-        return SECTIONS_ALL
+        return default if default is not None else SECTIONS_ALL
     wanted = {part for part in text.split(",") if part}
-    if "cycle" in wanted and "chart" not in wanted:
-        wanted.add("chart")
+    if wanted <= _LEGACY_SECTION_KEYS:
+        if "notes" in wanted:
+            wanted.add("comments")
+        if "g54" in wanted:
+            wanted.add("g54fit")
+        if "changes" in wanted:
+            wanted.add("stops")
+        if "header" in wanted:
+            wanted.add("printed")
+        if "tools" in wanted:
+            wanted.add("loadboxes")
+        if "cycle" in wanted:
+            wanted.add("chart")
     kwargs = {name: name in wanted for name in SECTION_ORDER}
     return ReportSections(**kwargs)
 
@@ -606,6 +697,12 @@ def _is_stop_usage(u: ToolUsage) -> bool:
     return getattr(u, "event", "tool") == "stop"
 
 
+def _usage_on_ticket(u: ToolUsage, sections: ReportSections) -> bool:
+    if _is_stop_usage(u):
+        return sections.stops
+    return sections.changes
+
+
 def _t_of_usage(u: ToolUsage) -> str:
     if _is_stop_usage(u):
         return "M00"
@@ -760,33 +857,43 @@ def _named_mill(result: ParseResult) -> str:
     return ""
 
 
-def _g54_ticket_lines(result: ParseResult, width: int) -> list[str]:
+def _g54_ticket_lines(
+    result: ParseResult, width: int, sections: ReportSections | None = None
+) -> list[str]:
     window = window_for_result(result)
     if window is None:
         return []
+    secs = sections or SECTIONS_ALL
     sw, se, ne, nw = window.corners
     cx, cy = window.center
-    raw = [
-        _tr("ticket_g54_heading"),
-        _tr("ticket_g54_sw", xy=fmt_xy(*sw)),
-        _tr("ticket_g54_se", xy=fmt_xy(*se)),
-        _tr("ticket_g54_ne", xy=fmt_xy(*ne)),
-        _tr("ticket_g54_nw", xy=fmt_xy(*nw)),
-        _tr("ticket_g54_center", xy=fmt_xy(cx, cy)),
-    ]
-    dia = window.max_tool_dia_mm
-    if dia is not None:
-        raw.append(_tr("ticket_g54_dia", d=fmt_mm(dia)))
-    if window.z_min is not None and window.z_max is not None:
-        raw.append(
-            _tr("ticket_g54_z", z0=fmt_mm(window.z_min), z1=fmt_mm(window.z_max))
+    raw: list[str] = []
+    if secs.g54:
+        raw.extend(
+            [
+                _tr("ticket_g54_heading"),
+                _tr("ticket_g54_sw", xy=fmt_xy(*sw)),
+                _tr("ticket_g54_se", xy=fmt_xy(*se)),
+                _tr("ticket_g54_ne", xy=fmt_xy(*ne)),
+                _tr("ticket_g54_nw", xy=fmt_xy(*nw)),
+                _tr("ticket_g54_center", xy=fmt_xy(cx, cy)),
+            ]
         )
+        if window.g54_inside is False:
+            raw.append(_tr("ticket_g54_out"))
+        elif window.g54_inside is True:
+            raw.append(_tr("ticket_g54_ok"))
+    if secs.g54fit:
+        dia = window.max_tool_dia_mm
+        if dia is not None:
+            raw.append(_tr("ticket_g54_dia", d=fmt_mm(dia)))
+        if window.z_min is not None and window.z_max is not None:
+            raw.append(
+                _tr("ticket_g54_z", z0=fmt_mm(window.z_min), z1=fmt_mm(window.z_max))
+            )
     if not window.fits:
         raw.append(_tr("ticket_g54_too_big"))
-    elif window.g54_inside is False:
-        raw.append(_tr("ticket_g54_out"))
-    elif window.g54_inside is True:
-        raw.append(_tr("ticket_g54_ok"))
+    if not raw:
+        return []
     lines: list[str] = []
     for text in raw:
         lines.extend(_wrap(text, width))
@@ -818,22 +925,25 @@ def _format_text_a4(
         for part in wrapped[1:]:
             w(" " * len(label) + part)
         w(_a4_field(_tr("ticket_units"), _units_label(result.units)))
+    mill = _named_mill(result)
+    if sections.mill and mill:
+        w(_a4_field(_tr("ticket_mill"), mill))
+    if sections.printed:
         w(_a4_field(_tr("ticket_generated"), now.strftime("%Y-%m-%d %H:%M")))
-    if sections.notes:
-        if result.header_comments:
-            w("")
-            w(_tr("ticket_header_notes"))
-            for c in result.header_comments:
-                for part in _wrap(f"({c})", w78 - 2):
-                    w(f"  {part}")
-        if result.bang_notes:
-            w("")
-            w(_tr("ticket_programmer_notes"))
-            for note in result.bang_notes:
-                for part in _wrap(_bang_label(note), w78 - 2):
-                    w(f"  {part}")
+    if sections.comments and result.header_comments:
+        w("")
+        w(_tr("ticket_header_notes"))
+        for c in result.header_comments:
+            for part in _wrap(f"({c})", w78 - 2):
+                w(f"  {part}")
+    if sections.notes and result.bang_notes:
+        w("")
+        w(_tr("ticket_programmer_notes"))
+        for note in result.bang_notes:
+            for part in _wrap(_bang_label(note), w78 - 2):
+                w(f"  {part}")
 
-    if sections.tools or sections.cycle or sections.changes:
+    if sections.tools or sections.cycle or sections.changes or sections.stops:
         w("")
         if sections.tools:
             w(_tr("ticket_minz_legend"))
@@ -841,14 +951,13 @@ def _format_text_a4(
             w(_tr("ticket_time_legend", assumptions=_time_assumptions(result)))
             w(_tr("ticket_cycle_legend"))
             w(_tr("ticket_sim_legend"))
-        if sections.changes:
+        if sections.changes or sections.stops:
             w(_tr("ticket_m97_legend"))
-        if sections.tools:
+        if sections.loadboxes:
             w(_tr("ticket_loaded_legend"))
-    if sections.g54:
-        for part in _g54_ticket_lines(result, w78):
-            w(part)
-    show_ops = sections.tools or sections.changes or sections.cycle
+    for part in _g54_ticket_lines(result, w78, sections):
+        w(part)
+    show_ops = sections.show_ops()
     ops = result.operations or []
     if show_ops:
         if not ops:
@@ -860,10 +969,9 @@ def _format_text_a4(
             for part in _wrap(_op_heading(op), w78):
                 w(part)
             w("=" * w78)
-            if sections.warnings:
-                for warn in op.warnings:
-                    for part in _wrap(_warn_line(warn), w78):
-                        w(part)
+            for warn in _warns_to_print(op.warnings, sections):
+                for part in _wrap(_warn_line(warn), w78):
+                    w(part)
             cycle_s, _ = _op_cycle(op)
             if sections.cycle:
                 w(_cycle_label(op))
@@ -874,6 +982,7 @@ def _format_text_a4(
             none = _tr("ticket_no_comment")
             minz = _tr("ticket_minz")
             time_lbl = _tr("ticket_time")
+            mark = "[ ] " if sections.loadboxes else ""
             if sections.tools:
                 if not op.summaries:
                     w(_tr("ticket_no_tool_changes"))
@@ -883,24 +992,26 @@ def _format_text_a4(
                     for s in op.summaries:
                         desc = " / ".join(s.descriptions) if s.descriptions else none
                         w(
-                            f"[ ] {_t_of_summary(s):<12}  {minz} {_fmt_z(s.min_z):>9}  "
+                            f"{mark}{_t_of_summary(s):<12}  {minz} {_fmt_z(s.min_z):>9}  "
                             f"{time_lbl} {_time_of(s):>7}"
                         )
                         for part in _wrap(desc, w78 - 4):
                             w(f"    {part}")
-                        if sections.warnings:
-                            for u in s.usages:
-                                for warn in u.warnings:
-                                    for part in _wrap(_warn_line(warn), w78 - 6):
-                                        w(f"      {part}")
-            if sections.changes:
+                        hds = _summary_hds(s)
+                        if hds:
+                            w(f"    {hds}")
+                        for warn in _warns_to_print(_summary_warnings(s), sections):
+                            for part in _wrap(_warn_line(warn), w78 - 6):
+                                w(f"      {part}")
+            listed = [u for u in op.usages if _usage_on_ticket(u, sections)]
+            if listed:
                 w("")
                 w(_tr("ticket_each_change"))
                 w("-" * w78)
-                for u in op.usages:
+                for u in listed:
                     w("")
                     for part in _wrap(
-                        f"[ ] {_t_of_usage(u)}  {u.description or none}", w78
+                        f"{mark}{_t_of_usage(u)}  {u.description or none}", w78
                     ):
                         w(part)
                     for part in _wrap(_usage_meta(u), w78 - 4):
@@ -913,10 +1024,9 @@ def _format_text_a4(
                         bits += f"  {time_lbl} {_time_of(u)}  {share:3d}%"
                         for part in _wrap(bits, w78 - 4):
                             w(f"    {part}")
-                    if sections.warnings:
-                        for warn in u.warnings:
-                            for part in _wrap(_warn_line(warn), w78 - 4):
-                                w(f"    {part}")
+                    for warn in _warns_to_print(u.warnings, sections):
+                        for part in _wrap(_warn_line(warn), w78 - 4):
+                            w(f"    {part}")
 
     if sections.sign:
         w("")
@@ -943,7 +1053,7 @@ def _format_text_80mm(
     none = _tr("ticket_no_comment")
     minz_lbl = _tr("ticket_minz_compact")
     time_lbl = _tr("ticket_time")
-    load = sections.tools and not sections.changes
+    mark = "[ ] " if sections.loadboxes else ""
 
     def block(text: str, width: int = n) -> None:
         for part in _wrap(text, width):
@@ -956,18 +1066,19 @@ def _format_text_80mm(
     if sections.header:
         block(result.filename or Path(result.path).name or _tr("ticket_file_fallback"))
         block(_program_line(result))
-        mill = _named_mill(result)
-        if mill and not sections.tools:
-            block(mill)
         w(_units_label(result.units))
+    mill = _named_mill(result)
+    if sections.mill and mill:
+        block(mill)
+    if sections.printed:
         w(now.strftime("%Y-%m-%d %H:%M"))
-    if sections.notes:
+    if sections.comments:
         for c in result.header_comments[:8]:
             block(f"({c})")
-        if result.bang_notes:
-            w(_tr("ticket_notes_short"))
-            for note in result.bang_notes:
-                block(f"! {_bang_label(note)}")
+    if sections.notes and result.bang_notes:
+        w(_tr("ticket_notes_short"))
+        for note in result.bang_notes:
+            block(f"! {_bang_label(note)}")
     if sections.tools or sections.cycle:
         w(dash)
         if sections.tools:
@@ -982,10 +1093,9 @@ def _format_text_80mm(
             if sections.changes:
                 w(_tr("ticket_until_m30"))
                 w(_tr("ticket_op_m97"))
-    if sections.g54:
-        for part in _g54_ticket_lines(result, n):
-            w(part)
-    show_ops = sections.tools or sections.changes or sections.cycle
+    for part in _g54_ticket_lines(result, n, sections):
+        w(part)
+    show_ops = sections.show_ops()
     ops = result.operations or []
     if show_ops:
         if not ops:
@@ -994,9 +1104,8 @@ def _format_text_80mm(
             w(dash)
             block(_op_heading(op))
             w(dash)
-            if sections.warnings:
-                for warn in op.warnings:
-                    block(_warn_line(warn, prefix="! "))
+            for warn in _warns_to_print(op.warnings, sections):
+                block(_warn_line(warn, prefix="! "))
             cycle_s, _ = _op_cycle(op)
             if sections.cycle:
                 w(_cycle_label(op))
@@ -1007,35 +1116,30 @@ def _format_text_80mm(
             if sections.tools:
                 if not op.summaries:
                     w(_tr("ticket_no_tools"))
-                    continue
-                for s in op.summaries:
-                    desc = " / ".join(s.descriptions) if s.descriptions else none
-                    if load:
-                        w(f"[ ] {_t_of_summary(s)}")
-                    else:
-                        w(f"[ ] {_t_of_summary(s)}")
-                    block(desc)
-                    if load:
+                else:
+                    for s in op.summaries:
+                        desc = " / ".join(s.descriptions) if s.descriptions else none
+                        w(f"{mark}{_t_of_summary(s)}")
+                        block(desc)
                         hds = _summary_hds(s)
                         if hds:
                             block(hds)
-                        w(f"{minz_lbl} {_fmt_z(s.min_z)}")
-                    else:
-                        w(f"{minz_lbl} {_fmt_z(s.min_z)}  {time_lbl} {_time_of(s)}")
-                    if sections.warnings:
-                        warns = (
-                            _summary_warnings(s)
-                            if load
-                            else [warn for u in s.usages for warn in u.warnings]
-                        )
-                        for warn in warns:
+                        if sections.cycle:
+                            w(
+                                f"{minz_lbl} {_fmt_z(s.min_z)}  "
+                                f"{time_lbl} {_time_of(s)}"
+                            )
+                        else:
+                            w(f"{minz_lbl} {_fmt_z(s.min_z)}")
+                        for warn in _warns_to_print(_summary_warnings(s), sections):
                             block(_warn_line(warn, prefix="! "))
-                    w(dash)
-            if sections.changes:
+                        w(dash)
+            listed = [u for u in op.usages if _usage_on_ticket(u, sections)]
+            if listed:
                 w(_tr("ticket_each_change_short"))
                 w(dash)
-                for u in op.usages:
-                    w(f"[ ] {_t_of_usage(u)}")
+                for u in listed:
+                    w(f"{mark}{_t_of_usage(u)}")
                     block(u.description or none)
                     block(_usage_meta(u, include_lines=False))
                     if not _is_stop_usage(u):
@@ -1044,9 +1148,8 @@ def _format_text_80mm(
                         if u.min_z_line:
                             minz += f" L{u.min_z_line}"
                         w(f"{minz}  {time_lbl} {_time_of(u)}  {share:3d}%")
-                    if sections.warnings:
-                        for warn in u.warnings:
-                            block(_warn_line(warn, prefix="! "))
+                    for warn in _warns_to_print(u.warnings, sections):
+                        block(_warn_line(warn, prefix="! "))
                     w(dash)
 
     if sections.sign:
@@ -1112,8 +1215,8 @@ def _step_views_html(image_paths: list[Path] | None) -> str:
     return '<div class="step-views">' + "".join(parts) + "</div>"
 
 
-def _g54_html(result: ParseResult) -> str:
-    lines = _g54_ticket_lines(result, A4_WIDTH)
+def _g54_html(result: ParseResult, sections: ReportSections | None = None) -> str:
+    lines = _g54_ticket_lines(result, A4_WIDTH, sections)
     if not lines:
         return ""
     return '<p class="fine">' + "<br>".join(escape(x) for x in lines) + "</p>"
@@ -1219,117 +1322,135 @@ table.chart td.bar { padding-right: 0; }
 """
     notes = ""
     none = _tr("ticket_no_comment")
-    if sections.notes:
-        if result.header_comments:
-            items = "".join(f"<li>({escape(c)})</li>" for c in result.header_comments)
-            notes = f'<ul class="notes">{items}</ul>'
-        if result.bang_notes:
-            items = "".join(
-                f"<li>{escape(_bang_label(note))}</li>" for note in result.bang_notes
-            )
-            notes += (
-                f'<h2>{escape(_tr("ticket_programmer_notes"))}</h2>'
-                f'<ul class="notes">{items}</ul>'
-            )
+    if sections.comments and result.header_comments:
+        items = "".join(f"<li>({escape(c)})</li>" for c in result.header_comments)
+        notes = f'<ul class="notes">{items}</ul>'
+    if sections.notes and result.bang_notes:
+        items = "".join(
+            f"<li>{escape(_bang_label(note))}</li>" for note in result.bang_notes
+        )
+        notes += (
+            f'<h2>{escape(_tr("ticket_programmer_notes"))}</h2>'
+            f'<ul class="notes">{items}</ul>'
+        )
 
     op_html: list[str] = []
-    show_ops = sections.tools or sections.changes or sections.cycle
+    box = '<span class="box"></span>' if sections.loadboxes else ""
+    show_ops = sections.show_ops()
     if show_ops:
         if not result.operations:
             op_html.append(f"<p>{escape(_tr('ticket_no_ops'))}</p>")
         for op in result.operations:
             cycle_s, _ = _op_cycle(op)
             setup_rows = []
+            span = "6" if sections.loadboxes else "4"
             if not op.summaries:
                 setup_rows.append(
-                    f'<tr><td colspan="6">{escape(_tr("ticket_no_tool_changes"))}</td></tr>'
+                    f'<tr><td colspan="{span}">{escape(_tr("ticket_no_tool_changes"))}</td></tr>'
                 )
             for s in op.summaries:
                 desc = escape(" / ".join(s.descriptions) if s.descriptions else none)
-                warns = ""
-                if sections.warnings:
-                    warns = "".join(
-                        f'<div class="warn">{escape(_warn_line(w))}</div>'
-                        for u in s.usages
-                        for w in u.warnings
-                    )
+                hds = _summary_hds(s)
+                if hds:
+                    desc += f'<div class="fine">{escape(hds)}</div>'
+                warns = "".join(
+                    f'<div class="warn">{escape(_warn_line(w))}</div>'
+                    for w in _warns_to_print(_summary_warnings(s), sections)
+                )
+                load_td = f'<td class="c">{box}</td>' if sections.loadboxes else ""
+                ok_td = f'<td class="c">{box}</td>' if sections.loadboxes else ""
                 setup_rows.append(
                     "<tr>"
-                    f'<td class="c"><span class="box"></span></td>'
+                    f"{load_td}"
                     f"<td>{escape(_t_of_summary(s))}</td>"
                     f"<td>{desc}{warns}</td>"
                     f'<td class="n">{escape(_fmt_z(s.min_z))}</td>'
                     f'<td class="n">{escape(_time_of(s))}</td>'
-                    f'<td class="c"><span class="box"></span></td>'
+                    f"{ok_td}"
                     "</tr>"
                 )
+            listed = [u for u in op.usages if _usage_on_ticket(u, sections)]
             change_rows = []
-            if not op.usages:
-                change_rows.append(
-                    f'<tr><td colspan="8">{escape(_tr("ticket_no_txx"))}</td></tr>'
-                )
-            for u in op.usages:
-                extra = ""
-                if sections.warnings:
+            if sections.changes or sections.stops:
+                if not listed:
+                    change_rows.append(
+                        f'<tr><td colspan="8">{escape(_tr("ticket_no_txx"))}</td></tr>'
+                    )
+                for u in listed:
                     extra = "".join(
                         f'<div class="warn">{escape(_warn_line(warn))}</div>'
-                        for warn in u.warnings
+                        for warn in _warns_to_print(u.warnings, sections)
                     )
-                if _is_stop_usage(u):
+                    load_td = f'<td class="c">{box}</td>' if sections.loadboxes else ""
+                    if _is_stop_usage(u):
+                        change_rows.append(
+                            "<tr>"
+                            f"{load_td}"
+                            f"<td>{escape(_t_of_usage(u))}</td>"
+                            f"<td>{escape(u.description or none)}{extra}</td>"
+                            f"<td>{escape(u.subprogram)}</td>"
+                            "<td>—</td><td>—</td>"
+                            f'<td class="n">—</td>'
+                            f'<td class="n">—</td>'
+                            "</tr>"
+                        )
+                        continue
+                    bc = " ".join(p for p in (_fmt_axis("B", u.b), _fmt_axis("C", u.c)) if p) or "—"
+                    share = _pct_of(u, cycle_s)
                     change_rows.append(
                         "<tr>"
-                        f'<td class="c"><span class="box"></span></td>'
+                        f"{load_td}"
                         f"<td>{escape(_t_of_usage(u))}</td>"
                         f"<td>{escape(u.description or none)}{extra}</td>"
                         f"<td>{escape(u.subprogram)}</td>"
-                        "<td>—</td><td>—</td>"
-                        f'<td class="n">—</td>'
-                        f'<td class="n">—</td>'
+                        f"<td>{escape(bc)}</td>"
+                        f"<td>{escape(' '.join(p for p in (_fmt_hd('H', u.h_offset, u.h_hash), _fmt_hd('D', u.d_offset, u.d_hash), _fmt_s(u.s_rpm)) if p) or '—')}</td>"
+                        f'<td class="n">{escape(_fmt_z(u.min_z))}</td>'
+                        f'<td class="n">{escape(_time_of(u))}  {share}%</td>'
                         "</tr>"
                     )
-                    continue
-                bc = " ".join(p for p in (_fmt_axis("B", u.b), _fmt_axis("C", u.c)) if p) or "—"
-                share = _pct_of(u, cycle_s)
-                change_rows.append(
-                    "<tr>"
-                    f'<td class="c"><span class="box"></span></td>'
-                    f"<td>{escape(_t_of_usage(u))}</td>"
-                    f"<td>{escape(u.description or none)}{extra}</td>"
-                    f"<td>{escape(u.subprogram)}</td>"
-                    f"<td>{escape(bc)}</td>"
-                    f"<td>{escape(' '.join(p for p in (_fmt_hd('H', u.h_offset, u.h_hash), _fmt_hd('D', u.d_offset, u.d_hash), _fmt_s(u.s_rpm)) if p) or '—')}</td>"
-                    f'<td class="n">{escape(_fmt_z(u.min_z))}</td>'
-                    f'<td class="n">{escape(_time_of(u))}  {share}%</td>'
-                    "</tr>"
-                )
             op_html.append(f"<h2>{escape(_op_heading(op))}</h2>")
-            if sections.warnings:
-                for warn in op.warnings:
-                    op_html.append(
-                        f'<p class="warn">{escape(_warn_line(warn))}</p>'
-                    )
+            for warn in _warns_to_print(op.warnings, sections):
+                op_html.append(
+                    f'<p class="warn">{escape(_warn_line(warn))}</p>'
+                )
             if sections.cycle:
                 op_html.append(f'<p class="cycle">{escape(_cycle_label(op))}</p>')
             chart = _op_time_chart_html(op, sections)
             if chart:
                 op_html.append(chart)
             if sections.tools:
+                head_load = (
+                    f'<th class="c">{escape(_tr("ticket_load"))}</th>'
+                    if sections.loadboxes
+                    else ""
+                )
+                head_ok = (
+                    f'<th class="c">{escape(_tr("ticket_ok"))}</th>'
+                    if sections.loadboxes
+                    else ""
+                )
                 op_html.append(
                     "<table><thead><tr>"
-                    f'<th class="c">{escape(_tr("ticket_load"))}</th><th>T</th>'
+                    f"{head_load}<th>T</th>"
                     f'<th>{escape(_tr("ticket_desc"))}</th>'
                     f'<th class="n">{escape(_tr("ticket_minz"))}</th>'
                     f'<th class="n">{escape(_tr("ticket_time"))}</th>'
-                    f'<th class="c">{escape(_tr("ticket_ok"))}</th>'
+                    f"{head_ok}"
                     "</tr></thead><tbody>"
                     + "".join(setup_rows)
                     + "</tbody></table>"
                 )
-            if sections.changes:
+            if change_rows:
+                head_load = (
+                    f'<th class="c">{escape(_tr("ticket_load"))}</th>'
+                    if sections.loadboxes
+                    else ""
+                )
                 op_html.append(f'<h3>{escape(_tr("ticket_each_change_html"))}</h3>')
                 op_html.append(
                     "<table><thead><tr>"
-                    f'<th class="c">{escape(_tr("ticket_load"))}</th><th>T</th>'
+                    f"{head_load}<th>T</th>"
                     f'<th>{escape(_tr("ticket_desc"))}</th>'
                     f'<th>{escape(_tr("ticket_sub"))}</th>'
                     '<th>B/C</th><th>H / D / S</th>'
@@ -1341,22 +1462,31 @@ table.chart td.bar { padding-right: 0; }
                 )
 
     title = _tr("ticket_title_html_doc", prog=_program_line(result))
-    meta = ""
+    meta_bits: list[str] = []
     if sections.header:
-        meta = f"""
-<div class="meta">
-  <b>{escape(_tr("ticket_file_html"))}</b><span>{escape(result.filename or result.path)}</span>
-  <b>{escape(_tr("ticket_units_html"))}</b><span>{escape(_units_label(result.units))}</span>
-  <b>{escape(_tr("ticket_program_html"))}</b><span>{escape(_program_line(result))}</span>
-  <b>{escape(_tr("ticket_printed_html"))}</b><span>{escape(now.strftime("%Y-%m-%d %H:%M"))}</span>
-</div>
-"""
+        meta_bits.extend(
+            [
+                f"<b>{escape(_tr('ticket_file_html'))}</b><span>{escape(result.filename or result.path)}</span>",
+                f"<b>{escape(_tr('ticket_units_html'))}</b><span>{escape(_units_label(result.units))}</span>",
+                f"<b>{escape(_tr('ticket_program_html'))}</b><span>{escape(_program_line(result))}</span>",
+            ]
+        )
+    mill = _named_mill(result)
+    if sections.mill and mill:
+        meta_bits.append(
+            f"<b>{escape(_tr('ticket_mill'))}</b><span>{escape(mill)}</span>"
+        )
+    if sections.printed:
+        meta_bits.append(
+            f"<b>{escape(_tr('ticket_printed_html'))}</b><span>{escape(now.strftime('%Y-%m-%d %H:%M'))}</span>"
+        )
+    meta = f'<div class="meta">{" ".join(meta_bits)}</div>' if meta_bits else ""
     fine = ""
     if sections.cycle:
         fine = (
             f'<p class="fine">{escape(_tr("ticket_html_fine", assumptions=_time_assumptions(result)))}</p>'
         )
-    g54 = _g54_html(result) if sections.g54 else ""
+    g54 = _g54_html(result, sections)
     sign = ""
     if sections.sign:
         sign = f"""
@@ -1391,7 +1521,6 @@ def _html_80mm(
 ) -> str:
     now = generated or datetime.now()
     kind = normalize_paper(paper)
-    load = sections.tools and not sections.changes
     title = f"{kind} {_program_line(result)}"
     css = """
 @page { size: 80mm auto; margin: 2mm; }
@@ -1443,6 +1572,7 @@ pre.chart {
     none = _tr("ticket_no_comment")
     minz = _tr("ticket_minz")
     time_lbl = _tr("ticket_time")
+    box = '<span class="box"></span>' if sections.loadboxes else ""
     a(f"<h1>{escape(_80mm_title(kind))}</h1>")
     a(f'<div class="center">{escape(_tr("ticket_80mm"))}</div>')
     views = _step_views_html(image_paths)
@@ -1451,17 +1581,19 @@ pre.chart {
     if sections.header:
         a(f'<div class="d">{escape(result.filename or result.path)}</div>')
         a(f'<div class="d">{escape(_program_line(result))}</div>')
-        mill = _named_mill(result)
-        if mill and not sections.tools:
-            a(f'<div class="d">{escape(mill)}</div>')
-        a(f"<div>{escape(_units_label(result.units))} · {escape(now.strftime('%Y-%m-%d %H:%M'))}</div>")
-    if sections.notes:
+        a(f"<div>{escape(_units_label(result.units))}</div>")
+    mill = _named_mill(result)
+    if sections.mill and mill:
+        a(f'<div class="d">{escape(mill)}</div>')
+    if sections.printed:
+        a(f"<div>{escape(now.strftime('%Y-%m-%d %H:%M'))}</div>")
+    if sections.comments:
         for c in result.header_comments[:8]:
             a(f'<div class="d">({escape(c)})</div>')
-        if result.bang_notes:
-            a(f'<div class="warn">{escape(_tr("ticket_notes_short"))}</div>')
-            for note in result.bang_notes:
-                a(f'<div class="warn d">! {escape(_bang_label(note))}</div>')
+    if sections.notes and result.bang_notes:
+        a(f'<div class="warn">{escape(_tr("ticket_notes_short"))}</div>')
+        for note in result.bang_notes:
+            a(f'<div class="warn d">! {escape(_bang_label(note))}</div>')
     if sections.tools or sections.cycle:
         a('<hr class="rule">')
         if sections.tools:
@@ -1473,11 +1605,10 @@ pre.chart {
             if sections.changes:
                 a(f"<div>{escape(_tr('ticket_until_m30'))}</div>")
                 a(f"<div>{escape(_tr('ticket_op_m97'))}</div>")
-    if sections.g54:
-        g54 = _g54_html(result)
-        if g54:
-            a(g54)
-    show_ops = sections.tools or sections.changes or sections.cycle
+    g54 = _g54_html(result, sections)
+    if g54:
+        a(g54)
+    show_ops = sections.show_ops()
     ops = result.operations or []
     if show_ops:
         if not ops:
@@ -1486,9 +1617,8 @@ pre.chart {
             cycle_s, _ = _op_cycle(op)
             a('<hr class="rule">')
             a(f'<div class="tline d">{escape(_op_heading(op))}</div>')
-            if sections.warnings:
-                for warn in op.warnings:
-                    a(f'<div class="warn">{escape(_warn_line(warn, prefix="! "))}</div>')
+            for warn in _warns_to_print(op.warnings, sections):
+                a(f'<div class="warn">{escape(_warn_line(warn, prefix="! "))}</div>')
             if sections.cycle:
                 a(f'<div class="cycle">{escape(_cycle_label(op))}</div>')
             chart = _op_time_chart_pre(op, THERMAL_BAR_WIDTH, sections)
@@ -1497,31 +1627,30 @@ pre.chart {
             if sections.tools:
                 if not op.summaries:
                     a(f"<div>{escape(_tr('ticket_no_tools'))}</div>")
-                    continue
-                for s in op.summaries:
-                    desc = " / ".join(s.descriptions) if s.descriptions else none
-                    a('<div class="tool">')
-                    a(
-                        f'<div class="tline"><span class="box"></span>'
-                        f"{escape(_t_of_summary(s))}</div>"
-                    )
-                    a(f'<div class="d">{escape(desc)}</div>')
-                    if load:
+                else:
+                    for s in op.summaries:
+                        desc = " / ".join(s.descriptions) if s.descriptions else none
+                        a('<div class="tool">')
+                        a(
+                            f'<div class="tline">{box}'
+                            f"{escape(_t_of_summary(s))}</div>"
+                        )
+                        a(f'<div class="d">{escape(desc)}</div>')
                         hds = _summary_hds(s)
                         if hds:
                             a(f'<div class="d">{escape(hds)}</div>')
-                    a(f'<div class="kv"><span>{escape(minz)}</span><span>{escape(_fmt_z(s.min_z))}</span></div>')
-                    if not load:
-                        a(f'<div class="kv"><span>{escape(time_lbl)}</span><span>{escape(_time_of(s))}</span></div>')
-                    if sections.warnings:
-                        for warn in _summary_warnings(s):
+                        a(f'<div class="kv"><span>{escape(minz)}</span><span>{escape(_fmt_z(s.min_z))}</span></div>')
+                        if sections.cycle:
+                            a(f'<div class="kv"><span>{escape(time_lbl)}</span><span>{escape(_time_of(s))}</span></div>')
+                        for warn in _warns_to_print(_summary_warnings(s), sections):
                             a(f'<div class="warn">{escape(_warn_line(warn, prefix="! "))}</div>')
-                    a("</div>")
-            if sections.changes:
+                        a("</div>")
+            listed = [u for u in op.usages if _usage_on_ticket(u, sections)]
+            if listed:
                 a(f'<div class="tline">{escape(_tr("ticket_each_change_short"))}</div>')
-                for u in op.usages:
+                for u in listed:
                     a('<div class="tool">')
-                    a(f'<div class="tline"><span class="box"></span>{escape(_t_of_usage(u))}</div>')
+                    a(f'<div class="tline">{box}{escape(_t_of_usage(u))}</div>')
                     a(f'<div class="d">{escape(u.description or none)}</div>')
                     a(f'<div class="d">{escape(_usage_meta(u, include_lines=False))}</div>')
                     if not _is_stop_usage(u):
@@ -1531,9 +1660,8 @@ pre.chart {
                             f'<div class="kv"><span>{escape(time_lbl)}</span>'
                             f'<span>{escape(_time_of(u))}  {share}%</span></div>'
                         )
-                    if sections.warnings:
-                        for warn in u.warnings:
-                            a(f'<div class="warn">{escape(_warn_line(warn, prefix="! "))}</div>')
+                    for warn in _warns_to_print(u.warnings, sections):
+                        a(f'<div class="warn">{escape(_warn_line(warn, prefix="! "))}</div>')
                     a("</div>")
     if sections.sign:
         a('<hr class="rule">')

@@ -43,6 +43,9 @@ from .report import (
     GUI_SECTION_KEYS,
     PAPER_80MM,
     PAPER_A4,
+    SECTIONS_LOAD,
+    SECTIONS_RUN,
+    SECTIONS_SET,
     format_report,
     open_print_html,
     parse_report_sections,
@@ -230,14 +233,32 @@ class ToolReportApp(tk.Tk):
         self._section_vars: dict[str, tk.BooleanVar] = {}
         self._section_checks: dict[str, ttk.Checkbutton] = {}
         seed = self._section_seed
+        ticks = ttk.Frame(self.section_frame)
+        ticks.pack(fill=tk.BOTH, expand=True)
         for key in GUI_SECTION_KEYS:
             var = tk.BooleanVar(value=getattr(seed, key))
             self._section_vars[key] = var
             cb = ttk.Checkbutton(
-                self.section_frame, variable=var, command=self._on_sections
+                ticks, variable=var, command=self._on_sections
             )
             cb.pack(anchor=tk.W)
             self._section_checks[key] = cb
+        self._section_safety = ttk.Label(self.section_frame, wraplength=220)
+        self._section_safety.pack(anchor=tk.W, pady=(6, 4))
+        packs = ttk.Frame(self.section_frame)
+        packs.pack(fill=tk.X, pady=(0, 4))
+        self._btn_pack_load = ttk.Button(
+            packs, command=lambda: self._apply_pack(SECTIONS_LOAD)
+        )
+        self._btn_pack_set = ttk.Button(
+            packs, command=lambda: self._apply_pack(SECTIONS_SET)
+        )
+        self._btn_pack_run = ttk.Button(
+            packs, command=lambda: self._apply_pack(SECTIONS_RUN)
+        )
+        self._btn_pack_load.pack(fill=tk.X, pady=1)
+        self._btn_pack_set.pack(fill=tk.X, pady=1)
+        self._btn_pack_run.pack(fill=tk.X, pady=1)
         preview_col = ttk.Frame(self._preview_row)
         preview_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.lbl_report = ttk.Label(preview_col)
@@ -293,6 +314,10 @@ class ToolReportApp(tk.Tk):
         self.section_frame.config(text=self._tr("report_sections"))
         for key, cb in self._section_checks.items():
             cb.config(text=self._tr(f"section_{key}"))
+        self._section_safety.config(text=self._tr("section_safety"))
+        self._btn_pack_load.config(text=self._tr("section_use_load"))
+        self._btn_pack_set.config(text=self._tr("section_use_set"))
+        self._btn_pack_run.config(text=self._tr("section_use_run"))
         self.lbl_report.config(text=self._tr("report_preview"))
         if not self._results:
             self.status.config(text=self._tr("gui_idle"))
@@ -367,20 +392,14 @@ class ToolReportApp(tk.Tk):
 
     def _gui_sections(self) -> ReportSections:
         ticks = {key: var.get() for key, var in self._section_vars.items()}
-        cycle = ticks.get("cycle", True)
         return ReportSections(
-            header=ticks.get("header", True),
-            notes=ticks.get("notes", True),
-            step=ticks.get("step", True),
-            g54=ticks.get("g54", True),
-            cycle=cycle,
-            chart=cycle,
-            timesplit=ticks.get("timesplit", False),
-            tools=ticks.get("tools", True),
-            changes=ticks.get("changes", True),
-            warnings=ticks.get("warnings", True),
-            sign=ticks.get("sign", True),
+            **{key: bool(ticks.get(key, False)) for key in GUI_SECTION_KEYS}
         )
+
+    def _apply_pack(self, pack: ReportSections) -> None:
+        for key, var in self._section_vars.items():
+            var.set(bool(getattr(pack, key)))
+        self._on_sections()
 
     def _on_sections(self) -> None:
         self._persist_gui_prefs()
