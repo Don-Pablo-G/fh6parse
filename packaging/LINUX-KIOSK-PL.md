@@ -96,7 +96,7 @@ Pokrętło **nie otwiera** ustawień.
 
 | Co | Jak |
 | --- | --- |
-| Otwórz ustawienia | **F2** albo **C**, albo kliknij **PL** / **EN** przy wersji. Język, obrabiarka i rozdzielczość na pierwszej stronie; bilety, GPIO i pokrętła w osobnych menu |
+| Otwórz ustawienia | **F2** albo **C**, albo kliknij **PL** / **EN** przy wersji. Język i obrabiarka na pierwszej stronie; bilety, GPIO i pokrętła w osobnych menu |
 | Język | **Polski** / **English** — dotyczy ekranu **i** biletu |
 | Obrabiarka | Drugie pokrętło, **+** / **−**, albo **Dodaj obrabiarkę…** (nazwa, szybkie m/min, B/C, czas wymiany, długość narzędzia, max obr./min, ATC X/Y/Z, offset X/Y/Z i skok min/max) — od tego liczony jest czas cyklu i prostokąt offsetu |
 | Zamknij | **Esc**: formularz obrabiarki, potem menu, potem ustawienia |

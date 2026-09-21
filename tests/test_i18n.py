@@ -63,6 +63,17 @@ class TestI18n(unittest.TestCase):
         self.assertIn("AKTUALIZUJ do 1.3.5", update_button_label("pl", status))
         self.assertIn("UPDATE to 1.3.5", update_button_label("en", status))
 
+    def test_update_button_uses_sha_when_remote_is_older(self) -> None:
+        status = UpdateCheck(
+            True,
+            "available",
+            current_version="1.4.1",
+            new_version="1.4.0",
+            remote_sha="abc1234",
+        )
+        self.assertEqual(update_button_label("en", status), "UPDATE  abc1234")
+        self.assertIn("abc1234", update_button_label("pl", status))
+
     def test_placeholders_match(self) -> None:
         import re
 
@@ -216,5 +227,5 @@ class TestLanguageIni(unittest.TestCase):
         self.assertIn("encoder_mill_clk", UI_OVERLAY_KEYS)
         self.assertIn("report_load", UI_OVERLAY_KEYS)
         self.assertIn("report_run", UI_OVERLAY_KEYS)
-        self.assertIn("width", UI_OVERLAY_KEYS)
-        self.assertIn("height", UI_OVERLAY_KEYS)
+        self.assertNotIn("width", UI_OVERLAY_KEYS)
+        self.assertNotIn("height", UI_OVERLAY_KEYS)

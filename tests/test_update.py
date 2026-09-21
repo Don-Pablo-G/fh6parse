@@ -287,6 +287,48 @@ class TestCheckForUpdate(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
+    def _git_run(
+        self,
+        *,
+        local: str,
+        remote: str,
+        relation: str = "behind",
+        version: str = '__version__ = "9.9.9"\n',
+        upstream: str | None | bool = True,
+        extra_refs: dict[str, str] | None = None,
+    ):
+        refs = dict(extra_refs or {})
+        if upstream is True:
+            refs["@{upstream}"] = remote
+        elif isinstance(upstream, str):
+            refs["@{upstream}"] = upstream
+
+        def run(cmd: list[str], **_kwargs) -> _Proc:
+            if "fetch" in cmd:
+                return _Proc(0)
+            if "merge-base" in cmd and "--is-ancestor" in cmd:
+                anc, desc = cmd[-2], cmd[-1]
+                if anc == desc:
+                    return _Proc(0)
+                if relation == "behind" and anc == local and desc == remote:
+                    return _Proc(0)
+                if relation == "ahead" and anc == remote and desc == local:
+                    return _Proc(0)
+                return _Proc(1)
+            if "rev-parse" in cmd:
+                ref = cmd[-1]
+                if ref == "HEAD":
+                    return _Proc(0, stdout=local + "\n")
+                if ref in refs:
+                    return _Proc(0, stdout=refs[ref] + "\n")
+                return _Proc(1, stderr=f"no {ref}")
+            if "show" in cmd:
+                return _Proc(0, stdout=version)
+            self.fail(f"unexpected command: {cmd}")
+            return _Proc(1)
+
+        return run
+
     def test_frozen_is_not_available(self) -> None:
         status = check_for_update(frozen=True, start=self.start, runner=lambda *_a, **_k: _Proc(0))
         self.assertFalse(status.available)
@@ -304,55 +346,64 @@ class TestCheckForUpdate(unittest.TestCase):
         self.assertEqual(status.detail, "offline")
 
     def test_same_head_is_up_to_date(self) -> None:
-        def run(cmd: list[str], **_kwargs) -> _Proc:
-            if "fetch" in cmd:
-                return _Proc(0)
-            if cmd[-1] == "HEAD":
-                return _Proc(0, stdout="abc123\n")
-            if cmd[-1] == "@{upstream}":
-                return _Proc(0, stdout="abc123\n")
-            self.fail(f"unexpected command: {cmd}")
-            return _Proc(0)
-
-        status = check_for_update(frozen=False, start=self.start, runner=run)
+        status = check_for_update(
+            frozen=False,
+            start=self.start,
+            runner=self._git_run(local="abc123", remote="abc123", relation="equal"),
+        )
         self.assertFalse(status.available)
         self.assertEqual(status.detail, "up to date")
 
     def test_remote_ahead_is_available(self) -> None:
-        def run(cmd: list[str], **_kwargs) -> _Proc:
-            if "fetch" in cmd:
-                return _Proc(0)
-            if cmd[-1] == "HEAD":
-                return _Proc(0, stdout="oldsha\n")
-            if cmd[-1] == "@{upstream}":
-                return _Proc(0, stdout="newsha\n")
-            if "show" in cmd:
-                return _Proc(0, stdout='__version__ = "9.9.9"\n')
-            self.fail(f"unexpected command: {cmd}")
-            return _Proc(0)
-
-        status = check_for_update(frozen=False, start=self.start, runner=run)
+        status = check_for_update(
+            frozen=False,
+            start=self.start,
+            runner=self._git_run(local="oldsha", remote="newsha"),
+        )
         self.assertTrue(status.available)
         self.assertEqual(status.detail, "available")
         self.assertEqual(status.new_version, "9.9.9")
         self.assertEqual(status.button_label(), "UPDATE to 9.9.9")
 
-    def test_falls_back_to_origin_head(self) -> None:
-        def run(cmd: list[str], **_kwargs) -> _Proc:
-            if "fetch" in cmd:
-                return _Proc(0)
-            if cmd[-1] == "@{upstream}":
-                return _Proc(1, stderr="no upstream")
-            if cmd[-1] == "origin/HEAD":
-                return _Proc(0, stdout="newsha\n")
-            if cmd[-1] == "HEAD":
-                return _Proc(0, stdout="oldsha\n")
-            if "show" in cmd:
-                return _Proc(0, stdout='__version__ = "2.0.0"\n')
-            self.fail(f"unexpected command: {cmd}")
-            return _Proc(0)
+    def test_local_ahead_is_up_to_date(self) -> None:
+        status = check_for_update(
+            frozen=False,
+            start=self.start,
+            runner=self._git_run(
+                local="newsha",
+                remote="oldsha",
+                relation="ahead",
+                version='__version__ = "1.4.0"\n',
+            ),
+        )
+        self.assertFalse(status.available)
+        self.assertEqual(status.detail, "up to date")
 
-        status = check_for_update(frozen=False, start=self.start, runner=run)
+    def test_diverged_is_not_available(self) -> None:
+        status = check_for_update(
+            frozen=False,
+            start=self.start,
+            runner=self._git_run(
+                local="aaa",
+                remote="bbb",
+                relation="diverged",
+            ),
+        )
+        self.assertFalse(status.available)
+        self.assertEqual(status.detail, "diverged")
+
+    def test_falls_back_to_origin_head(self) -> None:
+        status = check_for_update(
+            frozen=False,
+            start=self.start,
+            runner=self._git_run(
+                local="oldsha",
+                remote="newsha",
+                upstream=False,
+                extra_refs={"origin/HEAD": "newsha"},
+                version='__version__ = "2.0.0"\n',
+            ),
+        )
         self.assertTrue(status.available)
 
     def test_not_git_is_not_available(self) -> None:
@@ -391,6 +442,16 @@ class TestVersionLabel(unittest.TestCase):
             "available",
             current_version="1.3.4",
             new_version="1.3.4",
+            remote_sha="deadbee",
+        )
+        self.assertEqual(status.button_label(), "UPDATE  deadbee")
+
+    def test_button_uses_sha_when_remote_is_older(self) -> None:
+        status = UpdateCheck(
+            True,
+            "available",
+            current_version="1.4.1",
+            new_version="1.4.0",
             remote_sha="deadbee",
         )
         self.assertEqual(status.button_label(), "UPDATE  deadbee")

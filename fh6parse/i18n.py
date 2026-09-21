@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 LANGS = ("pl", "en")
@@ -80,8 +81,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "cad_chip_share_down": "Z: off",
         "settings": "Settings",
         "settings_blurb": (
-            "Language, mill, and screen size on this page. Ticket ticks, "
-            "GPIO pins, and knobs are their own menus. Esc goes back."
+            "Language and mill on this page. Ticket ticks, GPIO pins, and "
+            "knobs are their own menus. Esc goes back."
         ),
         "settings_back": "Back",
         "settings_page_reports": "LOAD / SET / RUN tickets",
@@ -90,14 +91,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "language": "Language",
         "lang_pl": "Polski",
         "lang_en": "English",
-        "screen_size": "Screen (px)",
-        "screen_width": "Width",
-        "screen_height": "Height",
-        "screen_native": "1024×600",
-        "screen_size_blurb": (
-            "Waveshare 13857 is 1024×600. Change if the panel is different. "
-            "Saved like language (ui.ini). Fullscreen still fills the real display."
-        ),
         "machine": "Machine",
         "machine_detail": "Rapids {rapid}  ·  tool change {tchg}",
         "machine_add": "Add mill…",
@@ -437,8 +430,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "cad_chip_share_down": "Z: wył.",
         "settings": "Ustawienia",
         "settings_blurb": (
-            "Język, obrabiarka i rozdzielczość na tej stronie. Zawartość "
-            "biletów, piny GPIO i pokrętła są w osobnych menu. Esc wraca."
+            "Język i obrabiarka na tej stronie. Zawartość biletów, piny GPIO "
+            "i pokrętła są w osobnych menu. Esc wraca."
         ),
         "settings_back": "Wstecz",
         "settings_page_reports": "Bilety LOAD / SET / RUN",
@@ -447,14 +440,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "language": "Język",
         "lang_pl": "Polski",
         "lang_en": "English",
-        "screen_size": "Ekran (px)",
-        "screen_width": "Szerokość",
-        "screen_height": "Wysokość",
-        "screen_native": "1024×600",
-        "screen_size_blurb": (
-            "Waveshare 13857 to 1024×600. Zmień, jeśli panel jest inny. "
-            "Zapis jak język (ui.ini). Pełny ekran i tak wypełnia wyświetlacz."
-        ),
         "machine": "Obrabiarka",
         "machine_detail": "Szybkie {rapid}  ·  wymiana narzędzia {tchg}",
         "machine_add": "Dodaj obrabiarkę…",
@@ -814,11 +799,21 @@ def _pl_narzedzie(n: int) -> str:
     return "narzędzi"
 
 
+def _version_newer(new: str, current: str) -> bool:
+    """True when ``new`` is a higher dotted number than ``current``."""
+
+    def key(text: str) -> tuple[int, ...]:
+        nums = [int(p) for p in re.findall(r"\d+", text or "")]
+        return tuple(nums) if nums else (0,)
+
+    return bool(new) and key(new) > key(current)
+
+
 def update_button_label(lang: str, status: Any) -> str:
     new = getattr(status, "new_version", "") or ""
     current = getattr(status, "current_version", "") or ""
     sha = getattr(status, "remote_sha", "") or ""
-    if new and new != current:
+    if _version_newer(new, current):
         return t(lang, "update_to", version=new)
     if sha:
         return t(lang, "update_sha", sha=sha)

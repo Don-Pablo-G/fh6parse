@@ -136,7 +136,9 @@ class UpdateCheck:
     download_url: str = ""
 
     def button_label(self) -> str:
-        if self.new_version and self.new_version != self.current_version:
+        if self.new_version and version_key(self.new_version) > version_key(
+            self.current_version
+        ):
             return f"UPDATE to {self.new_version}"
         if self.remote_sha:
             return f"UPDATE  {self.remote_sha}"
@@ -144,12 +146,29 @@ class UpdateCheck:
 
 
 def _remote_sha(root: Path, *, runner: Run) -> str:
-    for ref in ("@{upstream}", "origin/HEAD", "origin/master", "origin/main"):
+    for ref in ("@{upstream}", "origin/master", "origin/main", "origin/HEAD"):
         proc = _run(["git", "-C", str(root), "rev-parse", ref], runner=runner)
         sha = (proc.stdout or "").strip()
         if proc.returncode == 0 and sha:
             return sha
     return ""
+
+
+def _is_ancestor(root: Path, ancestor: str, descendant: str, *, runner: Run) -> bool:
+    """True when ``ancestor`` is already contained in ``descendant`` (or equal)."""
+    proc = _run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "merge-base",
+            "--is-ancestor",
+            ancestor,
+            descendant,
+        ],
+        runner=runner,
+    )
+    return proc.returncode == 0
 
 
 def check_for_update(
@@ -186,6 +205,10 @@ def check_for_update(
         return UpdateCheck(False, "no remote", current_version=current)
     if local_sha == remote_sha:
         return UpdateCheck(False, "up to date", current_version=current)
+    if _is_ancestor(root, remote_sha, local_sha, runner=run):
+        return UpdateCheck(False, "up to date", current_version=current)
+    if not _is_ancestor(root, local_sha, remote_sha, runner=run):
+        return UpdateCheck(False, "diverged", current_version=current)
     shown = _run(
         ["git", "-C", str(root), "show", f"{remote_sha}:{VERSION_FILE}"],
         runner=run,

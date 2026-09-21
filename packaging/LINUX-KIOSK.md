@@ -180,7 +180,7 @@ If turning the **file** knob moves the highlight the wrong way, use **Reverse** 
 
 ### 2.5 Screen (Waveshare 13857)
 
-The panel is a Waveshare **7″ HDMI LCD (C)** (SKU **13857**). Native mode is **1024×600** landscape. That is what the app uses (`width = 1024`, `height = 600`). Plug micro-HDMI into **HDMI0** (next to USB-C). Do **not** rotate the desktop unless the LCD is physically mounted on its side. If `/etc/fh6parse-kiosk.ini` still has `width = 600` / `height = 800` from the old panel, change those two lines **or** set **Screen** in **F2** (saved to `ui.ini`, overlay wins).
+The panel is a Waveshare **7″ HDMI LCD (C)** (SKU **13857**). Native mode is **1024×600** landscape. The kiosk is built for that size (list on the left, preview + isometric on the right). Plug micro-HDMI into **HDMI0** (next to USB-C). Do **not** rotate the desktop unless the LCD is physically mounted on its side. Leftover `width` / `height` in `/etc/fh6parse-kiosk.ini` or `ui.ini` are ignored.
 
 On Raspberry Pi OS the default is **Wayland**. Switch to **X11** (tkinter + screensaver `xset` are unreliable on Wayland/labwc):
 
@@ -200,7 +200,7 @@ Or in a terminal after login:
 xrandr --output HDMI-A-1 --mode 1024x600
 ```
 
-(Use `xrandr` with no arguments to see the output name: `HDMI-A-1`, `HDMI-1`, … . Pi 5 KMS is usually `HDMI-A-1` for HDMI0.) Rotate only if the case is portrait: `xrandr --output HDMI-A-1 --rotate right` then set `width = 600` and `height = 1024` in the kiosk ini.
+(Use `xrandr` with no arguments to see the output name: `HDMI-A-1`, `HDMI-1`, … . Pi 5 KMS is usually `HDMI-A-1` for HDMI0.) The kiosk UI is landscape **1024×600** only. Do not rotate a Waveshare 13857 that is mounted landscape.
 
 To make a mode or rotation survive reboot, add the same `xrandr` line to `~/.config/autostart/` or `/etc/xdg/lxsession/LXDE-pi/autostart`.
 
@@ -466,7 +466,7 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `idle_seconds` | 60 | Black screen after this many seconds. `0` disables. |
-| `width` / `height` | 1024 / 600 | Waveshare 13857 native. Change in **settings** (**F2**) or here. Saved in `ui.ini`. Window size when fullscreen is off. |
+| `width` / `height` | 1024 / 600 | Waveshare 13857 native. Fixed in the app; leftover values in the ini or `ui.ini` are ignored. |
 | `encoder_clk` / `encoder_dt` | 17 / 27 | File knob BCM pins (EC11 **A** / **B**). Change in **settings** or here. |
 | `encoder_mill_clk` / `encoder_mill_dt` | 5 / 6 | Mill knob BCM pins (header 29 / 31). |
 | `encoder_swap` / `encoder_mill_swap` | false | Reverse file knob / mill knob if the list moves the wrong way. Same as **Reverse** in settings. |
@@ -671,7 +671,7 @@ If the program **has** a revision, only a STEP file with the **same** rev is use
 | `SE0241282.nc` | `O01282 (SE0241282-0 …)` | `SE0241282-0.stp` (or `_Rev0`) |
 | `000814086.nc` | title `000814086 OP1/OP2` | `000814086_Rev02.stp` if that is latest |
 
-**5. On the screen**, a small **wireframe 3D cube** appears next to the file when the bitmap is rendered and ready (same icon as the legend under the title — the same visible-edge isometric language as the ticket). The **stacked isometric** itself is shown under the highlight preview (and above the Windows GUI report) so a wrong STEP can be caught before print. The walk and render run in the background for every USB file in the list. Cache: `/tmp/fh6parse-models`.
+**5. On the screen**, a small **wireframe 3D cube** appears next to the file when the bitmap is rendered and ready (same icon as the legend under the title — the same visible-edge isometric language as the ticket). The **stacked isometric** itself is shown in the **right-hand column** next to the file list (and above the Windows GUI report) so a wrong STEP can be caught before print. The walk and render run in the background for every USB file in the list. Cache: `/tmp/fh6parse-models`.
 
 On **Windows**, the GUI also searches next to the opened NC file. **STEP folders…** is the company-share fallback (prefer `\\server\share`, not only Z:). Paths are saved as `model_roots` in `fh6parse-kiosk.ini` next to the exe. fh6parse will not write reports into that folder. The Windows one-file build bundles the CAD stack; print still works if a model is missing.
 
@@ -712,7 +712,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 
 1. Power on. Screen shows **Włóż pendrive** / **Insert USB** (or the last stick if it was already plugged in). The kiosk is Polish unless settings were changed.
 2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear. The count line shows **Można wyjąć** / **Safe to remove** when the kiosk is not reading the stick — wait for that before unplugging. **Czytanie pendrive — czekaj** / **Reading USB — wait** means preview parse or a STEP copy from the stick is still running.
-3. Turn the **file** encoder to highlight a file (past the last name wraps to the first). The panel under the list shows each operation’s tool count and cycle time, and whether the STEP views are ready. A **3D cube** next to the name also means the STEP views are ready; the stacked isometric appears under the preview when it is. Check OP1 vs OP2 here before printing. If that `.nc` is overwritten on the stick (same name, new bytes), preview reloads from disk — wait for **Reading…** to finish before RUN / LOAD / SET. The mill name sits next to the version chip; turn the **mill** knob to change mill (same wrap as **Add mill…** / settings).
+3. Turn the **file** encoder to highlight a file (past the last name wraps to the first). The **right** column shows each operation’s tool count and cycle time, whether the STEP views are ready, and the isometric when it is. Check OP1 vs OP2 here before printing. If that `.nc` is overwritten on the stick (same name, new bytes), preview reloads from disk — wait for **Reading…** to finish before RUN / LOAD / SET. The mill name sits next to the version chip; turn the **mill** knob to change mill (same wrap as **Add mill…** / settings).
 4. **Green LOAD** (left under the screen) — factory operator slip: file / program / units, tool list with T / H / D / S / Min Z and load boxes, always-on safety, sign-off. No mill, no cycle chart, no each-Txx-M6 dump, no offset box, no STEP. Change ticks in **F2**.
 5. **Yellow SET** (middle) — factory setter slip: file / program, mill name, STEP when ready, offset rectangle + Ømax + Z window, cycle time (no share chart), programmer `!` notes, always-on safety, sign-off.
 6. **Red RUN** (right) — factory full slip: STEP, offset block, ops, cycle + time split (G0 / cut / rot / canned / probe / ATC stacked per T), tool list, each Txx M6 / M00, extra warnings. No load boxes, no sign-off. The three colour chips on the bottom of the screen sit in this same left→right order. After a ticket, LOAD / SET / RUN are ignored for **print wait** (default 2 s; **Czekaj przed następnym biletem** / **Wait before the next ticket**) so a second press does not cut two slips.
@@ -757,7 +757,7 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | **Add mill…** missing / mill list is only Default | Clone is older than this pull. Settings → **Add mill…**. Saved in `ui.ini` (`[machine.<id>]`). Travel keys `x_min`…`z_max` print the offset rectangle. |
 | Screen stays in English and **F2** does nothing | Wake first if the screen is black. Click the **EN** chip next to **v…**. Encoder never opens settings. |
 | Black screen immediately | Desktop blanking plus app DPMS. Disable LXDE idle blank; keep kiosk `idle_seconds = 60`. |
-| Wrong aspect / sideways UI | `xdpyinfo` / Screen Configuration should show **1024×600**. App geometry is 1024×600 fullscreen. Do not rotate a landscape Waveshare 13857. Pi 5 output is often `HDMI-A-1`. |
+| Wrong aspect / clipped UI | `xdpyinfo` / Screen Configuration should show **1024×600**. The app is locked to that size (list left, isometric right). Do not rotate a landscape Waveshare 13857. Pi 5 output is often `HDMI-A-1`. |
 | Service dead, UI never starts | `echo $DISPLAY` in a desktop terminal should be `:0`. `raspi-config` → X11, desktop autologin. `journalctl -u fh6parse-kiosk`. Unit `User=` must be `kiosk`. |
 | Pi stays on after halt / no panel power | J2 is optional. USB-C unplug/replug boots. Do not set `WAIT_FOR_POWER_BUTTON=1` unless J2 is wired. PCB power button is the same as J2. See **§2.8**. |
 | Undervoltage / random reboots | Official 27 W PSU, **no USB-C extension**, cable clamped. A phone charger or Pi 3 supply is not enough. The Pi 512 GB SSD is 2.8 W max; LED rings stay on the same PSU. |
@@ -817,7 +817,7 @@ python3 -m fh6parse --format 80mm --stdout /path/program.nc
 | --- | --- |
 | `/home/kiosk/fh6parse` | Source checkout (shop update path) |
 | `/etc/fh6parse-kiosk.ini` | Pins, printer, idle, `model_roots` (never overwritten by **UPDATE**) |
-| `/home/kiosk/.config/fh6parse/ui.ini` | Screen language, mill (including **Add mill…**), GPIO pins, encoder ticks, **width / height**. Written by settings. Survives **UPDATE**. |
+| `/home/kiosk/.config/fh6parse/ui.ini` | Screen language, mill (including **Add mill…**), GPIO pins, encoder ticks. Written by settings. Survives **UPDATE**. Leftover `width` / `height` from older builds are ignored. |
 | `/etc/systemd/system/fh6parse-kiosk.service` | Autostart |
 | `/etc/sudoers.d/fh6parse-kiosk` | NOPASSWD restart for on-screen **UPDATE** |
 | `packaging/fh6parse-kiosk.ini.example` | Template |
@@ -859,13 +859,14 @@ If `git pull --ff-only` fails, the clone has local edits or a diverged branch. `
 
 ### 8.2 On-screen UPDATE (1.3.2 and later)
 
-On each kiosk start, and again when the screensaver wakes (encoder, USB insert, HID, optional spare), a background thread runs `git fetch` (~20 s timeout) and compares `HEAD` to the tracked branch (`@{upstream}`, else `origin/HEAD`, else `origin/master` / `origin/main`). A second fetch is skipped while one is already running, while **UPDATE** is already on screen, or while an install is in progress. **Nothing is installed until you tap the button.**
+On each kiosk start, and again when the screensaver wakes (encoder, USB insert, HID, optional spare), a background thread runs `git fetch` (~20 s timeout) and compares `HEAD` to the tracked branch (`@{upstream}`, else `origin/master` / `origin/main`, else `origin/HEAD`). The button appears only when origin can fast-forward this checkout (local is an ancestor of origin). A checkout that is **ahead** of origin (you already pulled 1.4.1, origin still looks like 1.4.0) does **not** show **UPDATE to 1.4.0**. A second fetch is skipped while one is already running, while **UPDATE** is already on screen, or while an install is in progress. **Nothing is installed until you tap the button.**
 
 | After the check | What you see |
 | --- | --- |
 | Offline, timeout, one-file binary, or already current | No button. **v…** stays at the top. Print as usual. |
 | Running from site-packages / tarball (badge has no `+sha`) | No button. **§6** — install `-e` from `/home/kiosk/fh6parse`. |
 | Origin has a newer commit | Yellow **UPDATE to x.y.z** (or a short git hash if the number did not change). Status: `v1.4.1 → x.y.z · tap UPDATE to install and restart`. |
+| This checkout is already ahead of origin, or the histories diverged | No button. Fast-forward would fail or would go backwards. |
 
 Tap **UPDATE** once (touch or **U**). That is the only action: `git pull --ff-only`, pip only if `pyproject.toml` changed, then **restart** `fh6parse-kiosk`. Print is paused only while that runs. The new version is live after the restart.
 
@@ -971,7 +972,7 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | `G68` then `G69` → `G68 T… L… to G69 T… L…` on LOAD / SET / RUN | |
 | `G68` with no `G69` → `G68 T… L… without G69` | |
 | `(…!…)` comments listed as programmer notes | |
-| Highlight preview: ops, cycle time, 3D ready, stacked isometric when ready | |
+| Highlight preview (right of the list): ops, cycle time, 3D ready, isometric scaled to the 1024×600 column | |
 
 **4. STEP views** (`.stp` on the USB stick, or `model_roots`; CAD extra required)
 

@@ -13,7 +13,7 @@
 [kiosk]
 width = 1024
 height = 600
-# Change in settings (F2) too; ui.ini overlay wins. Waveshare 13857 is 1024x600.
+# Waveshare 13857 native. The kiosk ignores these values (layout is fixed 1024x600).
 fullscreen = true
 idle_seconds = 60
 # Screen language: pl (default on the kiosk) or en. Change in settings (F2 / mouse).

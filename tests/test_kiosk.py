@@ -223,11 +223,11 @@ class TestKioskConfig(unittest.TestCase):
         cfg = KioskConfig()
         self.assertEqual((cfg.width, cfg.height), (1024, 600))
 
-    def test_overlay_overrides_screen_size(self) -> None:
+    def test_overlay_cannot_override_screen_size(self) -> None:
         import os
         from unittest.mock import patch
 
-        from fh6parse.kiosk import save_kiosk_values, ui_overlay_path
+        from fh6parse.kiosk import SCREEN_NATIVE, save_kiosk_values, ui_overlay_path
 
         with tempfile.TemporaryDirectory() as home:
             with patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
@@ -242,13 +242,17 @@ class TestKioskConfig(unittest.TestCase):
                         ui_overlay_path(),
                     )
                     cfg = load_kiosk_config(main)
-                    self.assertEqual((cfg.width, cfg.height), (1280, 720))
+                    self.assertEqual((cfg.width, cfg.height), SCREEN_NATIVE)
 
-    def test_screen_size_clamped(self) -> None:
-        from fh6parse.kiosk import _clamp_px
+    def test_iso_preview_fits_column(self) -> None:
+        from fh6parse.kiosk import iso_preview_max
 
-        self.assertEqual(_clamp_px(100, 480, 1920), 480)
-        self.assertEqual(_clamp_px(4000, 480, 1920), 1920)
+        w, h = iso_preview_max(400, 280, 60)
+        self.assertEqual(w, 392)
+        self.assertEqual(h, 208)
+        w, h = iso_preview_max(10, 10, 100)
+        self.assertEqual(w, 80)
+        self.assertEqual(h, 64)
 
     def test_mill_form_lists_travel_and_tool_length(self) -> None:
         from fh6parse.kiosk import MILL_FORM_FIELDS
