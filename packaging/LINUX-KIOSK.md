@@ -2,7 +2,7 @@
 
 Operator sheet (Polish, daily use only): **[LINUX-KIOSK-PL.md](LINUX-KIOSK-PL.md)**. Pi 5 pinout and wire poster: **[LINUX-KIOSK-WIRING.pdf](LINUX-KIOSK-WIRING.pdf)**. Hardware buy list (SKU / EAN if shops die): **[HARDWARE.md](HARDWARE.md)**. This file is the full English install / update manual.
 
-**Version 1.4.1.** Raspberry Pi 5 kiosk: Waveshare **1024×600** (SKU **13857**, native landscape), MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.1**). Three 16 mm vandal print buttons under the screen, left→right **green LOAD** (operator slip), **yellow SET** (setter), **red RUN** (full ticket). The same three colour chips sit on the bottom of the panel. List, preview, and those chips use large high-contrast type. An optional fourth GPIO button sleeps and wakes the panel (leave it unwired). An optional Pi 5 **J2** switch is the hardware power button (not GPIO). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C rapid, tool-change time, tool length, optional max rpm, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Tickets then show a labeled G53 rectangle of where the work offset may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.1** badge; the yellow **UPDATE** button then shows a short hash. The Windows / Linux office GUI is one report with a **section checklist** (no LOAD / SET / RUN presets). The same single-click yellow **UPDATE to …** bar appears under the mill/print row: frozen Windows exe against a GitHub Release (tag **vX.Y.Z** builds it), git checkout against origin.
+**Version 1.4.1.** Raspberry Pi 5 kiosk: Waveshare **13857** in **portrait** (**600×1024**, panel native 1024×600 stood on the short edge), MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.1**). Three 16 mm vandal print buttons under the screen, left→right **green LOAD** (operator slip), **yellow SET** (setter), **red RUN** (full ticket). The same three colour chips sit on the bottom of the panel. List, preview, and those chips use large high-contrast type. An optional fourth GPIO button sleeps and wakes the panel (leave it unwired). An optional Pi 5 **J2** switch is the hardware power button (not GPIO). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C rapid, tool-change time, tool length, optional max rpm, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Tickets then show a labeled G53 rectangle of where the work offset may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.1** badge; the yellow **UPDATE** button then shows a short hash. The Windows / Linux office GUI is one report with a **section checklist** (no LOAD / SET / RUN presets). The same single-click yellow **UPDATE to …** bar appears under the mill/print row: frozen Windows exe against a GitHub Release (tag **vX.Y.Z** builds it), git checkout against origin.
 
 Python **3.10+** is required (Bookworm ships 3.11). Use **Raspberry Pi OS 64-bit Desktop** (Bookworm or later). Pi 5 has no 32-bit OS.
 
@@ -31,7 +31,7 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 | micro-HDMI cable | Pi 5 has two **micro-HDMI** ports. Use **HDMI0** (the port next to USB-C power) for the kiosk panel. **Clamp** USB-C and HDMI0 to the case. **No USB-C extension** on the 27 W PSU. |
 | Case (3D print) | **PETG**, not PLA. Vents **above** the Active Cooler and **below** the Duo. **§2.13**. |
 | Spare PCIe flex (drawer) | Pimoroni **PIM703** (35 mm) or **PIM702** (50 mm). The OS cable; clips break. |
-| Waveshare 7″ HDMI LCD (C) **13857** | Native **1024×600** landscape. HDMI0. App geometry is 1024×600. Do **not** rotate unless the panel is physically turned. |
+| Waveshare 7″ HDMI LCD (C) **13857** | Panel native **1024×600**. The kiosk **stands on the short edge**, so the UI is **600×1024** portrait. HDMI0. Rotate the desktop (`xrandr --rotate left` or `right`) until `xrandr` shows **600x1024**. |
 | DFRobot Fermion EC11 (file) | SEN0235. Phase **A** and **B** only. Shaft push (**C**) unused. Selects the NC file. |
 | DFRobot Fermion EC11 (mill) | Second knob, same wiring. Cycles mills in settings / `kiosk.machine`. |
 | Three 16 mm 5-pin vandal buttons | Momentary, ring LED **5 V**: **green LOAD**, **yellow SET**, **red RUN**. Mount **under the screen**, left→right matching the colour chips on the panel. |
@@ -180,7 +180,7 @@ If turning the **file** knob moves the highlight the wrong way, use **Reverse** 
 
 ### 2.5 Screen (Waveshare 13857)
 
-The panel is a Waveshare **7″ HDMI LCD (C)** (SKU **13857**). Native mode is **1024×600** landscape. The kiosk is built for that size (list on the left, preview + isometric on the right). Plug micro-HDMI into **HDMI0** (next to USB-C). Do **not** rotate the desktop unless the LCD is physically mounted on its side. Leftover `width` / `height` in `/etc/fh6parse-kiosk.ini` or `ui.ini` are ignored.
+The panel is a Waveshare **7″ HDMI LCD (C)** (SKU **13857**). The glass **stands on its short edge** (portrait). Panel timing is still **1024×600**; after rotation the desktop must be **600×1024**. The kiosk UI is that portrait size: file list on top, preview + isometric below, LOAD / SET / RUN chips at the bottom. Plug micro-HDMI into **HDMI0** (next to USB-C). Leftover `width` / `height` in `/etc/fh6parse-kiosk.ini` or `ui.ini` are ignored.
 
 On Raspberry Pi OS the default is **Wayland**. Switch to **X11** (tkinter + screensaver `xset` are unreliable on Wayland/labwc):
 
@@ -192,17 +192,17 @@ sudo raspi-config
 - **System Options → Boot / Auto Login → Desktop autologin**
 - Reboot
 
-Then confirm the mode. **Screen Configuration** (desktop): HDMI output should show **1024×600**. Apply and “OK”.
+Then confirm the mode. **Screen Configuration** (desktop): HDMI **Orientation** left or right until the picture is upright and the size is **600×1024**. Apply and “OK”.
 
 Or in a terminal after login:
 
 ```
-xrandr --output HDMI-A-1 --mode 1024x600
+xrandr --output HDMI-A-1 --mode 1024x600 --rotate left
 ```
 
-(Use `xrandr` with no arguments to see the output name: `HDMI-A-1`, `HDMI-1`, … . Pi 5 KMS is usually `HDMI-A-1` for HDMI0.) The kiosk UI is landscape **1024×600** only. Do not rotate a Waveshare 13857 that is mounted landscape.
+If the image is upside-down, use `--rotate right`. `xrandr` with no arguments should show **600x1024**. Pi 5 KMS is usually `HDMI-A-1` for HDMI0.
 
-To make a mode or rotation survive reboot, add the same `xrandr` line to `~/.config/autostart/` or `/etc/xdg/lxsession/LXDE-pi/autostart`.
+To keep the rotation after reboot, set it in Screen Configuration or add the same `xrandr` line to `~/.config/autostart/` or `/etc/xdg/lxsession/LXDE-pi/autostart`.
 
 Do not use legacy `display_rotate=` in `/boot/firmware/config.txt`. Pi 5 is KMS-only.
 
@@ -466,7 +466,7 @@ Leave the defaults unless your wiring or printer queue differs. Useful keys:
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `idle_seconds` | 60 | Black screen after this many seconds. `0` disables. |
-| `width` / `height` | 1024 / 600 | Waveshare 13857 native. Fixed in the app; leftover values in the ini or `ui.ini` are ignored. |
+| `width` / `height` | 600 / 1024 | Portrait (panel stood on the short edge). Fixed in the app; leftover ini / `ui.ini` values are ignored. |
 | `encoder_clk` / `encoder_dt` | 17 / 27 | File knob BCM pins (EC11 **A** / **B**). Change in **settings** or here. |
 | `encoder_mill_clk` / `encoder_mill_dt` | 5 / 6 | Mill knob BCM pins (header 29 / 31). |
 | `encoder_swap` / `encoder_mill_swap` | false | Reverse file knob / mill knob if the list moves the wrong way. Same as **Reverse** in settings. |
@@ -671,7 +671,7 @@ If the program **has** a revision, only a STEP file with the **same** rev is use
 | `SE0241282.nc` | `O01282 (SE0241282-0 …)` | `SE0241282-0.stp` (or `_Rev0`) |
 | `000814086.nc` | title `000814086 OP1/OP2` | `000814086_Rev02.stp` if that is latest |
 
-**5. On the screen**, a small **wireframe 3D cube** appears next to the file when the bitmap is rendered and ready (same icon as the legend under the title — the same visible-edge isometric language as the ticket). The **stacked isometric** itself is shown in the **right-hand column** next to the file list (and above the Windows GUI report) so a wrong STEP can be caught before print. The walk and render run in the background for every USB file in the list. Cache: `/tmp/fh6parse-models`.
+**5. On the screen**, a small **wireframe 3D cube** appears next to the file when the bitmap is rendered and ready (same icon as the legend under the title — the same visible-edge isometric language as the ticket). The **stacked isometric** itself is shown **under the file list** (and above the Windows GUI report) so a wrong STEP can be caught before print. The walk and render run in the background for every USB file in the list. Cache: `/tmp/fh6parse-models`.
 
 On **Windows**, the GUI also searches next to the opened NC file. **STEP folders…** is the company-share fallback (prefer `\\server\share`, not only Z:). Paths are saved as `model_roots` in `fh6parse-kiosk.ini` next to the exe. fh6parse will not write reports into that folder. The Windows one-file build bundles the CAD stack; print still works if a model is missing.
 
@@ -712,7 +712,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 
 1. Power on. Screen shows **Włóż pendrive** / **Insert USB** (or the last stick if it was already plugged in). The kiosk is Polish unless settings were changed.
 2. Insert the USB stick. `.nc` / `.tap` files in the stick **root** appear. The count line shows **Można wyjąć** / **Safe to remove** when the kiosk is not reading the stick — wait for that before unplugging. **Czytanie pendrive — czekaj** / **Reading USB — wait** means preview parse or a STEP copy from the stick is still running.
-3. Turn the **file** encoder to highlight a file (past the last name wraps to the first). The **right** column shows each operation’s tool count and cycle time, whether the STEP views are ready, and the isometric when it is. Check OP1 vs OP2 here before printing. If that `.nc` is overwritten on the stick (same name, new bytes), preview reloads from disk — wait for **Reading…** to finish before RUN / LOAD / SET. The mill name sits next to the version chip; turn the **mill** knob to change mill (same wrap as **Add mill…** / settings).
+3. Turn the **file** encoder to highlight a file (past the last name wraps to the first). The **band under the list** shows each operation’s tool count and cycle time, whether the STEP views are ready, and the isometric when it is. Check OP1 vs OP2 here before printing. If that `.nc` is overwritten on the stick (same name, new bytes), preview reloads from disk — wait for **Reading…** to finish before RUN / LOAD / SET. The mill name sits under the title; turn the **mill** knob to change mill (same wrap as **Add mill…** / settings).
 4. **Green LOAD** (left under the screen) — factory operator slip: file / program / units, tool list with T / H / D / S / Min Z and load boxes, always-on safety, sign-off. No mill, no cycle chart, no each-Txx-M6 dump, no offset box, no STEP. Change ticks in **F2**.
 5. **Yellow SET** (middle) — factory setter slip: file / program, mill name, STEP when ready, offset rectangle + Ømax + Z window, cycle time (no share chart), programmer `!` notes, always-on safety, sign-off.
 6. **Red RUN** (right) — factory full slip: STEP, offset block, ops, cycle + time split (G0 / cut / rot / canned / probe / ATC stacked per T), tool list, each Txx M6 / M00, extra warnings. No load boxes, no sign-off. The three colour chips on the bottom of the screen sit in this same left→right order. After a ticket, LOAD / SET / RUN are ignored for **print wait** (default 2 s; **Czekaj przed następnym biletem** / **Wait before the next ticket**) so a second press does not cut two slips.
@@ -757,7 +757,7 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | **Add mill…** missing / mill list is only Default | Clone is older than this pull. Settings → **Add mill…**. Saved in `ui.ini` (`[machine.<id>]`). Travel keys `x_min`…`z_max` print the offset rectangle. |
 | Screen stays in English and **F2** does nothing | Wake first if the screen is black. Click the **EN** chip next to **v…**. Encoder never opens settings. |
 | Black screen immediately | Desktop blanking plus app DPMS. Disable LXDE idle blank; keep kiosk `idle_seconds = 60`. |
-| Wrong aspect / clipped UI | `xdpyinfo` / Screen Configuration should show **1024×600**. The app is locked to that size (list left, isometric right). Do not rotate a landscape Waveshare 13857. Pi 5 output is often `HDMI-A-1`. |
+| Wrong aspect / clipped UI | `xrandr` must show **600x1024** (rotated). The app is portrait: list on top, isometric below. If you still see 1024x600, the desktop is landscape and the right side is cut off. Try `--rotate left` then `--rotate right`. Pi 5 output is often `HDMI-A-1`. |
 | Service dead, UI never starts | `echo $DISPLAY` in a desktop terminal should be `:0`. `raspi-config` → X11, desktop autologin. `journalctl -u fh6parse-kiosk`. Unit `User=` must be `kiosk`. |
 | Pi stays on after halt / no panel power | J2 is optional. USB-C unplug/replug boots. Do not set `WAIT_FOR_POWER_BUTTON=1` unless J2 is wired. PCB power button is the same as J2. See **§2.8**. |
 | Undervoltage / random reboots | Official 27 W PSU, **no USB-C extension**, cable clamped. A phone charger or Pi 3 supply is not enough. The Pi 512 GB SSD is 2.8 W max; LED rings stay on the same PSU. |
@@ -972,7 +972,7 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | `G68` then `G69` → `G68 T… L… to G69 T… L…` on LOAD / SET / RUN | |
 | `G68` with no `G69` → `G68 T… L… without G69` | |
 | `(…!…)` comments listed as programmer notes | |
-| Highlight preview (right of the list): ops, cycle time, 3D ready, isometric scaled to the 1024×600 column | |
+| Highlight preview (below the list): ops, cycle time, 3D ready, isometric scaled to the 600×1024 band | |
 
 **4. STEP views** (`.stp` on the USB stick, or `model_roots`; CAD extra required)
 

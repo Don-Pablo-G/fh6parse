@@ -104,7 +104,7 @@ preview, then Print A4 or Print 80 mm (paper size only — same ticks).
   Local fallback: packaging\build_windows.bat then packaging\publish_windows.ps1
   (needs gh). Keep the ini next to the exe.
 
-Raspberry Pi 5 kiosk (Waveshare 13857, native 1024x600) — version 1.4.1
+Raspberry Pi 5 kiosk (Waveshare 13857 portrait 600x1024) — version 1.4.1
   Full wiring + OS + printer + update: packaging/LINUX-KIOSK.md
   Pi 5 hardware poster (pins + wires): packaging/LINUX-KIOSK-WIRING.pdf
   Hardware archive (SKU/EAN if shops die): packaging/HARDWARE.md
@@ -173,12 +173,12 @@ Raspberry Pi 5 kiosk (Waveshare 13857, native 1024x600) — version 1.4.1
   Escape closes the mill form first, then settings, then leaves fullscreen.
 
   File encoder (DFRobot EC11 A/B) highlights a file (last wraps to first).
-  Mill encoder cycles mills (name next to version; last wraps to first).
+  Mill encoder cycles mills (name under the title; last wraps to first).
   Reverse in settings / encoder_swap / encoder_mill_swap if the list moves
-  the wrong way. The right column shows each operation (tool count, cycle
-  time, 3D ready) and the isometric when ready so you can see OP1 vs OP2
-  before print. List and print chips fit 1024x600 with the picture beside
-  the file list.
+  the wrong way. The band under the list shows each operation (tool count,
+  cycle time, 3D ready) and the isometric when ready so you can see OP1 vs OP2
+  before print. List, preview, and print chips are stacked for 600x1024
+  (panel stood on the short edge).
   Three vandal buttons sit under the screen; colour chips on the bottom of
   the UI match left→right: green LOAD (short / M), yellow SET (setter / S),
   red RUN (full / F). 16 mm 5-pin: C to GND, NO to GPIO, NC unused; LED +

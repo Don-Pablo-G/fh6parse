@@ -1,4 +1,4 @@
-"""Landscape USB kiosk for Raspberry Pi 5 (Waveshare 1024×600): file + mill encoders, three print buttons, optional sleep GPIO, screensaver."""
+"""Portrait USB kiosk for Raspberry Pi 5 (Waveshare 1024×600 stood on the short edge → 600×1024): file + mill encoders, three print buttons, optional sleep GPIO, screensaver."""
 
 from __future__ import annotations
 
@@ -85,7 +85,7 @@ BCM_MAX = 27
 ENCODER_STEPS_MAX = 16
 BUTTON_DELAY_MAX = 30.0
 BUTTON_DELAY_STEP = 0.5
-SCREEN_NATIVE = (1024, 600)
+SCREEN_NATIVE = (600, 1024)
 PREVIEW_DEBOUNCE_MS = 180
 PREVIEW_CACHE_MAX = 40
 FileStamp = tuple[float, int]
@@ -196,7 +196,7 @@ def wrap_index(index: int, delta: int, count: int) -> int:
 
 
 def iso_preview_max(pane_w: int, pane_h: int, preview_h: int) -> tuple[int, int]:
-    """Cap the on-screen isometric so it stays inside the 1024×600 preview column."""
+    """Cap the on-screen isometric so it stays inside the 600×1024 preview band."""
     w = max(80, int(pane_w) - 8)
     h = max(64, int(pane_h) - max(0, int(preview_h)) - 12)
     return w, h
@@ -258,8 +258,8 @@ def scroll_canvas(canvas: tk.Canvas, event: tk.Event) -> str:
 
 @dataclass
 class KioskConfig:
-    width: int = 1024
-    height: int = 600
+    width: int = 600
+    height: int = 1024
     fullscreen: bool = True
     idle_seconds: float = 60.0
     encoder_clk: int = 17
@@ -997,19 +997,20 @@ class KioskApp(tk.Tk):
 
     def _build(self) -> None:
         family = "DejaVu Sans" if sys.platform.startswith("linux") else "Segoe UI"
-        title_font = tkfont.Font(family=family, size=22, weight="bold")
-        list_font = tkfont.Font(family=family, size=20, weight="bold")
-        small = tkfont.Font(family=family, size=13)
-        settings_font = tkfont.Font(family=family, size=13)
-        update_font = tkfont.Font(family=family, size=18, weight="bold")
-        legend_font = tkfont.Font(family=family, size=13, weight="bold")
+        title_font = tkfont.Font(family=family, size=20, weight="bold")
+        list_font = tkfont.Font(family=family, size=18, weight="bold")
+        small = tkfont.Font(family=family, size=12)
+        settings_font = tkfont.Font(family=family, size=12)
+        update_font = tkfont.Font(family=family, size=16, weight="bold")
+        legend_font = tkfont.Font(family=family, size=12, weight="bold")
         self._font_title = title_font
         self._font_small = small
         self._font_update = update_font
         self._font_legend = legend_font
+        wrap = max(200, SCREEN_NATIVE[0] - 24)
 
         head = tk.Frame(self, bg=BG)
-        head.pack(fill=tk.X, padx=12, pady=(8, 2))
+        head.pack(fill=tk.X, padx=10, pady=(8, 2))
         title_row = tk.Frame(head, bg=BG)
         title_row.pack(fill=tk.X)
         self.brand_lbl = tk.Label(
@@ -1026,45 +1027,46 @@ class KioskApp(tk.Tk):
             pady=1,
             cursor="hand2",
         )
-        self.lang_chip.pack(side=tk.RIGHT, pady=(4, 0), padx=(6, 0))
+        self.lang_chip.pack(side=tk.RIGHT, pady=(2, 0))
         self.lang_chip.bind("<Button-1>", self._on_config_pointer)
-        self.version_lbl = tk.Label(
-            title_row,
-            text=f"v{display_version()}",
-            font=small,
-            bg=BG,
-            fg=MUTED,
-        )
-        self.version_lbl.pack(side=tk.RIGHT, pady=(4, 0))
+        meta_row = tk.Frame(head, bg=BG)
+        meta_row.pack(fill=tk.X, pady=(4, 0))
         self.mill_chip = tk.Label(
-            title_row,
+            meta_row,
             text=machine_display_name(self.cfg.active_machine(), self._lang),
             font=small,
             bg="#2a2a2a",
             fg=ACCENT,
             padx=6,
             pady=1,
-            wraplength=240,
-            justify="right",
+            wraplength=max(160, wrap - 180),
+            justify="left",
+            anchor="w",
         )
-        self.mill_chip.pack(side=tk.RIGHT, pady=(4, 0), padx=(0, 6))
-        hint_row = tk.Frame(head, bg=BG)
-        hint_row.pack(fill=tk.X, pady=(2, 0))
+        self.mill_chip.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.version_lbl = tk.Label(
+            meta_row,
+            text=f"v{display_version()}",
+            font=small,
+            bg=BG,
+            fg=MUTED,
+        )
+        self.version_lbl.pack(side=tk.RIGHT, padx=(8, 0))
         self.hint = tk.Label(
-            hint_row,
+            head,
             text=t(self._lang, "insert_usb"),
             font=small,
             bg=BG,
             fg=MUTED,
-            wraplength=max(200, self.cfg.width - 280),
+            wraplength=wrap,
             justify="left",
             anchor="w",
         )
-        self.hint.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        self._cad_ready, self._cad_empty = cube_photo(self, size=28, dark=True)
-        self._cad_legend, _unused_empty = cube_photo(self, size=22, dark=True)
-        legend = tk.Frame(hint_row, bg=BG)
-        legend.pack(side=tk.RIGHT, padx=(8, 0))
+        self.hint.pack(fill=tk.X, pady=(4, 0))
+        self._cad_ready, self._cad_empty = cube_photo(self, size=24, dark=True)
+        self._cad_legend, _unused_empty = cube_photo(self, size=20, dark=True)
+        legend = tk.Frame(head, bg=BG)
+        legend.pack(fill=tk.X, pady=(2, 0))
         tk.Label(legend, image=self._cad_legend, bg=BG).pack(side=tk.LEFT)
         self.cad_legend_lbl = tk.Label(
             legend,
@@ -1072,31 +1074,35 @@ class KioskApp(tk.Tk):
             font=small,
             bg=BG,
             fg=MUTED,
+            wraplength=max(160, wrap - 36),
+            justify="left",
+            anchor="w",
         )
-        self.cad_legend_lbl.pack(side=tk.LEFT)
+        self.cad_legend_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         mid = tk.Frame(self, bg=BG)
         mid.pack(fill=tk.BOTH, expand=True, padx=8, pady=4)
-        mid.columnconfigure(0, weight=3)
-        mid.columnconfigure(1, weight=2)
-        mid.rowconfigure(0, weight=1)
-        self.listbox = make_file_tree(mid, dark=True, font=list_font, rowheight=40)
-        self.listbox.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        mid.columnconfigure(0, weight=1)
+        mid.rowconfigure(0, weight=3)
+        mid.rowconfigure(1, weight=2)
+        self.listbox = make_file_tree(mid, dark=True, font=list_font, rowheight=36)
+        self.listbox.column("#0", stretch=True, minwidth=1, width=1)
+        self.listbox.grid(row=0, column=0, sticky="nsew", pady=(0, 6))
         self.listbox.bind("<Button-1>", self._on_list_click)
         self.listbox.bind("<MouseWheel>", self._on_wheel)
         self.listbox.bind("<Button-4>", lambda e: self._on_wheel_button(-1))
         self.listbox.bind("<Button-5>", lambda e: self._on_wheel_button(1))
         self._preview_pane = tk.Frame(mid, bg=BG)
-        self._preview_pane.grid(row=0, column=1, sticky="nsew")
+        self._preview_pane.grid(row=1, column=0, sticky="nsew")
         self._preview_pane.bind("<Configure>", self._on_preview_pane_configure)
-        preview_font = tkfont.Font(family=family, size=15, weight="bold")
+        preview_font = tkfont.Font(family=family, size=14, weight="bold")
         self.preview = tk.Label(
             self._preview_pane,
             text="",
             font=preview_font,
             bg=BG,
             fg=ACCENT,
-            wraplength=360,
+            wraplength=wrap,
             justify="left",
             anchor="nw",
         )
@@ -1111,7 +1117,7 @@ class KioskApp(tk.Tk):
 
         foot = tk.Frame(self, bg=BG)
         self._foot = foot
-        foot.pack(fill=tk.X, padx=12, pady=(2, 8))
+        foot.pack(fill=tk.X, padx=10, pady=(2, 8))
         self.update_btn = tk.Button(
             foot,
             text=t(self._lang, "update"),
@@ -1125,6 +1131,7 @@ class KioskApp(tk.Tk):
             bd=0,
             highlightthickness=0,
             height=1,
+            wraplength=wrap,
             cursor="hand2",
             command=self._on_update,
         )
@@ -1134,7 +1141,7 @@ class KioskApp(tk.Tk):
             font=small,
             bg=BG,
             fg=MUTED,
-            wraplength=self.cfg.width - 32,
+            wraplength=wrap,
             justify="left",
         )
         self._keys_hint.pack(anchor="w")
@@ -1144,7 +1151,7 @@ class KioskApp(tk.Tk):
             font=small,
             bg=BG,
             fg=OK,
-            wraplength=self.cfg.width - 32,
+            wraplength=wrap,
             justify="left",
         )
         self.status.pack(anchor="w", pady=(2, 0))
@@ -1191,13 +1198,13 @@ class KioskApp(tk.Tk):
             setattr(self, attr, lbl)
         row.pack(fill=tk.X, pady=(6, 0))
 
-    def _settings_wrap(self, extra: int = 120) -> int:
-        return max(200, int(self.cfg.width) - extra)
+    def _settings_wrap(self, extra: int = 40) -> int:
+        return max(160, int(self.cfg.width) - extra)
 
     def _make_scroll_body(self, parent: tk.Frame):
         body = tk.Frame(parent, bg="#1a1a1a")
         canvas = tk.Canvas(body, bg="#1a1a1a", highlightthickness=0, bd=0)
-        scroll = tk.Scrollbar(body, command=canvas.yview, width=18)
+        scroll = tk.Scrollbar(body, command=canvas.yview, width=16)
         inner = tk.Frame(canvas, bg="#1a1a1a")
         win = canvas.create_window((0, 0), window=inner, anchor="nw")
 
@@ -1225,8 +1232,8 @@ class KioskApp(tk.Tk):
             bg="#1a1a1a",
             highlightbackground=ACCENT,
             highlightthickness=2,
-            padx=8,
-            pady=8,
+            padx=6,
+            pady=6,
         )
         self._config = panel
         head = tk.Frame(panel, bg="#1a1a1a")
@@ -1302,7 +1309,7 @@ class KioskApp(tk.Tk):
             cursor="hand2",
             command=lambda: self._set_language("pl"),
         )
-        self._btn_pl.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 6), ipady=10)
+        self._btn_pl.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 6), ipady=8)
         self._btn_en = tk.Button(
             row,
             text=t(self._lang, "lang_en"),
@@ -1313,7 +1320,7 @@ class KioskApp(tk.Tk):
             cursor="hand2",
             command=lambda: self._set_language("en"),
         )
-        self._btn_en.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0), ipady=10)
+        self._btn_en.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0), ipady=8)
 
         self._config_machine_lbl = tk.Label(
             home,
@@ -1344,6 +1351,8 @@ class KioskApp(tk.Tk):
             font=update_font,
             bg="#1a1a1a",
             fg=ACCENT,
+            wraplength=max(120, SCREEN_NATIVE[0] - 160),
+            justify="center",
         )
         self._machine_value_lbl.pack(side=tk.LEFT, expand=True, fill=tk.X)
         tk.Button(
@@ -1403,10 +1412,11 @@ class KioskApp(tk.Tk):
                 relief="flat",
                 bd=0,
                 highlightthickness=0,
+                wraplength=max(200, SCREEN_NATIVE[0] - 80),
                 cursor="hand2",
                 command=lambda p=page: self._show_config_page(p),
             )
-            btn.pack(fill=tk.X, pady=(0, 8), ipady=12)
+            btn.pack(fill=tk.X, pady=(0, 8), ipady=8)
             self._btn_page[page] = btn
 
         self._build_section_matrix(reports, small)
@@ -1716,7 +1726,7 @@ class KioskApp(tk.Tk):
                 fg="#eeeeee",
                 anchor="w",
                 justify="left",
-                wraplength=self._settings_wrap(280),
+                wraplength=self._settings_wrap(240),
             )
             name.grid(row=row, column=0, sticky="w", pady=1)
             self._section_row_lbls[key] = name
@@ -1832,8 +1842,8 @@ class KioskApp(tk.Tk):
             bg="#1a1a1a",
             highlightbackground=ACCENT,
             highlightthickness=2,
-            padx=12,
-            pady=8,
+            padx=6,
+            pady=6,
         )
         self._mill = panel
         self._mill_title = tk.Label(
@@ -1851,21 +1861,17 @@ class KioskApp(tk.Tk):
 
         cols = tk.Frame(inner, bg="#1a1a1a")
         cols.pack(fill=tk.BOTH, expand=True)
-        left = tk.Frame(cols, bg="#1a1a1a")
-        right = tk.Frame(cols, bg="#1a1a1a")
-        left.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=(0, 10))
-        right.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
         self._mill_field_lbls: list[tuple[tk.Label, str]] = []
         self._mill_entries: dict[str, tk.Entry] = {}
         for key, default in MILL_FORM_SCALARS:
-            self._mill_pack_field(left, key, default, small)
+            self._mill_pack_field(cols, key, default, small)
         self._mill_pack_triplet(
-            right, "machine_atc_group", MILL_FORM_ATC, small
+            cols, "machine_atc_group", MILL_FORM_ATC, small
         )
         self._mill_pack_triplet(
-            right, "machine_offset_group", MILL_FORM_OFFSET, small
+            cols, "machine_offset_group", MILL_FORM_OFFSET, small
         )
-        self._mill_pack_travel(right, small)
+        self._mill_pack_travel(cols, small)
 
         foot = tk.Frame(panel, bg="#1a1a1a")
         foot.pack(fill=tk.X, padx=4, pady=(4, 0))
@@ -2020,6 +2026,9 @@ class KioskApp(tk.Tk):
             font=small,
             bg="#1a1a1a",
             fg=MUTED,
+            wraplength=max(120, int(self.cfg.width) // 2 - 48),
+            justify="left",
+            anchor="w",
         )
         caption.pack(anchor="w")
         self._pin_captions[attr] = caption
@@ -2367,7 +2376,7 @@ class KioskApp(tk.Tk):
             if value:
                 ent.insert(0, value)
         self._mill_open = True
-        self._mill.place(relx=0.04, rely=0.06, relwidth=0.92, relheight=0.88)
+        self._mill.place(relx=0.02, rely=0.02, relwidth=0.96, relheight=0.96)
         self._mill.lift()
         canvas = getattr(self, "_mill_canvas", None)
         if canvas is not None:
@@ -2456,7 +2465,7 @@ class KioskApp(tk.Tk):
         self._config_open = True
         self._refresh_gpio_labels()
         self._show_config_page("home")
-        self._config.place(relx=0.04, rely=0.06, relwidth=0.92, relheight=0.88)
+        self._config.place(relx=0.02, rely=0.02, relwidth=0.96, relheight=0.96)
         self._config.lift()
         self._style_lang_buttons()
         self._arm_idle()
@@ -2986,7 +2995,7 @@ class KioskApp(tk.Tk):
         except tk.TclError:
             prev_h = 0
         if pw < 40 or ph < 40:
-            return iso_preview_max(400, 280, max(prev_h, 48))
+            return iso_preview_max(560, 320, max(prev_h, 48))
         return iso_preview_max(pw, ph, prev_h)
 
     def _on_preview_pane_configure(self, event: tk.Event) -> None:

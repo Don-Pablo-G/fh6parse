@@ -221,7 +221,11 @@ class TestKioskConfig(unittest.TestCase):
         from fh6parse.kiosk import KioskConfig
 
         cfg = KioskConfig()
-        self.assertEqual((cfg.width, cfg.height), (1024, 600))
+        self.assertEqual((cfg.width, cfg.height), (600, 1024))
+        from fh6parse.kiosk import SCREEN_NATIVE
+
+        self.assertEqual(SCREEN_NATIVE, (600, 1024))
+        self.assertLess(SCREEN_NATIVE[0], SCREEN_NATIVE[1])
 
     def test_overlay_cannot_override_screen_size(self) -> None:
         import os
@@ -247,6 +251,9 @@ class TestKioskConfig(unittest.TestCase):
     def test_iso_preview_fits_column(self) -> None:
         from fh6parse.kiosk import iso_preview_max
 
+        w, h = iso_preview_max(560, 320, 48)
+        self.assertEqual(w, 552)
+        self.assertEqual(h, 260)
         w, h = iso_preview_max(400, 280, 60)
         self.assertEqual(w, 392)
         self.assertEqual(h, 208)

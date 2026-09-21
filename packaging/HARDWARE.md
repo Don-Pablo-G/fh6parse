@@ -42,7 +42,7 @@ Do **not** fit the Raspberry Pi M.2 HAT+ from the SSD kit. OS disk is the **Pimo
 | Panel power (optional) | Momentary NO on Pi 5 **J2** | Two pads next to RTC, GPIO pin-40 corner. Not a 40-pin GPIO | — | Pi 5 reduced schematic, `PWR_BTN` | Short the two J2 pads. Not BCM 25 / 20. |
 | Pendrive socket | Metal **USB 3.0 Type-A** panel mount | **27 mm** round cutout, Type-A female on the front, USB 3 pigtail | [Allegro 17741983408](https://allegro.pl/oferta/gniazdo-usb-3-0-typu-a-metalowe-do-zabudowy-na-pendrive-panelowe-27-mm-17741983408) | Any metal USB 3.0 A 27 mm bulkhead | Pigtail to Pi **USB 3** (blue). P047 stays on **USB 2**. Not GPIO. |
 | Printer | MUNBYN **P047** / ITPP047 | 80 mm ESC/POS, USB, auto-cutter, own mains PSU | MUNBYN / ITPP047 | `/dev/usb/lp0`, DLE EOT status | 80 mm thermal with cutter. Do not power from Pi USB. |
-| Display | Waveshare **7″ HDMI LCD (C)** | SKU **13857**, native **1024×600**. micro-HDMI on **HDMI0** | Waveshare / resellers | [waveshare.com/7inch-hdmi-lcd-c](https://www.waveshare.com/7inch-hdmi-lcd-c.htm) | 1024×600 landscape. App geometry matches native. Do not rotate unless the panel is physically turned. |
+| Display | Waveshare **7″ HDMI LCD (C)** | SKU **13857**, native **1024×600**. Stood on the **short edge** so the UI is **600×1024**. micro-HDMI on **HDMI0** | Waveshare / resellers | [waveshare.com/7inch-hdmi-lcd-c](https://www.waveshare.com/7inch-hdmi-lcd-c.htm) | Rotate the desktop until `xrandr` shows 600x1024. |
 | Keypad (future) | SparkFun Qwiic 12-key | **COM-15290**, I²C 0x4B | SparkFun | Official Qwiic 4-pin on GPIO 2/3 | Leave header 3 / 5 empty until fitted. |
 
 ---
