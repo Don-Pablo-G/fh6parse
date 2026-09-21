@@ -1,4 +1,4 @@
-fh6parse 1.4.0 — CNC tool list / min-Z report
+fh6parse 1.4.1 — CNC tool list / min-Z report
 
 Windows:  double-click fh6parse.exe  (or run from Command Prompt)
 Linux:    ./fh6parse                 (or fh6parse --gui)
@@ -104,7 +104,7 @@ preview, then Print A4 or Print 80 mm (paper size only — same ticks).
   Local fallback: packaging\build_windows.bat then packaging\publish_windows.ps1
   (needs gh). Keep the ini next to the exe.
 
-Raspberry Pi 5 kiosk (Waveshare 13857, native 1024x600) — version 1.4.0
+Raspberry Pi 5 kiosk (Waveshare 13857, native 1024x600) — version 1.4.1
   Full wiring + OS + printer + update: packaging/LINUX-KIOSK.md
   Pi 5 hardware poster (pins + wires): packaging/LINUX-KIOSK-WIRING.pdf
   Hardware archive (SKU/EAN if shops die): packaging/HARDWARE.md
@@ -123,7 +123,7 @@ Raspberry Pi 5 kiosk (Waveshare 13857, native 1024x600) — version 1.4.0
   Do not install python3-rpi.gpio (Pi 5 RP1 GPIO needs lgpio).
   git clone https://github.com/Don-Pablo-G/fh6parse.git
   cd fh6parse && sudo pip3 install -e . --break-system-packages
-  python3 -m fh6parse --version          (expect fh6parse 1.4.0+<git sha>)
+  python3 -m fh6parse --version          (expect fh6parse 1.4.1+<git sha>)
   python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
   Copy packaging/fh6parse-kiosk.ini.example to /etc/fh6parse-kiosk.ini
   Autostart: packaging/fh6parse-kiosk.service
@@ -132,15 +132,15 @@ Raspberry Pi 5 kiosk (Waveshare 13857, native 1024x600) — version 1.4.0
     sudo chmod 440 /etc/sudoers.d/fh6parse-kiosk
 
   Update (git checkout only; never automatic)
-    Need 1.4.0. Later 1.4.0 git commits (preview, mill table, Add mill, travel /
+    Need 1.4.1. Later 1.4.1 git commits (preview, mill table, Add mill, travel /
     offset box, on-screen isometric, empty-pocket) still keep that number — UPDATE then shows a hash.
-    If --version is older than 1.4.0, SSH:
+    If --version is older than 1.4.1, SSH:
       cd /home/kiosk/fh6parse && git pull --ff-only && sudo systemctl restart fh6parse-kiosk
     From 1.3.2: on start the kiosk fetches origin in the background, and
     again after the screensaver wakes. If a newer commit exists, a yellow
     UPDATE to x.y.z button appears (touch or U).
     It does not update until you tap it; one tap pulls and restarts the kiosk.
-    Print still works offline. Screen shows v1.4.0+<sha> at the top.
+    Print still works offline. Screen shows v1.4.1+<sha> at the top.
     CLI:
       python3 -m fh6parse --version
       python3 -m fh6parse --update
@@ -153,11 +153,11 @@ Raspberry Pi 5 kiosk (Waveshare 13857, native 1024x600) — version 1.4.0
     If cubes vanish, re-run pip install -e '.[models]'.
     One-file ARM tarball cannot --update and shows no button; copy a new
     tarball or switch to git (LINUX-KIOSK.md §3.2 / §8.4).
-    Badge only v1.4.0 (no +sha) and no UPDATE: running code cannot see .git
+    Badge only v1.4.1 (no +sha) and no UPDATE: running code cannot see .git
     (tarball, or pip3 install . without -e into site-packages). SSH:
       python3 -m fh6parse --version
       python3 -c "import fh6parse, sys; print(fh6parse.__file__)"
-    Want 1.4.0+<sha> and a path under /home/kiosk/fh6parse. Then:
+    Want 1.4.1+<sha> and a path under /home/kiosk/fh6parse. Then:
       cd /home/kiosk/fh6parse && git pull --ff-only
       sudo pip3 install -e . --break-system-packages
       sudo systemctl restart fh6parse-kiosk

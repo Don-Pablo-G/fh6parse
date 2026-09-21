@@ -11,7 +11,7 @@ ROOT = Path(SPECPATH).resolve().parent
 LAUNCHER = str(ROOT / "packaging" / "launcher.py")
 
 # Bake the git short SHA into the frozen binary so --version / GUI / kiosk
-# show the same build as a git checkout (the 1.4.0 number does not change).
+# show the same build as a git checkout (version plus git SHA).
 # Docker copies have no .git — keep a host-written fh6parse/_build.py if git fails.
 _sha = ""
 try:

@@ -1,4 +1,4 @@
-# fh6parse 1.4.0 Raspberry Pi 5 kiosk. DISPLAY=:0 after raspi-config X11.
+# fh6parse 1.4.1 Raspberry Pi 5 kiosk. DISPLAY=:0 after raspi-config X11.
 # Shop user is kiosk (not pi). Shop update: on-screen UPDATE, or
 # python3 -m fh6parse --update
 # kiosk needs NOPASSWD for: /usr/bin/systemctl restart fh6parse-kiosk

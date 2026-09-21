@@ -1,6 +1,6 @@
 # Kiosk CNC — instrukcja operatora
 
-**fh6parse 1.4.0.** Ekran po polsku. Pełny montaż, okablowanie i aktualizacja z SSH: `packaging/LINUX-KIOSK.md` (angielski, serwis).
+**fh6parse 1.4.1.** Ekran po polsku. Pełny montaż, okablowanie i aktualizacja z SSH: `packaging/LINUX-KIOSK.md` (angielski, serwis).
 
 Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmienia się pinów.
 
@@ -37,7 +37,7 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 | **Z: wył.** | Firmowy udział (dysk Z:) nieosiągalny. Pendrive bez `.stp` = tylko tekst |
 | **brak CAD** | Na kiosku nie ma bibliotek 3D — serwis (`pip … [models]`). Drukuj tekst |
 | Izometria pod podświetleniem | Ten sam rysunek co na bilecie — zły STEP widać przed drukiem |
-| **v1.4.0+……** u góry | Wersja programu (1.4.0) i skrót gita tego checkoutu. Żółty **AKTUALIZUJ** pojawia się, gdy origin jest nowszy |
+| **v1.4.1+……** u góry | Wersja programu (1.4.1) i skrót gita tego checkoutu. Żółty **AKTUALIZUJ** pojawia się, gdy origin jest nowszy |
 | Nazwa obrabiarki przy wersji | Drugie pokrętło (mill). Ta sama lista co **Dodaj obrabiarkę…** |
 | Chip **PL** / **EN** | Język ekranu i biletu. Domyślnie polski |
 | Trzy kolorowe pola na dole | Nad przyciskami: **zielony LOAD**, **żółty SET**, **czerwony RUN** (od lewej) |
@@ -138,7 +138,7 @@ Język i obrabiarka zapamiętują się po restarcie.
 | Izometria „szara / wypełniona” | Stary rysunek w pamięci — serwis wyczyści `/tmp/fh6parse-models` |
 | Ekran po angielsku | **F2** → **Polski**. Najpierw obudź, jeśli czarny |
 | **AKTUALIZUJ** „nieudane” | Druk nadal działa. Wołaj serwis — nie instaluj nic z pendrive |
-| Brak żółtego **AKTUALIZUJ** / **v1.4.0** bez skrótu gita | Serwis. Kiosk nie jest na git (tarball albo pip bez `-e`). Druk działa |
+| Brak żółtego **AKTUALIZUJ** / **v1.4.1** bez skrótu gita | Serwis. Kiosk nie jest na git (tarball albo pip bez `-e`). Druk działa |
 
 Nie kopiuj programów na kiosk. Nie kasuj nic z udziału firmowego. Nie aktualizuj „z internetu” poza żółtym przyciskiem.
 

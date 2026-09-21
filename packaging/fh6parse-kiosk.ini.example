@@ -8,7 +8,7 @@
 # button_spare (BCM 25) is optional sleep/wake. Leave the pin unwired: the
 # internal pull-up never fires. Pi 5 J2 power is also optional (not GPIO).
 # Updates are not configured here. Git checkout + on-screen UPDATE: see
-# packaging/LINUX-KIOSK.md §8 (fh6parse 1.4.0). This file is never overwritten.
+# packaging/LINUX-KIOSK.md §8 (fh6parse 1.4.1). This file is never overwritten.
 
 [kiosk]
 width = 1024

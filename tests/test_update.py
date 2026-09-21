@@ -557,18 +557,18 @@ class TestDisplayVersion(unittest.TestCase):
     def test_plain_number_when_build_unknown(self) -> None:
         from unittest.mock import patch
 
-        from fh6parse._version import display_version
+        from fh6parse._version import __version__, display_version
 
         with patch("fh6parse._version.local_build", return_value=""):
-            self.assertEqual(display_version(), "1.4.0")
+            self.assertEqual(display_version(), __version__)
 
     def test_appends_git_or_frozen_sha(self) -> None:
         from unittest.mock import patch
 
-        from fh6parse._version import display_version
+        from fh6parse._version import __version__, display_version
 
         with patch("fh6parse._version.local_build", return_value="2e68429"):
-            self.assertEqual(display_version(), "1.4.0+2e68429")
+            self.assertEqual(display_version(), f"{__version__}+2e68429")
 
     def test_cli_version_includes_build(self) -> None:
         from unittest.mock import patch

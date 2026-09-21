@@ -1,6 +1,6 @@
 # Tests on every push. Windows one-file exe + GitHub Release on tag vX.Y.Z.
 # Office PCs then show yellow UPDATE (frozen exe compares asset version).
-# Tag must match fh6parse/_version.py and pyproject.toml (no silent 1.4.0 republish).
+# Tag must match fh6parse/_version.py and pyproject.toml (no silent republish of the same number).
 name: Windows exe
 
 on:

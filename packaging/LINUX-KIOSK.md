@@ -2,7 +2,7 @@
 
 Operator sheet (Polish, daily use only): **[LINUX-KIOSK-PL.md](LINUX-KIOSK-PL.md)**. Pi 5 pinout and wire poster: **[LINUX-KIOSK-WIRING.pdf](LINUX-KIOSK-WIRING.pdf)**. Hardware buy list (SKU / EAN if shops die): **[HARDWARE.md](HARDWARE.md)**. This file is the full English install / update manual.
 
-**Version 1.4.0.** Raspberry Pi 5 kiosk: Waveshare **1024×600** (SKU **13857**, native landscape), MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.0**). Three 16 mm vandal print buttons under the screen, left→right **green LOAD** (operator slip), **yellow SET** (setter), **red RUN** (full ticket). The same three colour chips sit on the bottom of the panel. List, preview, and those chips use large high-contrast type. An optional fourth GPIO button sleeps and wakes the panel (leave it unwired). An optional Pi 5 **J2** switch is the hardware power button (not GPIO). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C rapid, tool-change time, tool length, optional max rpm, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Tickets then show a labeled G53 rectangle of where the work offset may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.0** badge; the yellow **UPDATE** button then shows a short hash. The Windows / Linux office GUI is one report with a **section checklist** (no LOAD / SET / RUN presets). The same single-click yellow **UPDATE to …** bar appears under the mill/print row: frozen Windows exe against a GitHub Release (tag **vX.Y.Z** builds it), git checkout against origin.
+**Version 1.4.1.** Raspberry Pi 5 kiosk: Waveshare **1024×600** (SKU **13857**, native landscape), MUNBYN **P047**, USB `/dev/usb/lp0` print, isometric **line-art** STEP (stick `.stp` first), **D** vs T warnings, programmed cycle time and a per-tool share chart. Two knobs: **file** (list) and **mill** (name next to **v1.4.1**). Three 16 mm vandal print buttons under the screen, left→right **green LOAD** (operator slip), **yellow SET** (setter), **red RUN** (full ticket). The same three colour chips sit on the bottom of the panel. List, preview, and those chips use large high-contrast type. An optional fourth GPIO button sleeps and wakes the panel (leave it unwired). An optional Pi 5 **J2** switch is the hardware power button (not GPIO). Highlight a file to preview ops, cycle time, 3D ready, and the stacked isometric before print. Add mills in **settings** (**Add mill…**: name, rapids m/min, B/C rapid, tool-change time, tool length, optional max rpm, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Tickets then show a labeled G53 rectangle of where the work offset may sit, and max Ø for a centred outside G41/G42. Screen language is **Polish** by default (**F2** / **C** / the **PL**·**EN** chip for English). A **wireframe 3D cube** next to a file means the STEP views are ready. Later git commits keep the **1.4.1** badge; the yellow **UPDATE** button then shows a short hash. The Windows / Linux office GUI is one report with a **section checklist** (no LOAD / SET / RUN presets). The same single-click yellow **UPDATE to …** bar appears under the mill/print row: frozen Windows exe against a GitHub Release (tag **vX.Y.Z** builds it), git checkout against origin.
 
 Python **3.10+** is required (Bookworm ships 3.11). Use **Raspberry Pi OS 64-bit Desktop** (Bookworm or later). Pi 5 has no 32-bit OS.
 
@@ -15,7 +15,7 @@ The 40-pin header uses the **same BCM numbers as Pi 3/4**. GPIO on Pi 5 goes thr
 5. [Daily use](#5-daily-use)
 6. [Troubleshooting](#6-troubleshooting)
 7. [Files on disk](#7-files-on-disk)
-8. [Updating (1.4.0)](#8-updating-the-kiosk)
+8. [Updating (1.4.1)](#8-updating-the-kiosk)
 9. [Field test](#9-field-test)
 
 ---
@@ -429,7 +429,7 @@ Check:
 python3 -m fh6parse --version
 ```
 
-Expect `fh6parse 1.4.0+……` (package number plus git short SHA). If the number is older, this clone is behind — `git fetch && git pull --ff-only` then check again (**§8**).
+Expect `fh6parse 1.4.1+……` (package number plus git short SHA). If the number is older, this clone is behind — `git fetch && git pull --ff-only` then check again (**§8**).
 
 Later upgrades are **§8**. Do not run `pip install` on every pull. The kiosk does not update by itself.
 
@@ -450,7 +450,7 @@ Run:
 ./fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 ```
 
-The one-file ARM tarball does not bundle the CAD stack, so **§3.7** pictures are git-checkout only. There is no **UPDATE** button and `--update` refuses this install. To get the 1.4.0 shop update path later, switch to the git checkout above.
+The one-file ARM tarball does not bundle the CAD stack, so **§3.7** pictures are git-checkout only. There is no **UPDATE** button and `--update` refuses this install. To get the 1.4.1 shop update path later, switch to the git checkout above.
 
 For systemd, set `ExecStart=/home/kiosk/fh6parse --kiosk --config /etc/fh6parse-kiosk.ini` (path to the unpacked binary).
 
@@ -724,7 +724,7 @@ If the unit starts before X is ready, it will restart every 3 s until `:0` exist
 12. Wake: either encoder, inserting a USB stick, a **keyboard / mouse**, or the optional spare GPIO. The first encoder step, key, or click only wakes; it does not skip a file or print. GPIO print buttons while asleep stay ignored. Spare while awake blanks the panel (same as the 60 s idle). No spare button: idle timeout and knobs still work.
 13. Settings: **F2** / **C** or the **PL**/**EN** chip (mouse) — **§3.6**. The file encoder does not open settings. Mill picker, **Add mill…**, pins, knob reverse, ticks per tooth, and print wait are on that panel.
 14. Print buttons **do nothing** while the screen is asleep (avoids accidental tickets).
-15. Current version is **v1.4.0+……** at the top right (mill name is next to it). The suffix is the git short SHA of this checkout. If the Pi is on the network and origin is ahead, a yellow **UPDATE to x.y.z** (or a git hash if the number is still 1.4.0) appears **after this boot’s check**. It does **not** update by itself. One tap installs and **restarts** the kiosk (sudoers in **§3.2**). Print still works until you tap it.
+15. Current version is **v1.4.1+……** at the top right (mill name is next to it). The suffix is the git short SHA of this checkout. If the Pi is on the network and origin is ahead, a yellow **UPDATE to x.y.z** (or a git hash if the number is still 1.4.1) appears **after this boot’s check**. It does **not** update by itself. One tap installs and **restarts** the kiosk (sudoers in **§3.2**). Print still works until you tap it.
 
 Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). STEP matching and rendering run in the background and must not delay the ticket.
 
@@ -768,8 +768,8 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | `--update` says one-file package | This Pi is running the ARM tarball. Copy a new tarball or reinstall from git (**§3.2**). |
 | `--update` / fast-forward failed | Uncommitted edits or a diverged branch. See **§8.1**. Do not merge on the shop floor. |
 | `--update` / **UPDATE** pulled but UI unchanged | `sudo systemctl restart fh6parse-kiosk`. Missing sudoers: **§3.2**. |
-| Badge is only **v1.4.0** (no `+sha`) **and** no yellow **UPDATE** | Running code cannot see `.git`. One-file tarball, or `pip3 install .` (not `-e`) into site-packages. **UPDATE** compares git SHAs, not the `1.4.0` number. SSH checks and fix below. |
-| Badge is **v1.4.0+……** but **UPDATE** still missing | Offline / GitHub blocked (`git fetch` fails), already current, or the panel never slept. Check runs at boot and after screensaver wake. `sudo systemctl restart fh6parse-kiosk` or wait for idle-wake. |
+| Badge is only **v1.4.1** (no `+sha`) **and** no yellow **UPDATE** | Running code cannot see `.git`. One-file tarball, or `pip3 install .` (not `-e`) into site-packages. **UPDATE** compares git SHAs, not the `1.4.1` number. SSH checks and fix below. |
+| Badge is **v1.4.1+……** but **UPDATE** still missing | Offline / GitHub blocked (`git fetch` fails), already current, or the panel never slept. Check runs at boot and after screensaver wake. `sudo systemctl restart fh6parse-kiosk` or wait for idle-wake. |
 | **UPDATE** says failed / kiosk did not restart | `sudo -n systemctl restart fh6parse-kiosk` from user `kiosk` should succeed after **§3.2**. Then `sudo systemctl restart fh6parse-kiosk`. |
 | No **3D cube** next to files | Read the chip next to the cube legend: **searching…** (looking for `.stp`), **rendering…** (drawing a hit — wait), **no STEP** (no matching `.stp` on stick or `model_roots`), **Z: off** (company share not mounted), **no CAD** (`pip3 install -e '.[models]'`). Rev mismatch counts as no STEP. Print still works. |
 | Cube shows, ticket has no picture | Status not `device:/dev/usb/lp0` (CUPS intercepted). Printer rejected `GS v 0`. Test text-only first (**§3.5**). |
@@ -786,7 +786,7 @@ python3 -m fh6parse --version
 python3 -c "import fh6parse, sys; print(fh6parse.__file__); print('frozen', getattr(sys, 'frozen', False))"
 ```
 
-Want `--version` like `1.4.0+0f05f3d` (any 7-char SHA) and `__file__` under `/home/kiosk/fh6parse/`. If `__file__` is in `/usr/local/lib` (or you start a `./fh6parse` one-file binary), this process is not the git checkout — there is no yellow button. Put it on the shop path:
+Want `--version` like `1.4.1+0f05f3d` (any 7-char SHA) and `__file__` under `/home/kiosk/fh6parse/`. If `__file__` is in `/usr/local/lib` (or you start a `./fh6parse` one-file binary), this process is not the git checkout — there is no yellow button. Put it on the shop path:
 
 ```
 cd /home/kiosk/fh6parse
@@ -796,7 +796,7 @@ sudo pip3 install -e . --break-system-packages
 sudo systemctl restart fh6parse-kiosk
 ```
 
-After that the chip is **v1.4.0+** plus the short git SHA. Later origin commits show **UPDATE** (hash if the number is still 1.4.0). Print still works until you tap it.
+After that the chip is **v1.4.1+** plus the short git SHA. Later origin commits show **UPDATE** (hash if the number is still 1.4.1). Print still works until you tap it.
 
 CLI without the kiosk (reports next to the NC file):
 
@@ -828,17 +828,17 @@ python3 -m fh6parse --format 80mm --stdout /path/program.nc
 
 ## 8. Updating the kiosk
 
-This section is for **fh6parse 1.4.0** on a **git checkout** (`/home/kiosk/fh6parse`). The package number stays **1.4.0** until you tag a newer release; the kiosk chip, office GUI, and `--version` also show the git short SHA (`v1.4.0+abc1234`) so you can see which commit is running. Confirm first:
+This section is for **fh6parse 1.4.1** on a **git checkout** (`/home/kiosk/fh6parse`). The package number stays **1.4.1** until you tag a newer release; the kiosk chip, office GUI, and `--version` also show the git short SHA (`v1.4.1+abc1234`) so you can see which commit is running. Confirm first:
 
 ```
 python3 -m fh6parse --version
 ```
 
-You want `fh6parse 1.4.0+……` (also **v1.4.0+……** on the kiosk). The kiosk **never updates by itself**. Print works with or without a network.
+You want `fh6parse 1.4.1+……` (also **v1.4.1+……** on the kiosk). The kiosk **never updates by itself**. Print works with or without a network.
 
-### 8.1 First pull to 1.4.0 (already installed, older number)
+### 8.1 First pull to 1.4.1 (already installed, older number)
 
-If `--version` is older than 1.4.0, SSH as `kiosk`:
+If `--version` is older than 1.4.1, SSH as `kiosk`:
 
 ```
 cd /home/kiosk/fh6parse
@@ -865,7 +865,7 @@ On each kiosk start, and again when the screensaver wakes (encoder, USB insert, 
 | --- | --- |
 | Offline, timeout, one-file binary, or already current | No button. **v…** stays at the top. Print as usual. |
 | Running from site-packages / tarball (badge has no `+sha`) | No button. **§6** — install `-e` from `/home/kiosk/fh6parse`. |
-| Origin has a newer commit | Yellow **UPDATE to x.y.z** (or a short git hash if the number did not change). Status: `v1.4.0 → x.y.z · tap UPDATE to install and restart`. |
+| Origin has a newer commit | Yellow **UPDATE to x.y.z** (or a short git hash if the number did not change). Status: `v1.4.1 → x.y.z · tap UPDATE to install and restart`. |
 
 Tap **UPDATE** once (touch or **U**). That is the only action: `git pull --ff-only`, pip only if `pyproject.toml` changed, then **restart** `fh6parse-kiosk`. Print is paused only while that runs. The new version is live after the restart.
 
@@ -897,7 +897,7 @@ It never writes `/etc/fh6parse-kiosk.ini` or `~/.config/fh6parse/ui.ini`. Pins, 
 
 ### 8.4 One-file ARM tarball
 
-No **UPDATE** button. `python3 -m fh6parse --update` (or `./fh6parse --update`) exits with a message to copy a new tarball or switch to a git clone. That package is a first copy, not the 1.4.0 upgrade path. To convert: follow **§3.2** (git + pip), point systemd `ExecStart` back to `python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini`, then **§8.2**.
+No **UPDATE** button. `python3 -m fh6parse --update` (or `./fh6parse --update`) exits with a message to copy a new tarball or switch to a git clone. That package is a first copy, not the 1.4.1 upgrade path. To convert: follow **§3.2** (git + pip), point systemd `ExecStart` back to `python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini`, then **§8.2**.
 
 ### 8.5 Office GUI (Windows exe / Linux git)
 
@@ -905,16 +905,16 @@ The office window (`fh6parse.exe`, or `python3 -m fh6parse --gui`) uses the **sa
 
 | Install | What the bar checks | What one click does |
 | --- | --- | --- |
-| Frozen Windows exe | GitHub latest release asset `fh6parse-*-windows-x64.exe` newer than **1.4.0** | Download, swap the exe, restart |
+| Frozen Windows exe | GitHub latest release asset `fh6parse-*-windows-x64.exe` newer than **1.4.1** | Download, swap the exe, restart |
 | Git checkout (Windows or Linux) | `git fetch` vs origin, same as **§8.2** | `git pull --ff-only`, pip if `pyproject.toml` changed (keeps `[models]` if CAD is already there), restart the GUI |
 
-The check runs at launch and again when you click back into the window. Offline or already current: no bar. Frozen **1.4.0** PCs only show the bar after you tag a **newer** version (`vX.Y.Z` must match `_version.py`). Git checkouts show a hash while the badge stays **1.4.0**.
+The check runs at launch and again when you click back into the window. Offline or already current: no bar. Frozen **1.4.1** PCs only show the bar after you tag a **newer** version (`vX.Y.Z` must match `_version.py`). Git checkouts show a hash while the badge stays **1.4.1**.
 
 ---
 
 ## 9. Field test
 
-Take this sheet to the Pi. The kiosk must show **v1.4.0** at the top right.
+Take this sheet to the Pi. The kiosk must show **v1.4.1** at the top right.
 
 **1. Get this code onto the Pi** (user `kiosk`):
 
@@ -927,7 +927,7 @@ git log -1 --oneline
 sudo systemctl restart fh6parse-kiosk
 ```
 
-`git log -1` on current master should mention **mill encoder** / **LOAD** / **SET** (or **G54** / travel if that is an older pull). The on-screen badge is still **v1.4.0**. STEP isometrics, D vs T, USB `/dev/usb/lp0`, cycle time, and kiosk preview are already in older 1.4.0 commits. Or wait for the yellow **UPDATE** after a restart, or after the screen wakes from idle.
+`git log -1` on current master should mention **mill encoder** / **LOAD** / **SET** (or **G54** / travel if that is an older pull). The on-screen badge is still **v1.4.1**. STEP isometrics, D vs T, USB `/dev/usb/lp0`, cycle time, and kiosk preview are already in older 1.4.1 commits. Or wait for the yellow **UPDATE** after a restart, or after the screen wakes from idle.
 
 Clear old STEP bitmaps:
 
@@ -1000,5 +1000,5 @@ Use a program with a wrong offset, or a known sample (`000814086.nc` T10 with H2
 | SET has mill, offset, cycle, `!` notes, no share chart / each Txx M6 / M00 | |
 | RUN has STEP (when ready), offset, time split (G0/F/ATC), tool list, each change, no load boxes / sign-off | |
 
-Windows office PC: double-click the exe (or `python -m fh6parse --gui` from a git clone). **Polski / English** radios at the top right (default English). Set **STEP folders…**. **Add mill…** next to the mill combo (name, rapids m/min, B/C rapid, tool-change seconds, optional max rpm, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Next to the preview, tick which **report sections** to include (file/O, mill, printed-at, header comments, `!` notes, STEP, offset corners, Ømax/Z, cycle, share chart, **time split**, tool list, load boxes, each Txx M6, M00, extra warnings, sign-off). **Use LOAD pack** / **SET** / **RUN** copies a factory pack into those ticks. Preview, Print A4, Print 80 mm, and Save all use the same ticks. There are no LOAD / SET / RUN print buttons on the GUI — those exist only on the kiosk. G68, D vs T, empty pocket, S max, late offset, G95, and travel-too-big always print. Last NC folder, report folder, A4 vs 80 mm, and the section checklist are remembered. If CAM overwrites an open `.nc` (mtime or size), the preview reloads from disk — wait for **Reading…** / **Reloaded …** before print. A wireframe cube means the STEP bitmap is ready; the stacked isometric also appears above the report preview. With mill travel set, the ticket includes the work-offset origin rectangle in G53 mm when that box is ticked. Windows print is still the browser dialog, not `/dev/usb/lp0`. If GitHub (frozen exe) or origin (git) has a newer build, a yellow **UPDATE to …** bar appears under the mill/print row — one click, then the window restarts (same as the kiosk). The check also runs when you click back into the window. Frozen **1.4.0** office boxes only show UPDATE after you tag a **newer** version. Publish by tagging **vX.Y.Z** (GitHub Actions builds it) or `packaging\build_windows.bat` then `packaging\publish_windows.ps1`. The tag must match `_version.py`. Do not overwrite `fh6parse-kiosk.ini` next to the exe.
+Windows office PC: double-click the exe (or `python -m fh6parse --gui` from a git clone). **Polski / English** radios at the top right (default English). Set **STEP folders…**. **Add mill…** next to the mill combo (name, rapids m/min, B/C rapid, tool-change seconds, optional max rpm, optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). Next to the preview, tick which **report sections** to include (file/O, mill, printed-at, header comments, `!` notes, STEP, offset corners, Ømax/Z, cycle, share chart, **time split**, tool list, load boxes, each Txx M6, M00, extra warnings, sign-off). **Use LOAD pack** / **SET** / **RUN** copies a factory pack into those ticks. Preview, Print A4, Print 80 mm, and Save all use the same ticks. There are no LOAD / SET / RUN print buttons on the GUI — those exist only on the kiosk. G68, D vs T, empty pocket, S max, late offset, G95, and travel-too-big always print. Last NC folder, report folder, A4 vs 80 mm, and the section checklist are remembered. If CAM overwrites an open `.nc` (mtime or size), the preview reloads from disk — wait for **Reading…** / **Reloaded …** before print. A wireframe cube means the STEP bitmap is ready; the stacked isometric also appears above the report preview. With mill travel set, the ticket includes the work-offset origin rectangle in G53 mm when that box is ticked. Windows print is still the browser dialog, not `/dev/usb/lp0`. If GitHub (frozen exe) or origin (git) has a newer build, a yellow **UPDATE to …** bar appears under the mill/print row — one click, then the window restarts (same as the kiosk). The check also runs when you click back into the window. Frozen **1.4.1** office boxes only show UPDATE after you tag a **newer** version. Publish by tagging **vX.Y.Z** (GitHub Actions builds it) or `packaging\build_windows.bat` then `packaging\publish_windows.ps1`. The tag must match `_version.py`. Do not overwrite `fh6parse-kiosk.ini` next to the exe.
 
