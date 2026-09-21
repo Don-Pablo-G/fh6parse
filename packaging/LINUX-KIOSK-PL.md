@@ -138,6 +138,7 @@ Język i obrabiarka zapamiętują się po restarcie.
 | Izometria „szara / wypełniona” | Stary rysunek w pamięci — serwis wyczyści `/tmp/fh6parse-models` |
 | Ekran po angielsku | **F2** → **Polski**. Najpierw obudź, jeśli czarny |
 | **AKTUALIZUJ** „nieudane” | Druk nadal działa. Wołaj serwis — nie instaluj nic z pendrive |
+| Brak żółtego **AKTUALIZUJ** / **v1.4.0** bez skrótu gita | Serwis. Kiosk nie jest na git (tarball albo pip bez `-e`). Druk działa |
 
 Nie kopiuj programów na kiosk. Nie kasuj nic z udziału firmowego. Nie aktualizuj „z internetu” poza żółtym przyciskiem.
 

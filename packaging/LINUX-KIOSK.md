@@ -768,7 +768,8 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | `--update` says one-file package | This Pi is running the ARM tarball. Copy a new tarball or reinstall from git (**§3.2**). |
 | `--update` / fast-forward failed | Uncommitted edits or a diverged branch. See **§8.1**. Do not merge on the shop floor. |
 | `--update` / **UPDATE** pulled but UI unchanged | `sudo systemctl restart fh6parse-kiosk`. Missing sudoers: **§3.2**. |
-| **UPDATE** button never appears | Offline, one-file tarball, already up to date. Check runs at start and again after the screensaver wakes. Screen should show **v1.4.0**. |
+| Badge is only **v1.4.0** (no `+sha`) **and** no yellow **UPDATE** | Running code cannot see `.git`. One-file tarball, or `pip3 install .` (not `-e`) into site-packages. **UPDATE** compares git SHAs, not the `1.4.0` number. SSH checks and fix below. |
+| Badge is **v1.4.0+……** but **UPDATE** still missing | Offline / GitHub blocked (`git fetch` fails), already current, or the panel never slept. Check runs at boot and after screensaver wake. `sudo systemctl restart fh6parse-kiosk` or wait for idle-wake. |
 | **UPDATE** says failed / kiosk did not restart | `sudo -n systemctl restart fh6parse-kiosk` from user `kiosk` should succeed after **§3.2**. Then `sudo systemctl restart fh6parse-kiosk`. |
 | No **3D cube** next to files | Read the chip next to the cube legend: **searching…** (looking for `.stp`), **rendering…** (drawing a hit — wait), **no STEP** (no matching `.stp` on stick or `model_roots`), **Z: off** (company share not mounted), **no CAD** (`pip3 install -e '.[models]'`). Rev mismatch counts as no STEP. Print still works. |
 | Cube shows, ticket has no picture | Status not `device:/dev/usb/lp0` (CUPS intercepted). Printer rejected `GS v 0`. Test text-only first (**§3.5**). |
@@ -777,6 +778,25 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | No `WARNING:` for a wrong D | Clone is older than this pull. `git log -1 --oneline` must mention D vs T. D is checked on G43 and on G41/G42. |
 | No `WARNING:` after tapping / G95 | Next `Txx M6` (or M30) must still be in G95. A `G94` on the next tool’s line cancels it. |
 | No empty-pocket `WARNING:` on an idle T | The **last** Txx M6 with no motion is spindle prep (quiet). Earlier idle Txx M6 should warn. |
+
+**Badge without SHA / no UPDATE.** SSH as `kiosk`:
+
+```
+python3 -m fh6parse --version
+python3 -c "import fh6parse, sys; print(fh6parse.__file__); print('frozen', getattr(sys, 'frozen', False))"
+```
+
+Want `--version` like `1.4.0+0f05f3d` (any 7-char SHA) and `__file__` under `/home/kiosk/fh6parse/`. If `__file__` is in `/usr/local/lib` (or you start a `./fh6parse` one-file binary), this process is not the git checkout — there is no yellow button. Put it on the shop path:
+
+```
+cd /home/kiosk/fh6parse
+git fetch
+git pull --ff-only
+sudo pip3 install -e . --break-system-packages
+sudo systemctl restart fh6parse-kiosk
+```
+
+After that the chip is **v1.4.0+** plus the short git SHA. Later origin commits show **UPDATE** (hash if the number is still 1.4.0). Print still works until you tap it.
 
 CLI without the kiosk (reports next to the NC file):
 
@@ -844,6 +864,7 @@ On each kiosk start, and again when the screensaver wakes (encoder, USB insert, 
 | After the check | What you see |
 | --- | --- |
 | Offline, timeout, one-file binary, or already current | No button. **v…** stays at the top. Print as usual. |
+| Running from site-packages / tarball (badge has no `+sha`) | No button. **§6** — install `-e` from `/home/kiosk/fh6parse`. |
 | Origin has a newer commit | Yellow **UPDATE to x.y.z** (or a short git hash if the number did not change). Status: `v1.4.0 → x.y.z · tap UPDATE to install and restart`. |
 
 Tap **UPDATE** once (touch or **U**). That is the only action: `git pull --ff-only`, pip only if `pyproject.toml` changed, then **restart** `fh6parse-kiosk`. Print is paused only while that runs. The new version is live after the restart.

@@ -153,6 +153,16 @@ Raspberry Pi 5 kiosk (Waveshare 13857, native 1024x600) — version 1.4.0
     If cubes vanish, re-run pip install -e '.[models]'.
     One-file ARM tarball cannot --update and shows no button; copy a new
     tarball or switch to git (LINUX-KIOSK.md §3.2 / §8.4).
+    Badge only v1.4.0 (no +sha) and no UPDATE: running code cannot see .git
+    (tarball, or pip3 install . without -e into site-packages). SSH:
+      python3 -m fh6parse --version
+      python3 -c "import fh6parse, sys; print(fh6parse.__file__)"
+    Want 1.4.0+<sha> and a path under /home/kiosk/fh6parse. Then:
+      cd /home/kiosk/fh6parse && git pull --ff-only
+      sudo pip3 install -e . --break-system-packages
+      sudo systemctl restart fh6parse-kiosk
+    Badge has +sha but no button: offline, already current, or never slept
+    (check at boot and after screensaver wake).
 
   Keyboard/mouse (troubleshooting, hot-plug OK): arrows, click, wheel, F, M, S, U.
   F2 or C (or click PL/EN) opens settings: Polish default, mill, Add mill…,
