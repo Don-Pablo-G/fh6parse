@@ -188,6 +188,15 @@ def encoder_file_delta(delta: int, leftover: int, steps: int) -> tuple[int, int]
     return moved, acc
 
 
+def mill_list_index(machines: list, machine_id: str) -> int:
+    """Index of ``machine_id`` in the mill list. Unknown id stays at 0."""
+    ids = [m.id for m in machines]
+    try:
+        return ids.index(machine_id)
+    except ValueError:
+        return 0
+
+
 def wrap_index(index: int, delta: int, count: int) -> int:
     """Step ``index`` by ``delta`` and wrap. Empty list stays at 0."""
     if count <= 0:
@@ -1080,20 +1089,48 @@ class KioskApp(tk.Tk):
         )
         self.cad_legend_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
+        mill_font = tkfont.Font(family=family, size=16, weight="bold")
         mid = tk.Frame(self, bg=BG)
         mid.pack(fill=tk.BOTH, expand=True, padx=8, pady=4)
         mid.columnconfigure(0, weight=1)
         mid.rowconfigure(0, weight=3)
-        mid.rowconfigure(1, weight=2)
+        mid.rowconfigure(1, weight=1)
+        mid.rowconfigure(2, weight=2)
         self.listbox = make_file_tree(mid, dark=True, font=list_font, rowheight=36)
         self.listbox.column("#0", stretch=True, minwidth=1, width=1)
-        self.listbox.grid(row=0, column=0, sticky="nsew", pady=(0, 6))
+        self.listbox.grid(row=0, column=0, sticky="nsew", pady=(0, 4))
         self.listbox.bind("<Button-1>", self._on_list_click)
         self.listbox.bind("<MouseWheel>", self._on_wheel)
         self.listbox.bind("<Button-4>", lambda e: self._on_wheel_button(-1))
         self.listbox.bind("<Button-5>", lambda e: self._on_wheel_button(1))
+        mill_block = tk.Frame(mid, bg=BG)
+        mill_block.grid(row=1, column=0, sticky="nsew", pady=(0, 4))
+        mill_block.columnconfigure(0, weight=1)
+        mill_block.rowconfigure(1, weight=1)
+        self._mill_list_lbl = tk.Label(
+            mill_block,
+            text=t(self._lang, "machine"),
+            font=small,
+            bg=BG,
+            fg=MUTED,
+            anchor="w",
+        )
+        self._mill_list_lbl.grid(row=0, column=0, sticky="ew")
+        self.mill_list = make_file_tree(
+            mill_block,
+            dark=True,
+            font=mill_font,
+            rowheight=32,
+            style_name="KioskMill.Treeview",
+        )
+        self.mill_list.column("#0", stretch=True, minwidth=1, width=1)
+        self.mill_list.grid(row=1, column=0, sticky="nsew")
+        self.mill_list.bind("<Button-1>", self._on_mill_list_click)
+        self.mill_list.bind("<MouseWheel>", self._on_mill_wheel)
+        self.mill_list.bind("<Button-4>", lambda e: self._on_mill_wheel_button(-1))
+        self.mill_list.bind("<Button-5>", lambda e: self._on_mill_wheel_button(1))
         self._preview_pane = tk.Frame(mid, bg=BG)
-        self._preview_pane.grid(row=1, column=0, sticky="nsew")
+        self._preview_pane.grid(row=2, column=0, sticky="nsew")
         self._preview_pane.bind("<Configure>", self._on_preview_pane_configure)
         preview_font = tkfont.Font(family=family, size=14, weight="bold")
         self.preview = tk.Label(
@@ -1159,6 +1196,7 @@ class KioskApp(tk.Tk):
 
         self._build_config_panel(settings_font, update_font)
         self._build_mill_form(settings_font, update_font)
+        self._refresh_mill_list()
 
         self.saver = tk.Frame(self, bg="#000000", takefocus=True, cursor="arrow")
         self.saver.bind("<Button-1>", self._on_saver_pointer)
@@ -2110,6 +2148,7 @@ class KioskApp(tk.Tk):
             )
         )
         self._style_swap_buttons()
+        self._paint_mill_highlight()
 
     def _ui_settings_values(self) -> dict[str, str]:
         return {
@@ -2179,18 +2218,88 @@ class KioskApp(tk.Tk):
 
     def _bump_machine(self, delta: int) -> None:
         mills = self.cfg.machines
-        if len(mills) <= 1:
+        if not mills:
             return
         ids = [m.id for m in mills]
         nxt = cycle_choice(ids, self.cfg.machine_id, delta)
-        if nxt == self.cfg.machine_id:
+        self._select_machine(nxt)
+
+    def _select_machine(self, mill_id: str) -> None:
+        if mill_id == self.cfg.machine_id:
+            self._paint_mill_highlight()
             return
-        self.cfg.machine_id = nxt
+        self.cfg.machine_id = mill_id
         self._preview_cache.clear()
         self._refresh_gpio_labels()
         self._persist_ui_settings()
         self._schedule_preview()
+        self._paint_mill_highlight()
         self._arm_idle()
+
+    def _refresh_mill_list(self) -> None:
+        tree = getattr(self, "mill_list", None)
+        if tree is None:
+            return
+        clear_file_tree(tree)
+        for mill in self.cfg.machines:
+            tree.insert("", "end", text=machine_display_name(mill, self._lang))
+        self._paint_mill_highlight()
+
+    def _paint_mill_highlight(self) -> None:
+        tree = getattr(self, "mill_list", None)
+        if tree is None:
+            return
+        children = tree.get_children()
+        if not children:
+            return
+        idx = mill_list_index(self.cfg.machines, self.cfg.machine_id)
+        idx = min(max(0, idx), len(children) - 1)
+        iid = children[idx]
+        tree.selection_set(iid)
+        tree.focus(iid)
+        tree.see(iid)
+
+    def _on_mill_list_click(self, event: tk.Event) -> str | None:
+        if self._wake_hid() or self.gate.asleep:
+            return "break"
+        if self._dismiss_config():
+            self._arm_idle()
+            return "break"
+        iid = self.mill_list.identify_row(event.y)
+        if iid:
+            idx = int(self.mill_list.index(iid))
+            mills = self.cfg.machines
+            if 0 <= idx < len(mills):
+                self._select_machine(mills[idx].id)
+        self.mill_list.focus_set()
+        self._arm_idle()
+        return "break"
+
+    def _on_mill_wheel(self, event: tk.Event) -> str:
+        if event.delta:
+            delta = -1 if event.delta > 0 else 1
+        else:
+            delta = 1
+        if self._wake_hid():
+            return "break"
+        if self._scroll_open_overlay(event):
+            return "break"
+        self._bump_machine(delta)
+        return "break"
+
+    def _on_mill_wheel_button(self, delta: int) -> str:
+        if self._wake_hid():
+            return "break"
+        if self._mill_open:
+            self._mill_canvas.yview_scroll(delta, "units")
+            self._arm_idle()
+            return "break"
+        if self._config_open:
+            self._config_canvas.yview_scroll(delta, "units")
+            self._arm_idle()
+            return "break"
+        self._bump_machine(delta)
+        return "break"
 
     def _set_encoder_swap(self, swap: bool) -> None:
         if self.cfg.encoder_swap == swap:
@@ -2233,6 +2342,7 @@ class KioskApp(tk.Tk):
         self._config_lang_lbl.config(text=self._tr("language"))
         self._btn_pl.config(text=self._tr("lang_pl"))
         self._btn_en.config(text=self._tr("lang_en"))
+        self._mill_list_lbl.config(text=self._tr("machine"))
         self._config_machine_lbl.config(text=self._tr("machine"))
         self._btn_machine_add.config(text=self._tr("machine_add"))
         self._config_gpio_lbl.config(text=self._tr("gpio_pins"))
@@ -2267,6 +2377,7 @@ class KioskApp(tk.Tk):
         self._btn_mill_save.config(text=self._tr("machine_save"))
         self._style_lang_buttons()
         self._refresh_gpio_labels()
+        self._refresh_mill_list()
         self._refresh_hint()
         self._schedule_preview()
         if self._update_available and self._pending_update is not None and not self._updating:
@@ -2366,6 +2477,7 @@ class KioskApp(tk.Tk):
         self.cfg.machines = cfg.machines
         if self.cfg.machine_by_id(self.cfg.machine_id) is None:
             self.cfg.machine_id = cfg.machine_id
+        self._refresh_mill_list()
 
     def _show_mill_form(self) -> None:
         self._mill_err.config(text="")
@@ -2547,7 +2659,7 @@ class KioskApp(tk.Tk):
         self._bound_all = [seq for seq, _ in handlers]
         for seq, fn in handlers:
             self.bind_all(seq, fn)
-            for widget in (self, self.listbox, self.saver):
+            for widget in (self, self.listbox, self.mill_list, self.saver):
                 widget.bind(seq, fn)
 
     def _claim_input(self) -> None:

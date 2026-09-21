@@ -229,13 +229,14 @@ def make_file_tree(
     dark: bool,
     font: object | None = None,
     rowheight: int = 28,
+    style_name: str | None = None,
 ) -> tk.Widget:
     """Treeview that can show the cube PhotoImage (Listbox cannot)."""
     import tkinter as tk
     from tkinter import ttk
 
     style = ttk.Style(parent)
-    name = "KioskCad.Treeview" if dark else "GuiCad.Treeview"
+    name = style_name or ("KioskCad.Treeview" if dark else "GuiCad.Treeview")
     if dark:
         try:
             style.theme_use("clam")

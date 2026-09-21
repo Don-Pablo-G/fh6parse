@@ -10,7 +10,7 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 
 1. Włącz kiosk. Na ekranie: **Włóż pendrive** (albo lista z poprzedniego pendrive, jeśli został w gnieździe).
 2. Włóż pendrive. Programy **`.nc` / `.tap` w katalogu głównym** pendrive (nie w podfolderach) pojawiają się na liście. Przy liczbie plików: **Można wyjąć** = wolno wyciągnąć pendrive. **Czytanie pendrive — czekaj** = kiosk jeszcze czyta (podgląd albo kopiuje STEP) — nie wyrywaj.
-3. Pokrętłem **pliku** podświetl program (za ostatnim wraca na pierwszy). Drugie pokrętło wybiera obrabiarkę (też się zawija; nazwa pod tytułem). Pod listą widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz. Jeśli na pendrive nadpiszesz ten sam `.nc`, podgląd sam się odświeży — poczekaj aż zniknie **Czytanie…**, potem LOAD / SET / RUN. Lista i trzy kolorowe pola na dole są duże — pola stoją nad przyciskami.
+3. Pokrętłem **pliku** podświetl program (za ostatnim wraca na pierwszy). Pod listą plików jest krótsza lista obrabiarek — drugie pokrętło (albo tap) wybiera mill (też się zawija; nazwa też pod tytułem). Pod millami widać operacje (ile narzędzi, czas cyklu), czy jest widok 3D, i izometrię detalu gdy jest gotowa. Tu sprawdzasz OP1 vs OP2 **zanim** wydrukujesz. Jeśli na pendrive nadpiszesz ten sam `.nc`, podgląd sam się odświeży — poczekaj aż zniknie **Czytanie…**, potem LOAD / SET / RUN. Lista i trzy kolorowe pola na dole są duże — pola stoją nad przyciskami.
 4. Przycisk **zielony LOAD** (lewy, pod ekranem) — bilet operatora (T, H/D/S, Min Z, kratki załadunku, podpis). Treść zmieniasz w **F2**.
 5. Przycisk **żółty SET** (środek) — bilet ustawiacza (program, mill, STEP gdy gotowy, prostokąt offsetu, czas cyklu bez wykresu, uwagi `!`).
 6. Przycisk **czerwony RUN** (prawy) — pełny bilet 80 mm (STEP, offset, operacje, czas, rozkład G0/skrawanie/ATC, lista narzędzi, każda wymiana Txx / M00). Bez kratek załadunku i podpisu.
@@ -38,7 +38,7 @@ Ten arkusz jest do stołu przy maszynie. Nie instaluje się tu systemu i nie zmi
 | **brak CAD** | Na kiosku nie ma bibliotek 3D — serwis (`pip … [models]`). Drukuj tekst |
 | Izometria pod podświetleniem | Ten sam rysunek co na bilecie — zły STEP widać przed drukiem |
 | **v1.4.1+……** u góry | Wersja programu (1.4.1) i skrót gita tego checkoutu. Żółty **AKTUALIZUJ** pojawia się, gdy origin jest nowszy |
-| Nazwa obrabiarki przy wersji | Drugie pokrętło (mill). Ta sama lista co **Dodaj obrabiarkę…** |
+| Nazwa obrabiarki przy wersji | Drugie pokrętło (mill) albo tap na liście milli pod plikami. Ta sama lista co **Dodaj obrabiarkę…** |
 | Chip **PL** / **EN** | Język ekranu i biletu. Domyślnie polski |
 | Trzy kolorowe pola na dole | Nad przyciskami: **zielony LOAD**, **żółty SET**, **czerwony RUN** (od lewej) |
 | **Czekaj przed następnym biletem** | Pauza po druku — przycisk zignorowany, żeby nie było dwóch kartek |

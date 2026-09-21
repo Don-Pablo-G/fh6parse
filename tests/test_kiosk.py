@@ -768,7 +768,7 @@ class TestEncoderClicks(unittest.TestCase):
         self.assertEqual(leftover, 0)
 
     def test_file_and_mill_lists_wrap(self) -> None:
-        from fh6parse.kiosk import cycle_choice, wrap_index
+        from fh6parse.kiosk import cycle_choice, mill_list_index, wrap_index
 
         self.assertEqual(wrap_index(2, 1, 3), 0)
         self.assertEqual(wrap_index(0, -1, 3), 2)
@@ -778,6 +778,10 @@ class TestEncoderClicks(unittest.TestCase):
         self.assertEqual(cycle_choice(mills, "vf-4ss", 1), "default")
         self.assertEqual(cycle_choice(mills, "default", -1), "vf-4ss")
         self.assertEqual(cycle_choice(mills, "missing", 1), "vf-2")
+        named = [type("M", (), {"id": mill_id})() for mill_id in mills]
+        self.assertEqual(mill_list_index(named, "vf-2"), 1)
+        self.assertEqual(mill_list_index(named, "missing"), 0)
+        self.assertEqual(mill_list_index([], "default"), 0)
 
     def test_print_lock_covers_busy_and_wait(self) -> None:
         from fh6parse.kiosk import print_is_locked

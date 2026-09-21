@@ -173,12 +173,13 @@ Raspberry Pi 5 kiosk (Waveshare 13857 portrait 600x1024) — version 1.4.1
   Escape closes the mill form first, then settings, then leaves fullscreen.
 
   File encoder (DFRobot EC11 A/B) highlights a file (last wraps to first).
-  Mill encoder cycles mills (name under the title; last wraps to first).
-  Reverse in settings / encoder_swap / encoder_mill_swap if the list moves
-  the wrong way. The band under the list shows each operation (tool count,
-  cycle time, 3D ready) and the isometric when ready so you can see OP1 vs OP2
-  before print. List, preview, and print chips are stacked for 600x1024
-  (panel stood on the short edge).
+  Mill encoder cycles mills in the mill list under the files (name also
+  under the title; last wraps to first). Reverse in settings /
+  encoder_swap / encoder_mill_swap if the list moves the wrong way. The
+  band under the mills shows each operation (tool count, cycle time, 3D
+  ready) and the isometric when ready so you can see OP1 vs OP2 before
+  print. Files, mills, preview, and print chips are stacked for 600x1024
+  (panel stood on the short edge). Windows / Linux GUI layout is unchanged.
   Three vandal buttons sit under the screen; colour chips on the bottom of
   the UI match left→right: green LOAD (short / M), yellow SET (setter / S),
   red RUN (full / F). 16 mm 5-pin: C to GND, NO to GPIO, NC unused; LED +
