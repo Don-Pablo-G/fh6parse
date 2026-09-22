@@ -472,6 +472,7 @@ class TestWindowsExeRelease(unittest.TestCase):
         text = path.read_text(encoding="utf-8")
         self.assertIn("windows-latest", text)
         self.assertIn('tags: ["v*"]', text)
+        self.assertIn("fh6parse-$Stamp-windows-x64.exe", text)
         self.assertIn("fh6parse-$Ver-windows-x64.exe", text)
         self.assertIn("gh release create", text)
 
@@ -489,6 +490,25 @@ class TestWindowsExeRelease(unittest.TestCase):
         self.assertEqual(status.new_version, "1.3.5")
         self.assertEqual(status.kind, "exe")
         self.assertEqual(status.download_url, "https://example.test/a.exe")
+
+    def test_stamped_asset_name_uses_package_version(self) -> None:
+        from fh6parse.update import WINDOWS_EXE_RE
+
+        match = WINDOWS_EXE_RE.match("fh6parse-1.4.1+0e7f077-windows-x64.exe")
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group(1), "1.4.1")
+        payload = {
+            "assets": [
+                {
+                    "name": "fh6parse-1.3.5+deadbee-windows-x64.exe",
+                    "browser_download_url": "https://example.test/b.exe",
+                }
+            ]
+        }
+        status = parse_windows_release(payload, current="1.3.4")
+        self.assertTrue(status.available)
+        self.assertEqual(status.new_version, "1.3.5")
+        self.assertEqual(status.download_url, "https://example.test/b.exe")
 
     def test_same_version_is_up_to_date(self) -> None:
         payload = {
@@ -630,6 +650,22 @@ class TestDisplayVersion(unittest.TestCase):
 
         with patch("fh6parse._version.local_build", return_value="2e68429"):
             self.assertEqual(display_version(), f"{__version__}+2e68429")
+
+    def test_dist_basename_includes_build(self) -> None:
+        from unittest.mock import patch
+
+        from fh6parse._version import __version__, dist_basename, package_stamp
+
+        with patch("fh6parse._version.local_build", return_value="0e7f077"):
+            self.assertEqual(package_stamp(), f"{__version__}+0e7f077")
+            self.assertEqual(
+                dist_basename("windows-x64"),
+                f"fh6parse-{__version__}+0e7f077-windows-x64",
+            )
+            self.assertEqual(
+                dist_basename("windows-x64", stamped=False),
+                f"fh6parse-{__version__}-windows-x64",
+            )
 
     def test_cli_version_includes_build(self) -> None:
         from unittest.mock import patch

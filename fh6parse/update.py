@@ -30,7 +30,8 @@ VERSION_FILE = "fh6parse/_version.py"
 FETCH_TIMEOUT = 20
 VERSION_RE = re.compile(r"""__version__\s*=\s*["']([^"']+)["']""")
 WINDOWS_EXE_RE = re.compile(
-    r"fh6parse-(\d+(?:\.\d+)*)-windows-x64\.exe$", re.IGNORECASE
+    r"^fh6parse-(\d+(?:\.\d+)*)(?:\+[0-9a-fA-F]+)?-windows-x64\.exe$",
+    re.IGNORECASE,
 )
 GITHUB_REPO = "Don-Pablo-G/fh6parse"
 GITHUB_LATEST = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
@@ -246,6 +247,9 @@ def perform_update(
     cubes survive a pyproject change. A Pi that never installed CAD stays
     ``-e .`` and does not pull numpy/trimesh.
 
+    Never writes ``/etc/fh6parse-kiosk.ini`` or ``~/.config/fh6parse/``
+    (language overlay and mill database).
+
     Returns 0 on success, 1 on git/pip/restart failure, 2 if this is not a
     source checkout (frozen binary or no git root). Frozen Windows exe uses
     GitHub Releases instead (see perform_frozen_exe_update).
@@ -364,7 +368,11 @@ def _http_json(
 
 
 def parse_windows_release(payload: dict[str, Any], *, current: str) -> UpdateCheck:
-    """Pick a newer fh6parse-*-windows-x64.exe from a GitHub release JSON."""
+    """Pick a newer fh6parse-*-windows-x64.exe from a GitHub release JSON.
+
+    Accepts both ``fh6parse-1.4.1-windows-x64.exe`` (older UPDATE clients) and
+    ``fh6parse-1.4.1+0e7f077-windows-x64.exe`` (version + build SHA).
+    """
     current = current or __version__
     assets = payload.get("assets") if isinstance(payload, dict) else None
     if not isinstance(assets, list):

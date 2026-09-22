@@ -7,3 +7,4 @@ reports/
 build/
 dist/
 fh6parse/_build.py
+/fh6parse-kiosk.ini

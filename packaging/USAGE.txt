@@ -90,9 +90,12 @@ preview, then Print A4 or Print 80 mm (paper size only — same ticks).
   If CAM overwrites an open .nc (same path, new mtime or size), the
   preview reloads from disk. Wait until Reading… / Reloaded … before print.
   Machine: combo on the preview row. Add mill… writes a [machine.<id>]
-  section (rapids, B/C rapid, tool-change seconds, optional max rpm,
-  optional G53 ATC X/Y/Z, work offset X/Y/Z, travel min/max per axis). The kiosk has the same form in settings (F2). You can still add
-  [machine.<id>] by hand. Current mill is kiosk.machine in the same files.
+  section to %USERPROFILE%\.config\fh6parse\machines.ini (rapids, B/C rapid,
+  tool-change seconds, optional max rpm, optional G53 ATC X/Y/Z, work offset
+  X/Y/Z, travel min/max per axis) so UPDATE cannot replace the mill list.
+  The kiosk has the same form in settings (F2). You can still add
+  [machine.<id>] by hand in that file or in ui.ini. Current mill is
+  kiosk.machine in the same files.
   Views are visible edges only (no shading). The longest axis is across the
   80 mm width; height is cropped to the part (a long shaft is a thin strip).
   Update: if origin (git GUI) or GitHub Releases (frozen exe) has a newer
@@ -100,7 +103,8 @@ preview, then Print A4 or Print 80 mm (paper size only — same ticks).
   (same single-button flow as the kiosk). One click installs and restarts.
   Never automatic. The check also runs when you click back into the window.
   Frozen exe: bump version, git tag vX.Y.Z, push the
-  tag — GitHub Actions builds and attaches fh6parse-X.Y.Z-windows-x64.exe.
+  tag — GitHub Actions builds and attaches fh6parse-X.Y.Z+sha-windows-x64.exe
+  (and fh6parse-X.Y.Z-windows-x64.exe so older UPDATE still finds it).
   Local fallback: packaging\build_windows.bat then packaging\publish_windows.ps1
   (needs gh). Keep the ini next to the exe.
 
@@ -168,8 +172,10 @@ Raspberry Pi 5 kiosk (Waveshare 13857 portrait 600x1024) — version 1.4.1
   F2 or C (or click PL/EN) opens settings: Polish default, mill, Add mill…,
   LOAD / SET / RUN content ticks, GPIO pins (file A/B, mill A/B, RUN / LOAD /
   SET, optional sleep/wake), Reverse on each knob, ticks per tooth, print wait after a
-  ticket (button_delay, default 2 s). Language, mill, GPIO, and the three
-  report packs are saved in ~/.config/fh6parse/ui.ini (survives UPDATE).
+  ticket (button_delay, default 2 s). Language, GPIO, and the three report
+  packs are saved in ~/.config/fh6parse/ui.ini (survives UPDATE). Mills are
+  saved in ~/.config/fh6parse/machines.ini (also survives UPDATE; never
+  written into the git clone).
   Escape closes the mill form first, then settings, then leaves fullscreen.
 
   File encoder (DFRobot EC11 A/B) highlights a file (last wraps to first).

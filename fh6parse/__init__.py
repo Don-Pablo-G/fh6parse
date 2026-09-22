@@ -1,6 +1,6 @@
 """Fanuc/Haas CNC parser: tool list and lowest work-coordinate Z."""
 
-from ._version import __version__, display_version
+from ._version import __version__, display_version, package_stamp
 from .parser import parse_nc_file, parse_nc_text
 from .report import format_print_html, format_report, write_report
 
@@ -12,4 +12,5 @@ __all__ = [
     "write_report",
     "__version__",
     "display_version",
+    "package_stamp",
 ]

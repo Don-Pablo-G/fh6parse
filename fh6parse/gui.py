@@ -30,9 +30,9 @@ from .kiosk import (
     machine_display_name,
     mill_from_form_entries,
     parse_gui_paper,
+    persist_machine_profile,
     preview_cache_stale,
     save_kiosk_values,
-    save_machine_profile,
     save_model_roots,
     ui_overlay_path,
 )
@@ -514,9 +514,7 @@ class ToolReportApp(tk.Tk):
                 err.config(text=self._tr(str(exc)))
                 return
             try:
-                saved = save_machine_profile(mill, source=self._cfg_source)
-                self._cfg_source = saved
-                save_machine_profile(mill, dest=ui_overlay_path())
+                persist_machine_profile(mill, extra=self._cfg_source)
             except OSError as exc:
                 err.config(text=self._tr("settings_save_fail", detail=exc))
                 return

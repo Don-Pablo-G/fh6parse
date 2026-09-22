@@ -4,9 +4,11 @@ $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $Root
 
 $Version = python -c "from fh6parse._version import __version__; print(__version__)"
+$Stamp = python -c "from fh6parse._version import package_stamp; print(package_stamp())"
 if (-not $Version) { throw "could not read package version" }
+if (-not $Stamp) { throw "could not read package stamp" }
 
-Write-Host "==> Windows one-file (v$Version)"
+Write-Host "==> Windows one-file (v$Stamp)"
 & (Join-Path $PSScriptRoot "build_windows.bat")
 if ($LASTEXITCODE -ne 0) { throw "Windows build failed" }
 
@@ -29,11 +31,13 @@ if (Test-Path "packaging\hardware-archive") {
     Copy-Item -Force -Recurse "packaging\hardware-archive" "dist\packages\hardware-archive"
 }
 
-$winName = "fh6parse-$Version-windows-x64"
-Copy-Item -Force "dist\windows\fh6parse.exe" "dist\packages\$winName.exe"
-$zip = Join-Path (Resolve-Path "dist\packages").Path "$winName.zip"
+$winStamped = "fh6parse-$Stamp-windows-x64"
+$winPlain = "fh6parse-$Version-windows-x64"
+Copy-Item -Force "dist\windows\fh6parse.exe" "dist\packages\$winStamped.exe"
+Copy-Item -Force "dist\windows\fh6parse.exe" "dist\packages\$winPlain.exe"
+$zip = Join-Path (Resolve-Path "dist\packages").Path "$winStamped.zip"
 if (Test-Path $zip) { Remove-Item $zip }
-Compress-Archive -Path "dist\packages\$winName.exe" -DestinationPath $zip
+Compress-Archive -Path "dist\packages\$winStamped.exe" -DestinationPath $zip
 
 function Pack-Pi {
     param(
@@ -53,7 +57,7 @@ function Pack-Pi {
         Copy-Item "packaging\LINUX-KIOSK-WIRING.pdf" $stage
     }
     Copy-Item "packaging\USAGE.txt" $stage
-    $tarName = "fh6parse-$Version-raspberrypi-$ArchName.tar.gz"
+    $tarName = "fh6parse-$Stamp-raspberrypi-$ArchName.tar.gz"
     $absStage = (Resolve-Path $stage).Path
     $absOut = (Resolve-Path "dist\packages").Path
     tar -C $absStage -czf (Join-Path $absOut $tarName) .
@@ -65,4 +69,4 @@ Pack-Pi -SrcDir "dist\raspberry-armv7" -ArchName "armv7"
 Pack-Pi -SrcDir "dist\raspberry-aarch64" -ArchName "aarch64"
 
 Get-ChildItem "dist\packages" | Format-Table Name, Length
-Write-Host "Done. v$Version"
+Write-Host "Done. v$Stamp"

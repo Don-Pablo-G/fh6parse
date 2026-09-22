@@ -79,11 +79,19 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $Ver = python -c "from fh6parse._version import __version__; print(__version__)"
+          $Stamp = python -c "from fh6parse._version import package_stamp; print(package_stamp())"
           if (-not $Ver) { throw "could not read package version" }
-          $Exe = Join-Path $PWD "dist\packages\fh6parse-$Ver-windows-x64.exe"
-          if (-not (Test-Path $Exe)) { throw "missing $Exe" }
+          if (-not $Stamp) { throw "could not read package stamp" }
+          $Stamped = Join-Path $PWD "dist\packages\fh6parse-$Stamp-windows-x64.exe"
+          $Plain = Join-Path $PWD "dist\packages\fh6parse-$Ver-windows-x64.exe"
+          if (-not (Test-Path $Stamped)) { throw "missing $Stamped" }
+          if (-not (Test-Path $Plain)) { Copy-Item -Force $Stamped $Plain }
+          $Uploads = @($Stamped)
+          if ((Resolve-Path $Stamped).Path -ne (Resolve-Path $Plain).Path) {
+            $Uploads += $Plain
+          }
           $Tag = $env:GITHUB_REF_NAME
-          $Notes = "Windows office GUI. On the PC: yellow UPDATE downloads this exe and restarts. Keep fh6parse-kiosk.ini next to the exe (STEP folders, language)."
+          $Notes = "Windows office GUI $Stamp. On the PC: yellow UPDATE downloads this exe and restarts. Keep fh6parse-kiosk.ini next to the exe (STEP folders, language)."
           $exists = $false
           $prev = $ErrorActionPreference
           $ErrorActionPreference = "Continue"
@@ -92,9 +100,9 @@ jobs:
           $ErrorActionPreference = $prev
           if ($exists) {
             Write-Host "Uploading to existing $Tag"
-            gh release upload $Tag $Exe --clobber --repo $env:GITHUB_REPOSITORY
+            gh release upload $Tag @Uploads --clobber --repo $env:GITHUB_REPOSITORY
           } else {
             Write-Host "Creating $Tag"
-            gh release create $Tag $Exe --title "fh6parse $Ver" --notes $Notes --repo $env:GITHUB_REPOSITORY
+            gh release create $Tag @Uploads --title "fh6parse $Stamp" --notes $Notes --repo $env:GITHUB_REPOSITORY
           }
-          Write-Host "Published $Exe as $Tag"
+          Write-Host "Published $($Uploads -join ', ') as $Tag"

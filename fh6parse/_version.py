@@ -50,7 +50,18 @@ def local_build() -> str:
 
 def display_version() -> str:
     """Label shown in kiosk, office GUI, and ``--version``."""
+    return package_stamp()
+
+
+def package_stamp() -> str:
+    """Version plus short SHA for dist filenames, e.g. ``1.4.1+0e7f077``."""
     build = local_build()
     if build:
         return f"{__version__}+{build}"
     return __version__
+
+
+def dist_basename(kind: str, *, stamped: bool = True) -> str:
+    """``fh6parse-1.4.1+0e7f077-windows-x64`` (or without the SHA if unstamped)."""
+    ver = package_stamp() if stamped else __version__
+    return f"fh6parse-{ver}-{kind}"

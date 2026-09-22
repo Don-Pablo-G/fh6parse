@@ -69,7 +69,7 @@ from .report import (
     ticket_image_paths,
 )
 from .safepath import is_protected
-from .update import UpdateCheck, version_key
+from .update import UpdateCheck, find_git_root, version_key
 
 BG = "#111111"
 ACCENT = "#e6b800"
@@ -353,6 +353,27 @@ def kiosk_config_write_path() -> Path:
 def ui_overlay_path() -> Path:
     """Writable per-user file for language, mill, last folder/paper, and GPIO."""
     return Path.home() / ".config" / "fh6parse" / "ui.ini"
+
+
+def machine_db_path() -> Path:
+    """Mill table outside the git checkout and next-to-exe folder.
+
+    UPDATE (git pull, Windows exe swap) never writes this file. Add mill always
+    lands here so a new package cannot replace the shop mill list.
+    """
+    return Path.home() / ".config" / "fh6parse" / "machines.ini"
+
+
+def path_is_app_checkout(path: Path) -> bool:
+    """True when ``path`` sits in this app's git tree (UPDATE can replace it)."""
+    app = find_git_root(Path(__file__))
+    here = find_git_root(path)
+    if app is None or here is None:
+        return False
+    try:
+        return here.resolve() == app.resolve()
+    except OSError:
+        return False
 
 
 def _slug_machine_id(raw: str) -> str:
@@ -647,16 +668,17 @@ def save_kiosk_values(
     *,
     source: Path | None = None,
 ) -> Path:
-    """Merge keys into [kiosk] without dropping the rest of the ini."""
+    """Merge keys into [kiosk] without dropping the rest of the ini.
+
+    Always read ``dest`` first when it exists so ``[machine.*]`` (and other
+    extra sections) on that file are not replaced by a thinner ``source``.
+    """
     path = dest or source or kiosk_config_write_path()
     parser = configparser.ConfigParser()
-    read_from = None
-    if source is not None and source.is_file():
-        read_from = source
-    elif path.is_file():
-        read_from = path
-    if read_from is not None:
-        parser.read(read_from, encoding="utf-8")
+    if path.is_file():
+        parser.read(path, encoding="utf-8")
+    elif source is not None and source.is_file():
+        parser.read(source, encoding="utf-8")
     if not parser.has_section("kiosk"):
         parser.add_section("kiosk")
     for key, value in updates.items():
@@ -683,13 +705,10 @@ def save_machine_profile(
     """Write [machine.<id>] (and kiosk.machine) without dropping other sections."""
     path = dest or source or kiosk_config_write_path()
     parser = configparser.ConfigParser()
-    read_from = None
-    if source is not None and source.is_file():
-        read_from = source
-    elif path.is_file():
-        read_from = path
-    if read_from is not None:
-        parser.read(read_from, encoding="utf-8")
+    if path.is_file():
+        parser.read(path, encoding="utf-8")
+    elif source is not None and source.is_file():
+        parser.read(source, encoding="utf-8")
     section = f"machine.{mill.id}"
     if not parser.has_section(section):
         parser.add_section(section)
@@ -740,6 +759,35 @@ def save_machine_profile(
     with path.open("w", encoding="utf-8") as fh:
         parser.write(fh)
     return path
+
+
+def persist_machine_profile(
+    mill: MachineProfile,
+    extra: Path | None = None,
+) -> Path:
+    """Write the mill into the user mill database. Never into the git checkout.
+
+    Also mirrors into ``ui.ini`` (older overlays) and into ``extra`` when that
+    file is outside this repo (``/etc`` on the Pi, next to a frozen exe).
+    """
+    saved = save_machine_profile(mill, dest=machine_db_path())
+    try:
+        save_machine_profile(mill, dest=ui_overlay_path())
+    except OSError:
+        pass
+    if extra is None:
+        return saved
+    if path_is_app_checkout(extra):
+        return saved
+    try:
+        save_machine_profile(
+            mill,
+            dest=extra,
+            source=extra if extra.is_file() else None,
+        )
+    except OSError:
+        pass
+    return saved
 
 
 def parse_gui_paper(raw: str) -> str:
@@ -889,6 +937,15 @@ def load_kiosk_config(explicit: Path | None = None) -> KioskConfig:
             if over_m:
                 machine_id = over_m
             _apply_gui_memory(cfg, over_sec)
+    mill_db = machine_db_path()
+    if mill_db.is_file():
+        db = configparser.ConfigParser()
+        db.read(mill_db, encoding="utf-8")
+        parsers.append(db)
+        if db.has_section("kiosk"):
+            over_m = db["kiosk"].get("machine", "").strip()
+            if over_m:
+                machine_id = over_m
     cfg.machine_id, cfg.machines = merge_machines(parsers, machine_id)
     cfg.width, cfg.height = SCREEN_NATIVE
     return cfg
@@ -2512,21 +2569,13 @@ class KioskApp(tk.Tk):
         except ValueError as exc:
             self._mill_err.config(text=self._tr(str(exc)))
             return
-        overlay = ui_overlay_path()
         try:
-            save_machine_profile(mill, dest=overlay)
+            persist_machine_profile(mill, extra=self.cfg.source)
         except OSError as exc:
             self._mill_err.config(
                 text=self._tr("settings_save_fail", detail=exc)
             )
             return
-        if self.cfg.source is not None:
-            try:
-                save_machine_profile(
-                    mill, dest=self.cfg.source, source=self.cfg.source
-                )
-            except OSError:
-                pass
         self.cfg.machine_id = mill.id
         self._reload_machines()
         self._preview_cache.clear()

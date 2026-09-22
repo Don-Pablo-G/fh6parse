@@ -573,7 +573,7 @@ python3 -m fh6parse --kiosk --config /etc/fh6parse-kiosk.ini
 
 Without GPIO you can still use a **USB keyboard and mouse** at any time (hot-plug is fine). The kiosk keeps keyboard focus and the black screensaver wakes on a key, click, or mouse wheel.
 
-The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids, tool-change time, optional G53 ATC / work offset / tool length / travel from `[machine.<id>]` in this ini; the mill name also sits next to the version chip and the mill knob cycles it), **Add mill…** to create a new mill (written to `~/.config/fh6parse/ui.ini`), a **LOAD | SET | RUN** tick matrix for ticket content (Reset LOAD / SET / RUN restore the factory packs; G68 / D vs T / S max / late offset / G95 / travel-too-big always print), BCM pin numbers for file A / B, mill A / B, green LOAD / yellow SET / red RUN / optional sleep, knob **Reverse**, **ticks per tooth**, and **print wait** after a ticket (GPIO ticks from one rest valley to the next; the highlight or mill changes halfway so a wiggle at rest does not skip; file and mill lists wrap). Language, mill, GPIO, and `report_load` / `report_set` / `report_run` are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes the mill form first, then settings; the next **Esc** still leaves fullscreen. The file encoder or a GPIO print button closes settings without printing / skipping a file. The mill encoder keeps settings open and changes the mill.
+The shop screen is **Polish** unless `language = en` is set. Open **settings** with the keyboard or mouse (not the encoder): **F2** or **C**, or click the **PL** / **EN** chip next to the version. Pick **Polski** or **English**, the mill (rapids, tool-change time, optional G53 ATC / work offset / tool length / travel from `[machine.<id>]` in this ini; the mill name also sits next to the version chip and the mill knob cycles it), **Add mill…** to create a new mill (written to `~/.config/fh6parse/machines.ini`, not the git clone), a **LOAD | SET | RUN** tick matrix for ticket content (Reset LOAD / SET / RUN restore the factory packs; G68 / D vs T / S max / late offset / G95 / travel-too-big always print), BCM pin numbers for file A / B, mill A / B, green LOAD / yellow SET / red RUN / optional sleep, knob **Reverse**, **ticks per tooth**, and **print wait** after a ticket (GPIO ticks from one rest valley to the next; the highlight or mill changes halfway so a wiggle at rest does not skip; file and mill lists wrap). Language, mill, GPIO, and `report_load` / `report_set` / `report_run` are written to `~/.config/fh6parse/ui.ini` (user `kiosk` can write this even when `/etc/fh6parse-kiosk.ini` is root-owned) and, if permitted, into the main ini. Pin changes take effect immediately (GPIO is reopened). **Esc** closes the mill form first, then settings; the next **Esc** still leaves fullscreen. The file encoder or a GPIO print button closes settings without printing / skipping a file. The mill encoder keeps settings open and changes the mill.
 
 | Input | While awake | While screensaver |
 | --- | --- | --- |
@@ -754,7 +754,7 @@ Preview parse runs when a file is highlighted (idle, not on RUN / LOAD / SET). S
 | Optional sleep button does nothing | Unwired is normal. If fitted: NO to GPIO 25, C to common GND, same as LOAD. Screen still blanks after 60 s without it. |
 | Keyboard/mouse do nothing | Plug into the Pi USB-A; X11 picks them up. Click or press a key — the kiosk claims focus. **F2** / **C** opens settings. **Esc** closes settings, then leaves fullscreen. GPIO print buttons still do not wake the screensaver. |
 | Language resets to Polish after you picked English | Stored in `/home/kiosk/.config/fh6parse/ui.ini`. Pick **English** again in settings. **UPDATE** does not delete that file. Pins, mill, and ticks live in the same overlay. |
-| **Add mill…** missing / mill list is only Default | Clone is older than this pull. Settings → **Add mill…**. Saved in `ui.ini` (`[machine.<id>]`). Travel keys `x_min`…`z_max` print the offset rectangle. |
+| **Add mill…** missing / mill list is only Default | Clone is older than this pull. Settings → **Add mill…**. Saved in `~/.config/fh6parse/machines.ini` (`[machine.<id>]`). Travel keys `x_min`…`z_max` print the offset rectangle. |
 | Screen stays in English and **F2** does nothing | Wake first if the screen is black. Click the **EN** chip next to **v…**. Encoder never opens settings. |
 | Black screen immediately | Desktop blanking plus app DPMS. Disable LXDE idle blank; keep kiosk `idle_seconds = 60`. |
 | Wrong aspect / clipped UI | `xrandr` must show **600x1024** (rotated). The app is portrait: files, then mills, then isometric. If you still see 1024x600, the desktop is landscape and the right side is cut off. Try `--rotate left` then `--rotate right`. Pi 5 output is often `HDMI-A-1`. |
@@ -817,7 +817,8 @@ python3 -m fh6parse --format 80mm --stdout /path/program.nc
 | --- | --- |
 | `/home/kiosk/fh6parse` | Source checkout (shop update path) |
 | `/etc/fh6parse-kiosk.ini` | Pins, printer, idle, `model_roots` (never overwritten by **UPDATE**) |
-| `/home/kiosk/.config/fh6parse/ui.ini` | Screen language, mill (including **Add mill…**), GPIO pins, encoder ticks. Written by settings. Survives **UPDATE**. Leftover `width` / `height` from older builds are ignored. |
+| `/home/kiosk/.config/fh6parse/ui.ini` | Screen language, mill selection, GPIO pins, encoder ticks. Written by settings. Survives **UPDATE**. Leftover `width` / `height` from older builds are ignored. |
+| `/home/kiosk/.config/fh6parse/machines.ini` | Mill table (**Add mill…**). Survives **UPDATE**. Also loaded from `ui.ini` `[machine.<id>]` if that older overlay still has mills. |
 | `/etc/systemd/system/fh6parse-kiosk.service` | Autostart |
 | `/etc/sudoers.d/fh6parse-kiosk` | NOPASSWD restart for on-screen **UPDATE** |
 | `packaging/fh6parse-kiosk.ini.example` | Template |
@@ -894,7 +895,7 @@ python3 -m fh6parse --version
 2. `pip3 install -e .` **only if** `pyproject.toml` changed; otherwise skips pip. If STEP cubes already work (`[models]` importable), that pip uses `.[models]` so pictures stay. A kiosk that never had CAD stays `-e .` and does not pull numpy/trimesh. If cubes still vanish, see **§3.7**.
 3. `systemctl restart fh6parse-kiosk` if that unit exists; if that fails, `sudo -n systemctl restart fh6parse-kiosk`. Otherwise it prints “restart the kiosk yourself”
 
-It never writes `/etc/fh6parse-kiosk.ini` or `~/.config/fh6parse/ui.ini`. Pins, printer, idle, `model_roots`, and language stay as you set them.
+It never writes `/etc/fh6parse-kiosk.ini`, `~/.config/fh6parse/ui.ini`, or `~/.config/fh6parse/machines.ini`. Pins, printer, idle, `model_roots`, language, and the mill table stay as you set them. Add mill always writes the mill table in `machines.ini` (and `ui.ini`); it does **not** write mills into the git clone, so a later **UPDATE** cannot replace them.
 
 ### 8.4 One-file ARM tarball
 
@@ -906,10 +907,10 @@ The office window (`fh6parse.exe`, or `python3 -m fh6parse --gui`) uses the **sa
 
 | Install | What the bar checks | What one click does |
 | --- | --- | --- |
-| Frozen Windows exe | GitHub latest release asset `fh6parse-*-windows-x64.exe` newer than **1.4.1** | Download, swap the exe, restart |
+| Frozen Windows exe | GitHub latest release asset `fh6parse-*-windows-x64.exe` newer than **1.4.1** | Download, swap the exe, restart. New builds are named `fh6parse-1.4.1+sha-windows-x64.exe`; the unstamped `fh6parse-1.4.1-windows-x64.exe` is still attached so older UPDATE can find it. |
 | Git checkout (Windows or Linux) | `git fetch` vs origin, same as **§8.2** | `git pull --ff-only`, pip if `pyproject.toml` changed (keeps `[models]` if CAD is already there), restart the GUI |
 
-The check runs at launch and again when you click back into the window. Offline or already current: no bar. Frozen **1.4.1** PCs only show the bar after you tag a **newer** version (`vX.Y.Z` must match `_version.py`). Git checkouts show a hash while the badge stays **1.4.1**.
+The check runs at launch and again when you click back into the window. Offline or already current: no bar. Frozen **1.4.1** PCs only show the bar after you tag a **newer** version (`vX.Y.Z` must match `_version.py`). Git checkouts show a hash while the badge stays **1.4.1**. The mill table lives in `%USERPROFILE%\.config\fh6parse\machines.ini` (same folder as `ui.ini`); swapping the exe does not replace it.
 
 ---
 

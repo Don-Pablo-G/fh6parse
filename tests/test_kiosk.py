@@ -540,6 +540,110 @@ class TestKioskConfig(unittest.TestCase):
             self.assertAlmostEqual(got.y_max or 0, 0)
             self.assertAlmostEqual(got.z_min or 0, -508)
 
+    def test_save_kiosk_values_keeps_overlay_machines(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        from fh6parse.kiosk import save_kiosk_values, ui_overlay_path
+
+        with tempfile.TemporaryDirectory() as home:
+            with patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
+                overlay = ui_overlay_path()
+                overlay.parent.mkdir(parents=True, exist_ok=True)
+                overlay.write_text(
+                    "[kiosk]\nmachine = vf-2\n\n"
+                    "[machine.vf-2]\n"
+                    "name = Haas VF-2\n"
+                    "rapid_mm_min = 25400\n"
+                    "tool_change_s = 8\n",
+                    encoding="utf-8",
+                )
+                save_kiosk_values({"language": "en"}, dest=overlay)
+                text = overlay.read_text(encoding="utf-8")
+                self.assertIn("machine.vf-2", text)
+                self.assertIn("Haas VF-2", text)
+                self.assertIn("language = en", text)
+
+    def test_machine_db_wins_over_checkout_ini(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        from fh6parse.kiosk import machine_db_path
+
+        with tempfile.TemporaryDirectory() as home:
+            with patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
+                with tempfile.TemporaryDirectory() as raw:
+                    main = Path(raw) / "kiosk.ini"
+                    main.write_text(
+                        "[kiosk]\nmachine = vf-2\n\n"
+                        "[machine.vf-2]\n"
+                        "name = Checkout mill\n"
+                        "rapid_mm_min = 10000\n"
+                        "tool_change_s = 1\n",
+                        encoding="utf-8",
+                    )
+                    db = machine_db_path()
+                    db.parent.mkdir(parents=True, exist_ok=True)
+                    db.write_text(
+                        "[kiosk]\nmachine = vf-2\n\n"
+                        "[machine.vf-2]\n"
+                        "name = Shop mill\n"
+                        "rapid_mm_min = 25400\n"
+                        "tool_change_s = 8\n",
+                        encoding="utf-8",
+                    )
+                    cfg = load_kiosk_config(main)
+                    mill = cfg.active_machine()
+                    self.assertEqual(mill.name, "Shop mill")
+                    self.assertEqual(mill.tool_change_s, 8.0)
+
+    def test_persist_machine_skips_git_checkout(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        from fh6parse.kiosk import (
+            machine_db_path,
+            parse_machine_form,
+            persist_machine_profile,
+        )
+
+        with tempfile.TemporaryDirectory() as home:
+            with patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
+                checkout = Path(__file__).resolve().parent.parent / "fh6parse-kiosk.ini"
+                if checkout.exists():
+                    self.skipTest("repo already has fh6parse-kiosk.ini")
+                mill = parse_machine_form(name="Shop VF-2", rapid_m_min="25.4")
+                persist_machine_profile(mill, extra=checkout)
+                self.assertFalse(checkout.exists())
+                db = machine_db_path()
+                self.assertTrue(db.is_file())
+                self.assertIn("Shop VF-2", db.read_text(encoding="utf-8"))
+
+    def test_legacy_ui_ini_machines_still_load(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        from fh6parse.kiosk import ui_overlay_path
+
+        with tempfile.TemporaryDirectory() as home:
+            with patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
+                overlay = ui_overlay_path()
+                overlay.parent.mkdir(parents=True, exist_ok=True)
+                overlay.write_text(
+                    "[machine.legacy]\n"
+                    "name = Legacy mill\n"
+                    "rapid_mm_min = 18000\n"
+                    "tool_change_s = 3\n",
+                    encoding="utf-8",
+                )
+                with tempfile.TemporaryDirectory() as raw:
+                    main = Path(raw) / "kiosk.ini"
+                    main.write_text("[kiosk]\nmachine = legacy\n", encoding="utf-8")
+                    cfg = load_kiosk_config(main)
+                    mill = cfg.machine_by_id("legacy")
+                    assert mill is not None
+                    self.assertEqual(mill.name, "Legacy mill")
+
     def test_reads_last_folder_and_paper(self) -> None:
         import os
         from unittest.mock import patch

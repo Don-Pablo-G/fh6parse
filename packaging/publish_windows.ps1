@@ -9,15 +9,26 @@ $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $Root
 
 $Version = python -c "from fh6parse._version import __version__; print(__version__)"
+$Stamp = python -c "from fh6parse._version import package_stamp; print(package_stamp())"
 if (-not $Version) { throw "could not read package version" }
+if (-not $Stamp) { throw "could not read package stamp" }
 
-$exe = Join-Path $Root "dist\packages\fh6parse-$Version-windows-x64.exe"
-if (-not (Test-Path $exe)) {
-    throw "missing $exe - run packaging\build_windows.bat first"
+$stamped = Join-Path $Root "dist\packages\fh6parse-$Stamp-windows-x64.exe"
+$plain = Join-Path $Root "dist\packages\fh6parse-$Version-windows-x64.exe"
+if (-not (Test-Path $stamped)) {
+    throw "missing $stamped - run packaging\build_windows.bat first"
+}
+if (-not (Test-Path $plain)) {
+    Copy-Item -Force $stamped $plain
+}
+
+$uploads = @($stamped)
+if ((Resolve-Path $stamped).Path -ne (Resolve-Path $plain).Path) {
+    $uploads += $plain
 }
 
 $tag = "v$Version"
-$notes = "Windows office GUI. Yellow UPDATE to … bar under the mill/print row: one click downloads this exe and restarts. Keep fh6parse-kiosk.ini next to the exe (STEP folders, language)."
+$notes = "Windows office GUI $Stamp. Yellow UPDATE to … bar under the mill/print row: one click downloads this exe and restarts. Keep fh6parse-kiosk.ini next to the exe (STEP folders, language). Mill table is %USERPROFILE%\.config\fh6parse\machines.ini."
 
 gh --version | Out-Null
 $exists = $false
@@ -29,11 +40,11 @@ $ErrorActionPreference = $prev
 
 if ($exists) {
     Write-Host "Uploading to existing $tag"
-    gh release upload $tag $exe --clobber --repo Don-Pablo-G/fh6parse
+    gh release upload $tag @uploads --clobber --repo Don-Pablo-G/fh6parse
 } else {
     Write-Host "Creating $tag"
-    gh release create $tag $exe --title "fh6parse $Version" --notes $notes --repo Don-Pablo-G/fh6parse --target master
+    gh release create $tag @uploads --title "fh6parse $Stamp" --notes $notes --repo Don-Pablo-G/fh6parse --target master
 }
 
-Write-Host "Published $exe as $tag"
+Write-Host "Published $($uploads -join ', ') as $tag"
 Write-Host "Office PCs with an older exe show UPDATE to $Version after the next launch (network required)."
