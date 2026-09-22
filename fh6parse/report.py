@@ -27,7 +27,7 @@ from .parser import (
 )
 from .machtime import DEFAULT_MACHINE, format_machine_time
 from .safepath import refuse_write
-from .workarea import append_g54_png, fmt_mm, fmt_xy, window_for_result
+from .workarea import append_g54_png, fmt_mm, fmt_xy, fmt_xyz, window_for_result
 
 
 _ticket_lang: ContextVar[str] = ContextVar("ticket_lang", default=GUI_DEFAULT)
@@ -868,16 +868,31 @@ def _g54_ticket_lines(
     cx, cy = window.center
     raw: list[str] = []
     if secs.g54:
-        raw.extend(
-            [
-                _tr("ticket_g54_heading"),
-                _tr("ticket_g54_sw", xy=fmt_xy(*sw)),
-                _tr("ticket_g54_se", xy=fmt_xy(*se)),
-                _tr("ticket_g54_ne", xy=fmt_xy(*ne)),
-                _tr("ticket_g54_nw", xy=fmt_xy(*nw)),
-                _tr("ticket_g54_center", xy=fmt_xy(cx, cy)),
-            ]
-        )
+        if window.dwo:
+            pose_txt = ", ".join(
+                f"{fmt_mm(b)}/{fmt_mm(c)}" for b, c in window.poses
+            )
+            raw.append(_tr("ticket_g54_dwo_heading"))
+            if pose_txt:
+                raw.append(_tr("ticket_g54_dwo_poses", poses=pose_txt))
+            for xyz in window.corners_xyz:
+                raw.append(_tr("ticket_g54_dwo_corner", xyz=fmt_xyz(*xyz)))
+            mid = window.center_xyz
+            if mid is not None:
+                raw.append(_tr("ticket_g54_dwo_center", xyz=fmt_xyz(*mid)))
+            else:
+                raw.append(_tr("ticket_g54_center", xy=fmt_xy(cx, cy)))
+        else:
+            raw.extend(
+                [
+                    _tr("ticket_g54_heading"),
+                    _tr("ticket_g54_sw", xy=fmt_xy(*sw)),
+                    _tr("ticket_g54_se", xy=fmt_xy(*se)),
+                    _tr("ticket_g54_ne", xy=fmt_xy(*ne)),
+                    _tr("ticket_g54_nw", xy=fmt_xy(*nw)),
+                    _tr("ticket_g54_center", xy=fmt_xy(cx, cy)),
+                ]
+            )
         if window.g54_inside is False:
             raw.append(_tr("ticket_g54_out"))
         elif window.g54_inside is True:
@@ -886,12 +901,14 @@ def _g54_ticket_lines(
         dia = window.max_tool_dia_mm
         if dia is not None:
             raw.append(_tr("ticket_g54_dia", d=fmt_mm(dia)))
-        if window.z_min is not None and window.z_max is not None:
+        if not window.dwo and window.z_min is not None and window.z_max is not None:
             raw.append(
                 _tr("ticket_g54_z", z0=fmt_mm(window.z_min), z1=fmt_mm(window.z_max))
             )
     if not window.fits:
-        raw.append(_tr("ticket_g54_too_big"))
+        raw.append(
+            _tr("ticket_g54_too_big_dwo") if window.dwo else _tr("ticket_g54_too_big")
+        )
     if not raw:
         return []
     lines: list[str] = []

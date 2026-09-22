@@ -432,6 +432,9 @@ def parse_machine_form(
     y_max: str = "",
     z_min: str = "",
     z_max: str = "",
+    mrzp_x: str = "",
+    mrzp_y: str = "",
+    mrzp_z: str = "",
     max_rpm: str = "",
     existing_ids: set[str] | None = None,
 ) -> MachineProfile:
@@ -456,6 +459,9 @@ def parse_machine_form(
         ymax = _parse_optional_float(y_max)
         zmin = _parse_optional_float(z_min)
         zmax = _parse_optional_float(z_max)
+        mx = _parse_optional_float(mrzp_x)
+        my = _parse_optional_float(mrzp_y)
+        mz = _parse_optional_float(mrzp_z)
         rpm = _parse_optional_float(max_rpm)
     except ValueError as exc:
         raise ValueError("machine_bad_number") from exc
@@ -482,6 +488,9 @@ def parse_machine_form(
         y_max=ymax,
         z_min=zmin,
         z_max=zmax,
+        mrzp_x=mx,
+        mrzp_y=my,
+        mrzp_z=mz,
         max_rpm=rpm,
     )
 
@@ -496,6 +505,7 @@ MILL_FORM_SCALARS = (
 )
 MILL_FORM_ATC = ("machine_atc_x", "machine_atc_y", "machine_atc_z")
 MILL_FORM_OFFSET = ("machine_offset_x", "machine_offset_y", "machine_offset_z")
+MILL_FORM_MRZP = ("machine_mrzp_x", "machine_mrzp_y", "machine_mrzp_z")
 MILL_FORM_TRAVEL = (
     ("machine_x_min", "machine_x_max"),
     ("machine_y_min", "machine_y_max"),
@@ -530,6 +540,9 @@ def mill_from_form_entries(
         y_max=entries["machine_y_max"].get(),
         z_min=entries["machine_z_min"].get(),
         z_max=entries["machine_z_max"].get(),
+        mrzp_x=entries["machine_mrzp_x"].get() if "machine_mrzp_x" in entries else "",
+        mrzp_y=entries["machine_mrzp_y"].get() if "machine_mrzp_y" in entries else "",
+        mrzp_z=entries["machine_mrzp_z"].get() if "machine_mrzp_z" in entries else "",
         max_rpm=entries["machine_max_rpm"].get(),
         existing_ids=existing_ids,
     )
@@ -616,6 +629,9 @@ def _machine_from_section(
         y_max=_opt_ini_float(src, "y_max"),
         z_min=_opt_ini_float(src, "z_min"),
         z_max=_opt_ini_float(src, "z_max"),
+        mrzp_x=_opt_ini_float(src, "mrzp_x"),
+        mrzp_y=_opt_ini_float(src, "mrzp_y"),
+        mrzp_z=_opt_ini_float(src, "mrzp_z"),
         max_rpm=_positive_opt_rpm(src),
     )
 
@@ -733,6 +749,9 @@ def save_machine_profile(
         ("y_max", mill.y_max),
         ("z_min", mill.z_min),
         ("z_max", mill.z_max),
+        ("mrzp_x", mill.mrzp_x),
+        ("mrzp_y", mill.mrzp_y),
+        ("mrzp_z", mill.mrzp_z),
     )
     for key, value in coords:
         if value is None:

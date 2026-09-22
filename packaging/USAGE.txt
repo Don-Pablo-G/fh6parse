@@ -92,7 +92,10 @@ preview, then Print A4 or Print 80 mm (paper size only — same ticks).
   Machine: combo on the preview row. Add mill… writes a [machine.<id>]
   section to %USERPROFILE%\.config\fh6parse\machines.ini (rapids, B/C rapid,
   tool-change seconds, optional max rpm, optional G53 ATC X/Y/Z, work offset
-  X/Y/Z, travel min/max per axis) so UPDATE cannot replace the mill list.
+  X/Y/Z, optional UMC MRZP X/Y/Z (Haas 255–257), travel min/max per axis)
+  so UPDATE cannot replace the mill list. With MRZP filled in, tickets use
+  programmed B/C and print an 8-corner G53 cube of where the work origin
+  may sit so linear axes stay in travel (limits only, not collisions).
   The kiosk has the same form in settings (F2). You can still add
   [machine.<id>] by hand in that file or in ui.ini. Current mill is
   kiosk.machine in the same files.

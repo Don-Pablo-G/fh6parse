@@ -537,8 +537,39 @@ class TestKioskConfig(unittest.TestCase):
             cfg = load_kiosk_config(path)
             got = cfg.active_machine()
             self.assertTrue(got.has_xy_travel())
+            self.assertTrue(got.has_z_travel())
+            self.assertAlmostEqual(got.x_min or 0, -762)
             self.assertAlmostEqual(got.y_max or 0, 0)
             self.assertAlmostEqual(got.z_min or 0, -508)
+            self.assertIsNone(got.mrzp_x)
+
+    def test_save_machine_profile_mrzp(self) -> None:
+        from fh6parse.kiosk import parse_machine_form, save_machine_profile
+
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "kiosk.ini"
+            mill = parse_machine_form(
+                name="Haas UMC-750",
+                rapid_m_min="25.4",
+                x_min="-762",
+                x_max="0",
+                y_min="-508",
+                y_max="0",
+                z_min="-508",
+                z_max="0",
+                mrzp_x="-300",
+                mrzp_y="-250",
+                mrzp_z="-400",
+            )
+            self.assertTrue(mill.has_mrzp())
+            save_machine_profile(mill, dest=path)
+            cfg = load_kiosk_config(path)
+            got = cfg.active_machine()
+            self.assertTrue(got.has_mrzp())
+            self.assertAlmostEqual(got.mrzp_x or 0, -300)
+            self.assertAlmostEqual(got.mrzp_y or 0, -250)
+            self.assertAlmostEqual(got.mrzp_z or 0, -400)
+            self.assertIn("mrzp_x = -300", path.read_text(encoding="utf-8"))
 
     def test_save_kiosk_values_keeps_overlay_machines(self) -> None:
         import os

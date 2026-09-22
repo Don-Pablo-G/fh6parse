@@ -307,6 +307,7 @@ class ParseResult:
     source_lines: list[str]
     machine: MachineProfile = field(default_factory=lambda: DEFAULT_MACHINE)
     work_bbox: WorkBBox = field(default_factory=WorkBBox)
+    rotary_poses: tuple[tuple[float, float], ...] = ()
 
 
 def _tokenize_line(raw: str, number: int) -> Line:
@@ -1052,7 +1053,7 @@ def _run_program(
     start_at: int | None = None,
     inch: bool = False,
     o_index: dict[int, int] | None = None,
-) -> tuple[set[int], WorkBBox, list[str]]:
+) -> tuple[set[int], WorkBBox, list[str], tuple[tuple[float, float], ...]]:
     """Execute Haas/Fanuc flow and fill time / min Z on visited Txx M6.
 
     p_overrides maps 0-based line index -> P number for operator M97 P# selection.
@@ -1107,6 +1108,7 @@ def _run_program(
     inch_now = inch
     changes: list[ToolUsage] = []
     bbox = WorkBBox()
+    poses: set[tuple[float, float]] = set()
     plane = 17
     g68_2d = False
     g68_ox = 0.0
@@ -1127,9 +1129,20 @@ def _run_program(
             return x, y
         return _rotate_xy(x, y, g68_ox, g68_oy, g68_r)
 
+    def note_pose() -> None:
+        b = (0.0 if abs_b is None else abs_b) + (
+            0.0 if mill.offset_b is None else mill.offset_b
+        )
+        c = (0.0 if abs_c is None else abs_c) + (
+            0.0 if mill.offset_c is None else mill.offset_c
+        )
+        poses.add((round(b, 2), round(c, 2)))
+
     def note_work() -> None:
         wx, wy = work_xy(abs_x, abs_y)
         bbox.add(wx, wy, abs_z)
+        if wx is not None or wy is not None or abs_z is not None:
+            note_pose()
 
     def g68_tool() -> int | None:
         if _is_tool_change(line, pending_t is not None) and pending_t is not None:
@@ -1599,6 +1612,8 @@ def _run_program(
                     wx, wy = work_xy(abs_x, abs_y)
                     bbox.add(wx, wy, cycle_r)
                     bbox.add(wx, wy, cycle_z)
+                    if wx is not None or wy is not None or cycle_r is not None or cycle_z is not None:
+                        note_pose()
                     if frame:
                         synced = merge_pose(
                             (g53_x, g53_y, g53_z, g53_b, g53_c),
@@ -1747,7 +1762,7 @@ def _run_program(
         current.warnings.append(G95_END_WARN)
     _flag_empty_pockets(changes)
     _flag_rpm_limit(changes, mill)
-    return executed, bbox, offset_warns + g68_warns
+    return executed, bbox, offset_warns + g68_warns, tuple(sorted(poses))
 
 
 def _simulate_path(
@@ -1759,10 +1774,10 @@ def _simulate_path(
     p_overrides: dict[int, int] | None = None,
     start_at: int | None = None,
     o_index: dict[int, int] | None = None,
-) -> tuple[list[ToolUsage], set[int], WorkBBox, list[str]]:
+) -> tuple[list[ToolUsage], set[int], WorkBBox, list[str], tuple[tuple[float, float], ...]]:
     """Fresh Txx M6 list + one programmed-path walk (M97 L, WHILE, canned L)."""
     usages = _collect_tool_usages(lines)
-    executed, bbox, offset_warns = _run_program(
+    executed, bbox, offset_warns, poses = _run_program(
         lines,
         n_index,
         usages,
@@ -1772,7 +1787,7 @@ def _simulate_path(
         inch=inch,
         o_index=o_index,
     )
-    return usages, executed, bbox, offset_warns
+    return usages, executed, bbox, offset_warns, poses
 
 
 def parse_nc_text(
@@ -1814,7 +1829,7 @@ def parse_nc_text(
     n_index = _build_n_index(lines)
     o_index = _build_o_index(lines)
     inch = units == "inch"
-    usages, executed, bbox, path_warns = _simulate_path(
+    usages, executed, bbox, path_warns, rotary = _simulate_path(
         lines, n_index, mill, inch=inch, o_index=o_index
     )
     events = usages
@@ -1836,22 +1851,24 @@ def parse_nc_text(
     declared_ns = {n for n, _ in declared}
     selectors = _selector_m97_indices(lines, n_index, declared_ns)
     operations: list[Operation] = []
+    pose_set = set(rotary)
 
     if declared and selectors:
         for n_num, title in declared:
             overrides = {idx: n_num for idx in selectors}
-            op_usages, op_exec, op_bbox, op_warns = _simulate_path(
+            op_usages, op_exec, op_bbox, op_warns, op_poses = _simulate_path(
                 lines, n_index, mill, inch=inch, p_overrides=overrides, o_index=o_index
             )
             n_line = n_index.get(n_num)
             if n_line is not None and n_line not in op_exec:
-                op_usages, op_exec, op_bbox, op_warns = _simulate_path(
+                op_usages, op_exec, op_bbox, op_warns, op_poses = _simulate_path(
                     lines, n_index, mill, inch=inch, start_at=n_line, o_index=o_index
                 )
                 call = f"start N{n_num} until M30"
             else:
                 call = f"M97 P{n_num}"
             bbox = bbox.union(op_bbox)
+            pose_set.update(op_poses)
             operations.append(
                 _make_operation(
                     op_usages,
@@ -1879,10 +1896,11 @@ def parse_nc_text(
             n_line = n_index.get(n_num)
             if n_line is None:
                 continue
-            op_usages, op_exec, op_bbox, op_warns = _simulate_path(
+            op_usages, op_exec, op_bbox, op_warns, op_poses = _simulate_path(
                 lines, n_index, mill, inch=inch, start_at=n_line, o_index=o_index
             )
             bbox = bbox.union(op_bbox)
+            pose_set.update(op_poses)
             operations.append(
                 _make_operation(
                     op_usages,
@@ -1911,6 +1929,7 @@ def parse_nc_text(
         source_lines=raw_lines,
         machine=mill,
         work_bbox=bbox,
+        rotary_poses=tuple(sorted(pose_set)),
     )
 
 

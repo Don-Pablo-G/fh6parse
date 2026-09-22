@@ -43,6 +43,9 @@ class MachineProfile:
     y_max: float | None = None
     z_min: float | None = None
     z_max: float | None = None
+    mrzp_x: float | None = None
+    mrzp_y: float | None = None
+    mrzp_z: float | None = None
     max_rpm: float | None = None
 
     def rapid_m_min_label(self) -> str:
@@ -79,6 +82,10 @@ class MachineProfile:
 
     def has_z_travel(self) -> bool:
         return None not in (self.z_min, self.z_max)
+
+    def has_mrzp(self) -> bool:
+        """True when Haas 255/256/257 (machine rotary zero point) are all set."""
+        return None not in (self.mrzp_x, self.mrzp_y, self.mrzp_z)
 
 
 DEFAULT_MACHINE = MachineProfile()

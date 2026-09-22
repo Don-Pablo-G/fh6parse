@@ -22,6 +22,7 @@ from .i18n import GUI_DEFAULT, cad_status_label, file_count, parse_language, t, 
 from .kiosk import (
     MILL_FORM_ATC,
     MILL_FORM_OFFSET,
+    MILL_FORM_MRZP,
     MILL_FORM_SCALARS,
     MILL_FORM_TRAVEL,
     FileStamp,
@@ -483,6 +484,7 @@ class ToolReportApp(tk.Tk):
 
         add_triplet("machine_atc_group", MILL_FORM_ATC)
         add_triplet("machine_offset_group", MILL_FORM_OFFSET)
+        add_triplet("machine_mrzp_group", MILL_FORM_MRZP)
         ttk.Label(body, text=self._tr("machine_travel_group")).grid(
             row=row, column=0, columnspan=6, sticky=tk.W, pady=(8, 2)
         )
